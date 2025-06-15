@@ -108,9 +108,9 @@
         <div class="toolbar-separator"></div>
         
         <div class="zoom-controls">
-            <button class="tool-btn" data-action="zoom-out" title="Zoom Out">-</button>
-            <span class="zoom-level">100%</span>
-            <button class="tool-btn" data-action="zoom-in" title="Zoom In">+</button>
+            <label for="zoomInput" class="zoom-label">Zoom:</label>
+            <input type="range" id="zoomInput" min="0.5" max="8" step="0.1" value="1">
+            <span id="zoomLevelDisplay">100%</span>
         </div>
     </div>
 

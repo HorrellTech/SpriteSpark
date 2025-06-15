@@ -148,6 +148,12 @@ class SpriteSpark {
             colorPicker.addEventListener('change', this.handleColorChange.bind(this));
         }
 
+        // Add this after other event listeners:
+        const zoomInput = document.getElementById('zoomInput');
+        if (zoomInput) {
+            zoomInput.addEventListener('input', this.updateZoomLevel.bind(this));
+        }
+
         // Tool properties
         this.initializeToolProperties();
 
@@ -668,6 +674,7 @@ class SpriteSpark {
 
     updateZoomLevel() {
         const zoomInput = document.getElementById('zoomInput');
+        const zoomLevelDisplay = document.getElementById('zoomLevelDisplay');
         if (!zoomInput) return;
         this.zoom = parseFloat(zoomInput.value);
         if (isNaN(this.zoom) || this.zoom <= 0) {
@@ -677,6 +684,9 @@ class SpriteSpark {
         this.resizeCanvases();
         this.renderCurrentFrameToMainCanvas();
         this.updateGhostCursor();
+        if (zoomLevelDisplay) {
+            zoomLevelDisplay.textContent = Math.round(this.zoom * 100) + "%";
+        }
         console.log(`Zoom level set to ${this.zoom}`);
     }
 
