@@ -37,11 +37,11 @@
     --shadow-lg: 0 4px 12px var(--shadow-color);
     
     /* Panel sizes */
-    --left-panel-width: 280px;
-    --right-panel-width: 280px;
+    --left-panel-width: 300px;
+    --right-panel-width: 300px;
     --menubar-height: 30px;
     --toolbar-height: 40px;
-    --bottom-panel-height: 140px;
+    --bottom-panel-height: 320px;
 }
 
 body {
@@ -214,10 +214,10 @@ body {
 /* Main Content */
 .main-content {
     position: absolute;
-    top: calc(var(--menubar-height) + var(--toolbar-height)); /* Fix: account for toolbar */
-    bottom: var(--bottom-panel-height, 140px);
+    top: calc(var(--menubar-height) + var(--toolbar-height));
     left: 0;
     right: 0;
+    bottom: 0; /* Fill to bottom of viewport */
     display: flex;
     min-height: 0;
     min-width: 0;
@@ -235,6 +235,9 @@ body {
     overflow-x: hidden;
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) var(--bg-secondary);
+    height: 100%;
+    min-height: 0;
+    max-height: none;
 }
 
 /* For Webkit browsers (Chrome, Edge, Safari) */
@@ -252,16 +255,43 @@ body {
 
 .left-panel {
     width: var(--left-panel-width);
-    min-width: 200px;
-    max-width: 400px;
+    min-width: var(--left-panel-width);
+    max-width: var(--left-panel-width);
 }
 
 .right-panel {
     width: var(--right-panel-width);
-    min-width: 200px;
-    max-width: 400px;
+    min-width: var(--right-panel-width);
+    max-width: var(--right-panel-width);
     border-right: none;
     border-left: 1px solid var(--border-color);
+}
+
+
+
+.bottom-panel {
+    position: fixed;
+    left: var(--left-panel-width, 480px);
+    right: var(--right-panel-width, 480px);
+    bottom: 0;
+    height: var(--bottom-panel-height, 320px);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    z-index: 20;
+    transition: height 0.2s;
+}
+.bottom-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 1rem;
+    height: 32px;
+    gap: 12px;
 }
 
 .panel-header {
@@ -509,7 +539,7 @@ body {
     flex-grow: 1;
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: center; /* Center vertically by default */
     position: relative;
     background-color: var(--bg-primary);
     overflow: auto;
@@ -517,12 +547,12 @@ body {
     min-width: 0;
     height: 100%;
     width: 100%;
+    box-sizing: border-box;
 }
 
 /* If content is scrollable, align to top/left */
 .canvas-container.scrolling {
-    justify-content: flex-start !important;
-    align-items: flex-start !important;
+    align-items: flex-start !important; /* Top align when scrolling */
 }
 
 .canvas-wrapper {
@@ -555,7 +585,7 @@ body {
 
 #gridCanvas {
     pointer-events: none; /* Grid should not interfere with drawing */
-    z-index: 1;
+    z-index: 3;
 }
 
 #ghostCanvas {
@@ -565,7 +595,7 @@ body {
 }
 
 #mainCanvas {
-    z-index: 3; /* Main drawing canvas on top */
+    z-index: 1; /* Main drawing canvas on bottom */
 }
 
 /* Animation Controls */
@@ -1131,31 +1161,6 @@ select:focus {
     pointer-events: none;
 }
 
-.bottom-panel {
-    position: fixed;
-    left: var(--left-panel-width, 280px);
-    right: var(--right-panel-width, 280px);
-    bottom: 0;
-    height: var(--bottom-panel-height, 140px);
-    background: var(--bg-secondary);
-    border-top: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    z-index: 20;
-    transition: height 0.2s;
-}
-.bottom-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 4px 12px;
-    background: var(--bg-primary);
-    border-bottom: 1px solid var(--border-color);
-    font-size: 1rem;
-    height: 32px;
-    gap: 12px;
-}
-
 .frame-size-controls {
     margin-left: auto;
     display: flex;
@@ -1274,4 +1279,40 @@ select:focus {
 .dropdown li:hover span {
     background-color: var(--bg-hover);
     color: var(--accent-color);
+}
+
+.property-group label,
+.drawing-options label,
+.animation-controls label,
+.live-preview-controls label {
+    flex-direction: row !important;
+    align-items: center !important;
+    display: flex !important;
+    gap: 6px;
+    justify-content: flex-start;
+}
+
+#primaryColor.active {
+    box-shadow:
+        0 0 0 3px var(--accent-color),
+        0 0 12px 6px var(--accent-color-alpha),
+        0 0 24px 6px var(--accent-color-alpha);
+    border-color: var(--accent-color);
+    z-index: 1;
+}
+
+#secondaryColor.active {
+    box-shadow:
+        0 0 0 3px var(--border-color),
+        0 0 12px 6px var(--border-color),
+        0 0 24px 6px var(--border-color);
+    border-color: var(--border-color);
+    z-index: 1;
+}
+
+/* The non-active color just gets a basic border, no glow */
+#primaryColor:not(.active),
+#secondaryColor:not(.active) {
+    box-shadow: none;
+    border-color: none;/*var(--border-color);*/
 }

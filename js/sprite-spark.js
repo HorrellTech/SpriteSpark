@@ -50,6 +50,9 @@ class SpriteSpark {
         this.secondaryColor = '#ffffff';
         this.brushSize = 1;
         this.opacity = 100;
+        this.showBrushGhost = true;
+        this.floodFillTolerance = 0;
+        this.floodFillDetectAllLayers = false;
 
         // UI properties
         this.theme = 'dark';
@@ -127,8 +130,20 @@ class SpriteSpark {
             this.mainCanvas.addEventListener('mousedown', this.startDrawing.bind(this));
             this.mainCanvas.addEventListener('mousemove', this.draw.bind(this));
             this.mainCanvas.addEventListener('mouseup', this.stopDrawing.bind(this));
-            this.mainCanvas.addEventListener('mouseleave', this.stopDrawing.bind(this));
-            this.mainCanvas.addEventListener('contextmenu', e => e.preventDefault());
+            //this.mainCanvas.addEventListener('mouseleave', this.stopDrawing.bind(this));
+            this.mainCanvas.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                // Swap primary and secondary colors
+                const temp = this.primaryColor;
+                this.primaryColor = this.secondaryColor;
+                this.secondaryColor = temp;
+                // Update UI
+                const primaryColorEl = document.getElementById('primaryColor');
+                const secondaryColorEl = document.getElementById('secondaryColor');
+                if (primaryColorEl) primaryColorEl.style.backgroundColor = this.primaryColor;
+                if (secondaryColorEl) secondaryColorEl.style.backgroundColor = this.secondaryColor;
+                this.updateColorSwatchHighlight();
+            });
 
             // Ghost cursor
             this.mainCanvas.addEventListener('mousemove', this.updateGhostCursor.bind(this));
@@ -292,6 +307,9 @@ class SpriteSpark {
         const brushSizeValue = document.getElementById('brushSizeValue');
         const opacityValue = document.getElementById('opacityValue');
         const toolButtons = document.querySelectorAll('.drawing-tool');
+        const showBrushGhost = document.getElementById('showBrushGhost');
+        const floodFillTolerance = document.getElementById('floodFillTolerance');
+        const floodFillToleranceValue = document.getElementById('floodFillToleranceValue');
 
         if (brushSize) {
             brushSize.addEventListener('input', (e) => {
@@ -308,20 +326,47 @@ class SpriteSpark {
             });
         }
 
-        // Drawing tool buttons
-        //if(toolButtons) {
+        if (showBrushGhost) {
+            showBrushGhost.checked = this.showBrushGhost;
+            showBrushGhost.addEventListener('change', (e) => {
+                this.showBrushGhost = e.target.checked;
+            });
+        }
+
+        if (floodFillTolerance && floodFillToleranceValue) {
+            floodFillTolerance.value = this.floodFillTolerance;
+            floodFillToleranceValue.textContent = this.floodFillTolerance;
+            floodFillTolerance.addEventListener('input', (e) => {
+                this.floodFillTolerance = parseInt(e.target.value, 10);
+                floodFillToleranceValue.textContent = this.floodFillTolerance;
+            });
+        }
+
+        const floodFillDetectAllLayers = document.getElementById('floodFillDetectAllLayers');
+        if (floodFillDetectAllLayers) {
+            floodFillDetectAllLayers.checked = this.floodFillDetectAllLayers;
+            floodFillDetectAllLayers.addEventListener('change', (e) => {
+                this.floodFillDetectAllLayers = e.target.checked;
+            });
+        }
+
         toolButtons.forEach(btn => {
             btn.addEventListener('click', () => {
+                this.currentTool = btn.getAttribute('data-tool');
+                const floodFillOptions = document.getElementById('floodFillOptions');
+                if (floodFillOptions) {
+                    floodFillOptions.style.display = (this.currentTool === 'bucket') ? 'block' : 'none';
+                }
+
                 toolButtons.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 this.currentTool = btn.getAttribute('data-tool');
             });
         });
-        //}
     }
 
     initializePanelResizing() {
-        const leftResize = document.querySelector('.left-resize');
+        /*const leftResize = document.querySelector('.left-resize');
         const rightResize = document.querySelector('.right-resize');
         const leftPanel = document.getElementById('leftPanel');
         const rightPanel = document.getElementById('rightPanel');
@@ -368,7 +413,7 @@ class SpriteSpark {
         if (leftResize) leftResize.addEventListener('mousedown', (e) => startResize(e, 'left'));
         if (rightResize) rightResize.addEventListener('mousedown', (e) => startResize(e, 'right'));
         document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
+        document.addEventListener('mouseup', stopResize);*/
     }
 
     initializeColorPalette() {
@@ -391,12 +436,26 @@ class SpriteSpark {
             swatch.className = 'color-swatch';
             swatch.style.backgroundColor = color;
             swatch.title = color;
-            swatch.addEventListener('click', () => {
-                this.primaryColor = color;
-                const primaryColorEl = document.getElementById('primaryColor');
+            // Left click: set primary
+            swatch.addEventListener('click', (e) => {
+                if (e.button === 0) {
+                    this.primaryColor = color;
+                    this.updateColorSwatchHighlight();
+                    const primaryColorEl = document.getElementById('primaryColor');
+                    const colorPicker = document.getElementById('colorPicker');
+                    if (primaryColorEl) primaryColorEl.style.backgroundColor = color;
+                    if (colorPicker) colorPicker.value = color;
+                }
+            });
+            // Right click: set secondary
+            swatch.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                this.secondaryColor = color;
+                this.updateColorSwatchHighlight();
+                const secondaryColorEl = document.getElementById('secondaryColor');
+                if (secondaryColorEl) secondaryColorEl.style.backgroundColor = color;
                 const colorPicker = document.getElementById('colorPicker');
-                if (primaryColorEl) primaryColorEl.style.backgroundColor = color;
-                if (colorPicker) colorPicker.value = color;
+                if (colorPicker) colorPicker.value = this.primaryColor;
             });
             palette.appendChild(swatch);
         });
@@ -406,6 +465,100 @@ class SpriteSpark {
         const secondaryColorEl = document.getElementById('secondaryColor');
         if (primaryColorEl) primaryColorEl.style.backgroundColor = this.primaryColor;
         if (secondaryColorEl) secondaryColorEl.style.backgroundColor = this.secondaryColor;
+
+        // Left click: set primary, right click: set secondary for main swatches
+        if (primaryColorEl) {
+            primaryColorEl.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                // Swap colors
+                const temp = this.primaryColor;
+                this.primaryColor = this.secondaryColor;
+                this.secondaryColor = temp;
+                primaryColorEl.style.backgroundColor = this.primaryColor;
+                if (secondaryColorEl) secondaryColorEl.style.backgroundColor = this.secondaryColor;
+                this.updateColorSwatchHighlight();
+                const colorPicker = document.getElementById('colorPicker');
+                if (colorPicker) colorPicker.value = this.primaryColor;
+            });
+        }
+        if (secondaryColorEl) {
+            secondaryColorEl.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                // Swap colors
+                const temp = this.primaryColor;
+                this.primaryColor = this.secondaryColor;
+                this.secondaryColor = temp;
+                if (primaryColorEl) primaryColorEl.style.backgroundColor = this.primaryColor;
+                secondaryColorEl.style.backgroundColor = this.secondaryColor;
+                this.updateColorSwatchHighlight();
+                const colorPicker = document.getElementById('colorPicker');
+                if (colorPicker) colorPicker.value = this.primaryColor;
+            });
+        }
+
+        // Color picker: left click = primary, right click = secondary
+        const colorPicker = document.getElementById('colorPicker');
+        if (colorPicker) {
+            colorPicker.addEventListener('change', (e) => {
+                this.primaryColor = e.target.value;
+                if (primaryColorEl) primaryColorEl.style.backgroundColor = this.primaryColor;
+                this.updateColorSwatchHighlight();
+            });
+            colorPicker.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                this.secondaryColor = colorPicker.value;
+                if (secondaryColorEl) secondaryColorEl.style.backgroundColor = this.secondaryColor;
+                this.updateColorSwatchHighlight();
+            });
+        }
+
+        // Highlight selected color
+        this.updateColorSwatchHighlight();
+    }
+
+    updateColorSwatchHighlight() {
+        // Highlight the selected primary and secondary color swatches
+        const palette = document.getElementById('colorPalette');
+        if (!palette) return;
+
+        const swatches = palette.querySelectorAll('.color-swatch');
+        swatches.forEach(swatch => {
+            swatch.classList.remove('primary-selected', 'secondary-selected');
+            if (swatch.style.backgroundColor.toLowerCase() === this.hexToRgb(this.primaryColor).toLowerCase()) {
+                swatch.classList.add('primary-selected');
+            }
+            if (swatch.style.backgroundColor.toLowerCase() === this.hexToRgb(this.secondaryColor).toLowerCase()) {
+                swatch.classList.add('secondary-selected');
+            }
+        });
+
+        const primaryColorEl = document.getElementById('primaryColor');
+        const secondaryColorEl = document.getElementById('secondaryColor');
+        if (primaryColorEl && secondaryColorEl) {
+            // Only one gets the active class at a time
+            if (document.activeElement === primaryColorEl) {
+                primaryColorEl.classList.add('active');
+                secondaryColorEl.classList.remove('active');
+            } else if (document.activeElement === secondaryColorEl) {
+                secondaryColorEl.classList.add('active');
+                primaryColorEl.classList.remove('active');
+            } else {
+                // Default: highlight primary
+                primaryColorEl.classList.add('active');
+                secondaryColorEl.classList.remove('active');
+            }
+        }
+    }
+
+    // Utility to convert hex to rgb string for comparison
+    hexToRgb(hex) {
+        // Expand shorthand form (e.g. "03F") to full form ("0033FF")
+        let shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+        hex = hex.replace(shorthandRegex, function(m, r, g, b) {
+            return r + r + g + g + b + b;
+        });
+        let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? `rgb(${parseInt(result[1],16)}, ${parseInt(result[2],16)}, ${parseInt(result[3],16)})` : hex;
     }
 
     initializeFrames() {
@@ -1127,14 +1280,53 @@ class SpriteSpark {
         this.updateFramesList();
     }
 
-    // Add all other missing methods from the original script
     startDrawing(e) {
         if (!this.activeLayerId) return;
-        this.isDrawing = true;
+
+        // Only allow left mouse button for drawing
+        if (e.button !== 0) {
+            // If right mouse button, swap primary and secondary color
+            if (e.button === 2) {
+                const temp = this.primaryColor;
+                this.primaryColor = this.secondaryColor;
+                this.secondaryColor = temp;
+                this.updateColorSwatchHighlight();
+            }
+            return;
+        }
+
         const rect = this.mainCanvas.getBoundingClientRect();
-        this.lastX = Math.floor((e.clientX - rect.left) / this.zoom);
-        this.lastY = Math.floor((e.clientY - rect.top) / this.zoom);
-        this.draw(e); // Draw initial point
+        const x = Math.floor((e.clientX - rect.left) / this.zoom);
+        const y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+        // Eyedropper with Ctrl+Click
+        if ((this.currentTool === 'eyedropper') ||
+            (e.button === 0 && e.ctrlKey)) {
+            this.pickColorAt(x, y);
+            return;
+        }
+
+        if (this.currentTool === 'bucket') {
+            const layer = this.layers.find(l => l.id === this.activeLayerId);
+            if (!layer) return;
+            const ctx = layer.canvas.getContext('2d');
+            this.floodFill(
+                ctx,
+                x,
+                y,
+                this.primaryColor,
+                this.floodFillTolerance,
+                this.floodFillDetectAllLayers
+            );
+            this.renderCurrentFrameToMainCanvas();
+            this.syncGlobalLayersToCurrentFrame();
+            return;
+        }
+
+        this.isDrawing = true;
+        this.lastX = x;
+        this.lastY = y;
+        this.draw(e);
         this.syncGlobalLayersToCurrentFrame();
     }
 
@@ -1203,6 +1395,95 @@ class SpriteSpark {
         this.syncGlobalLayersToCurrentFrame();
     }
 
+    floodFill(ctx, x, y, fillColor, tolerance = 0, detectAllLayers = false) {
+        const width = ctx.canvas.width;
+        const height = ctx.canvas.height;
+        let imageData, data;
+
+        if (detectAllLayers) {
+            // Compose all visible layers into a temp canvas
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const tempCtx = tempCanvas.getContext('2d');
+            for (let i = 0; i < this.layers.length; i++) {
+                const layer = this.layers[i];
+                if (layer.isVisible && layer.canvas) {
+                    tempCtx.globalAlpha = layer.opacity / 100;
+                    tempCtx.globalCompositeOperation = layer.blendMode || 'source-over';
+                    tempCtx.drawImage(layer.canvas, 0, 0);
+                }
+            }
+            imageData = tempCtx.getImageData(0, 0, width, height);
+            data = imageData.data;
+        } else {
+            imageData = ctx.getImageData(0, 0, width, height);
+            data = imageData.data;
+        }
+
+        const stack = [[x, y]];
+        const pixelPos = (x, y) => (y * width + x) * 4;
+        const startIdx = pixelPos(x, y);
+        const startColor = data.slice(startIdx, startIdx + 4);
+
+        function colorMatch(idx) {
+            for (let i = 0; i < 4; i++) {
+                if (Math.abs(data[idx + i] - startColor[i]) > tolerance) return false;
+            }
+            return true;
+        }
+
+        // Parse fillColor to RGBA
+        const temp = document.createElement('canvas');
+        temp.width = temp.height = 1;
+        const tctx = temp.getContext('2d');
+        tctx.fillStyle = fillColor;
+        tctx.fillRect(0, 0, 1, 1);
+        const fillRGBA = tctx.getImageData(0, 0, 1, 1).data;
+
+        // For writing, always write to the target ctx
+        const targetImageData = ctx.getImageData(0, 0, width, height);
+        const targetData = targetImageData.data;
+
+        while (stack.length) {
+            const [cx, cy] = stack.pop();
+            if (cx < 0 || cy < 0 || cx >= width || cy >= height) continue;
+            const idx = pixelPos(cx, cy);
+            if (!colorMatch(idx)) continue;
+            // Set pixel to fill color in target layer
+            for (let i = 0; i < 4; i++) targetData[idx + i] = fillRGBA[i];
+            // Mark as visited in data array to avoid infinite loop
+            data[idx] = 255; data[idx + 1] = 255; data[idx + 2] = 254; // unlikely color
+            // Push neighbors
+            stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+        }
+        ctx.putImageData(targetImageData, 0, 0);
+    }
+
+    pickColorAt(x, y) {
+        // Compose all visible layers for color picking
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.canvasWidth;
+        tempCanvas.height = this.canvasHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+        for (let i = 0; i < this.layers.length; i++) {
+            const layer = this.layers[i];
+            if (layer.isVisible && layer.canvas) {
+                tempCtx.globalAlpha = layer.opacity / 100;
+                tempCtx.globalCompositeOperation = layer.blendMode || 'source-over';
+                tempCtx.drawImage(layer.canvas, 0, 0);
+            }
+        }
+        const imgData = tempCtx.getImageData(x, y, 1, 1).data;
+        // Convert RGBA to hex
+        const hex = "#" + [0, 1, 2].map(i => imgData[i].toString(16).padStart(2, '0')).join('');
+        this.primaryColor = hex;
+        const primaryColorEl = document.getElementById('primaryColor');
+        const colorPicker = document.getElementById('colorPicker');
+        if (primaryColorEl) primaryColorEl.style.backgroundColor = hex;
+        if (colorPicker) colorPicker.value = hex;
+    }
+
     stopDrawing() {
         this.isDrawing = false;
         this.syncGlobalLayersToCurrentFrame();
@@ -1211,7 +1492,7 @@ class SpriteSpark {
     updateGhostCursor(e) {
         if (!this.ghostCtx || !this.ghostCanvas) return;
         this.ghostCtx.clearRect(0, 0, this.ghostCanvas.width, this.ghostCanvas.height);
-        if (!e) return;
+        if (!e || !this.showBrushGhost || this.currentTool === 'bucket' || this.currentTool === 'eyedropper') return;
         const rect = this.ghostCanvas.getBoundingClientRect();
         const x = Math.floor((e.clientX - rect.left) / this.zoom);
         const y = Math.floor((e.clientY - rect.top) / this.zoom);
@@ -1246,78 +1527,78 @@ class SpriteSpark {
     }
 
     updateFramesList() {
-    const framesList = document.getElementById('framesList');
-    if (!framesList) return;
+        const framesList = document.getElementById('framesList');
+        if (!framesList) return;
 
-    // Get selected size
-    const sizeSelect = document.getElementById('frameThumbSize');
-    let size = 'medium';
-    if (sizeSelect) size = sizeSelect.value;
+        // Get selected size
+        const sizeSelect = document.getElementById('frameThumbSize');
+        let size = 'medium';
+        if (sizeSelect) size = sizeSelect.value;
 
-    framesList.innerHTML = '';
-    this.frames.forEach((frame, idx) => {
-        const item = document.createElement('div');
-        item.className = `frame-item ${size} ${idx === this.currentFrame ? 'active' : ''}`;
-        item.dataset.frame = idx;
+        framesList.innerHTML = '';
+        this.frames.forEach((frame, idx) => {
+            const item = document.createElement('div');
+            item.className = `frame-item ${size} ${idx === this.currentFrame ? 'active' : ''}`;
+            item.dataset.frame = idx;
 
-        // Frame number
-        const numberDiv = document.createElement('div');
-        numberDiv.className = 'frame-number';
-        numberDiv.textContent = idx + 1;
-        item.appendChild(numberDiv);
+            // Frame number
+            const numberDiv = document.createElement('div');
+            numberDiv.className = 'frame-number';
+            numberDiv.textContent = idx + 1;
+            item.appendChild(numberDiv);
 
-        // Thumbnail
-        const thumbDiv = document.createElement('div');
-        thumbDiv.className = 'frame-thumbnail';
-        const thumbCanvas = document.createElement('canvas');
-        // Set canvas size based on size
-        let w = 64, h = 48;
-        if (size === 'small') { w = 32; h = 24; }
-        if (size === 'large') { w = 128; h = 96; }
-        thumbCanvas.width = w;
-        thumbCanvas.height = h;
-        const thumbCtx = thumbCanvas.getContext('2d');
+            // Thumbnail
+            const thumbDiv = document.createElement('div');
+            thumbDiv.className = 'frame-thumbnail';
+            const thumbCanvas = document.createElement('canvas');
+            // Set canvas size based on size
+            let w = 64, h = 48;
+            if (size === 'small') { w = 32; h = 24; }
+            if (size === 'large') { w = 128; h = 96; }
+            thumbCanvas.width = w;
+            thumbCanvas.height = h;
+            const thumbCtx = thumbCanvas.getContext('2d');
 
-        // Draw all layers for this frame, bottom to top
-        if (frame.layers) {
-            for (let i = 0; i < frame.layers.length; i++) {
-                const l = frame.layers[i];
-                if (l.isVisible !== false && l.canvas instanceof HTMLCanvasElement) {
-                    // Fit and center the image in the thumbnail
-                    const srcW = l.canvas.width;
-                    const srcH = l.canvas.height;
-                    const dstW = thumbCanvas.width;
-                    const dstH = thumbCanvas.height;
-                    const srcAspect = srcW / srcH;
-                    const dstAspect = dstW / dstH;
-                    let drawW, drawH, dx, dy;
-                    if (srcAspect > dstAspect) {
-                        drawW = dstW;
-                        drawH = dstW / srcAspect;
-                        dx = 0;
-                        dy = (dstH - drawH) / 2;
-                    } else {
-                        drawH = dstH;
-                        drawW = dstH * srcAspect;
-                        dx = (dstW - drawW) / 2;
-                        dy = 0;
+            // Draw all layers for this frame, bottom to top
+            if (frame.layers) {
+                for (let i = 0; i < frame.layers.length; i++) {
+                    const l = frame.layers[i];
+                    if (l.isVisible !== false && l.canvas instanceof HTMLCanvasElement) {
+                        // Fit and center the image in the thumbnail
+                        const srcW = l.canvas.width;
+                        const srcH = l.canvas.height;
+                        const dstW = thumbCanvas.width;
+                        const dstH = thumbCanvas.height;
+                        const srcAspect = srcW / srcH;
+                        const dstAspect = dstW / dstH;
+                        let drawW, drawH, dx, dy;
+                        if (srcAspect > dstAspect) {
+                            drawW = dstW;
+                            drawH = dstW / srcAspect;
+                            dx = 0;
+                            dy = (dstH - drawH) / 2;
+                        } else {
+                            drawH = dstH;
+                            drawW = dstH * srcAspect;
+                            dx = (dstW - drawW) / 2;
+                            dy = 0;
+                        }
+                        thumbCtx.globalAlpha = l.opacity / 100 || 1;
+                        thumbCtx.globalCompositeOperation = l.blendMode || 'source-over';
+                        thumbCtx.drawImage(l.canvas, 0, 0, srcW, srcH, dx, dy, drawW, drawH);
                     }
-                    thumbCtx.globalAlpha = l.opacity / 100 || 1;
-                    thumbCtx.globalCompositeOperation = l.blendMode || 'source-over';
-                    thumbCtx.drawImage(l.canvas, 0, 0, srcW, srcH, dx, dy, drawW, drawH);
                 }
             }
-        }
 
-        thumbCtx.globalAlpha = 1.0;
-        thumbCtx.globalCompositeOperation = 'source-over';
-        thumbDiv.appendChild(thumbCanvas);
-        item.appendChild(thumbDiv);
+            thumbCtx.globalAlpha = 1.0;
+            thumbCtx.globalCompositeOperation = 'source-over';
+            thumbDiv.appendChild(thumbCanvas);
+            item.appendChild(thumbDiv);
 
-        item.addEventListener('click', () => this.selectFrame(idx));
-        framesList.appendChild(item);
-    });
-}
+            item.addEventListener('click', () => this.selectFrame(idx));
+            framesList.appendChild(item);
+        });
+    }
 
     addFrame() {
         // Deep copy all layer canvases for the new frame
@@ -1644,123 +1925,123 @@ class SpriteSpark {
     }
 
     _doExportAnimation(name, format) {
-    const loadingModal = document.getElementById('exportLoadingModal');
-    const progressText = document.getElementById('exportProgressText');
-    const progressBar = document.getElementById('exportProgressBar');
-    const cancelBtn = document.getElementById('exportLoadingCancel');
-    let cancelled = false;
+        const loadingModal = document.getElementById('exportLoadingModal');
+        const progressText = document.getElementById('exportProgressText');
+        const progressBar = document.getElementById('exportProgressBar');
+        const cancelBtn = document.getElementById('exportLoadingCancel');
+        let cancelled = false;
 
-    function showLoading(text, percent) {
-        if (loadingModal) loadingModal.classList.remove('hidden');
-        if (progressText) progressText.textContent = text;
-        if (progressBar) progressBar.style.width = percent + "%";
-    }
-    function hideLoading() {
-        if (loadingModal) loadingModal.classList.add('hidden');
-    }
+        function showLoading(text, percent) {
+            if (loadingModal) loadingModal.classList.remove('hidden');
+            if (progressText) progressText.textContent = text;
+            if (progressBar) progressBar.style.width = percent + "%";
+        }
+        function hideLoading() {
+            if (loadingModal) loadingModal.classList.add('hidden');
+        }
 
-    if (cancelBtn) {
-        cancelBtn.onclick = () => {
-            cancelled = true;
-            hideLoading();
-        };
-    }
+        if (cancelBtn) {
+            cancelBtn.onclick = () => {
+                cancelled = true;
+                hideLoading();
+            };
+        }
 
-    if (format === "gif") {
-        const gif = new window.GIF({
-            workers: 2,
-            quality: 10,
-            width: this.canvasWidth,
-            height: this.canvasHeight,
-            workerScript: 'https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js'
-        });
+        if (format === "gif") {
+            const gif = new window.GIF({
+                workers: 2,
+                quality: 10,
+                width: this.canvasWidth,
+                height: this.canvasHeight,
+                workerScript: 'https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js'
+            });
 
-        let totalFrames = this.frames.length;
-        for (let f = 0; f < totalFrames; f++) {
-            if (cancelled) return;
+            let totalFrames = this.frames.length;
+            for (let f = 0; f < totalFrames; f++) {
+                if (cancelled) return;
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.canvasWidth;
+                tempCanvas.height = this.canvasHeight;
+                const tempCtx = tempCanvas.getContext('2d');
+                const frame = this.frames[f];
+                for (let i = 0; i < frame.layers.length; i++) {
+                    const layer = frame.layers[i];
+                    if (!layer.isVisible) continue;
+                    tempCtx.globalAlpha = layer.opacity / 100;
+                    tempCtx.globalCompositeOperation = layer.blendMode;
+                    tempCtx.drawImage(layer.canvas, 0, 0);
+                }
+                tempCtx.globalAlpha = 1.0;
+                tempCtx.globalCompositeOperation = 'source-over';
+                gif.addFrame(tempCanvas, { delay: 1000 / this.fps });
+            }
+
+            gif.on('progress', (p) => {
+                showLoading(`Encoding GIF: ${Math.round(p * 100)}%`, Math.round(p * 100));
+            });
+            gif.on('finished', function (blob) {
+                hideLoading();
+                if (cancelled) return;
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = name + ".gif";
+                a.click();
+            });
+            showLoading("Encoding GIF: 0%", 0);
+            gif.render();
+        } else {
+            // WebM/MP4 export using CCapture.js
+            const capturer = new window.CCapture({
+                format: format,
+                framerate: this.fps,
+                verbose: true,
+                name: name
+            });
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = this.canvasWidth;
             tempCanvas.height = this.canvasHeight;
             const tempCtx = tempCanvas.getContext('2d');
-            const frame = this.frames[f];
-            for (let i = 0; i < frame.layers.length; i++) {
-                const layer = frame.layers[i];
-                if (!layer.isVisible) continue;
-                tempCtx.globalAlpha = layer.opacity / 100;
-                tempCtx.globalCompositeOperation = layer.blendMode;
-                tempCtx.drawImage(layer.canvas, 0, 0);
-            }
-            tempCtx.globalAlpha = 1.0;
-            tempCtx.globalCompositeOperation = 'source-over';
-            gif.addFrame(tempCanvas, { delay: 1000 / this.fps });
+            let totalFrames = this.frames.length;
+            let frameIdx = 0;
+            capturer.start();
+            showLoading(`Encoding ${format.toUpperCase()}: 0/${totalFrames}`, 0);
+
+            const renderFrame = () => {
+                if (cancelled) {
+                    capturer.stop();
+                    hideLoading();
+                    return;
+                }
+                if (frameIdx >= totalFrames) {
+                    capturer.stop();
+                    hideLoading();
+                    capturer.save();
+                    return;
+                }
+                // Draw the frame
+                tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+                const frame = this.frames[frameIdx];
+                for (let i = 0; i < frame.layers.length; i++) {
+                    const layer = frame.layers[i];
+                    if (!layer.isVisible) continue;
+                    tempCtx.globalAlpha = layer.opacity / 100;
+                    tempCtx.globalCompositeOperation = layer.blendMode;
+                    tempCtx.drawImage(layer.canvas, 0, 0);
+                }
+                tempCtx.globalAlpha = 1.0;
+                tempCtx.globalCompositeOperation = 'source-over';
+
+                // Wait for the browser to finish drawing, then capture
+                requestAnimationFrame(() => {
+                    capturer.capture(tempCanvas);
+                    frameIdx++;
+                    showLoading(`Encoding ${format.toUpperCase()}: ${frameIdx}/${totalFrames}`, Math.round((frameIdx / totalFrames) * 100));
+                    setTimeout(renderFrame, 1000 / this.fps);
+                });
+            };
+            renderFrame();
         }
-
-        gif.on('progress', (p) => {
-            showLoading(`Encoding GIF: ${Math.round(p * 100)}%`, Math.round(p * 100));
-        });
-        gif.on('finished', function (blob) {
-            hideLoading();
-            if (cancelled) return;
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = name + ".gif";
-            a.click();
-        });
-        showLoading("Encoding GIF: 0%", 0);
-        gif.render();
-    } else {
-        // WebM/MP4 export using CCapture.js
-        const capturer = new window.CCapture({
-            format: format,
-            framerate: this.fps,
-            verbose: true,
-            name: name
-        });
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = this.canvasWidth;
-        tempCanvas.height = this.canvasHeight;
-        const tempCtx = tempCanvas.getContext('2d');
-        let totalFrames = this.frames.length;
-        let frameIdx = 0;
-        capturer.start();
-        showLoading(`Encoding ${format.toUpperCase()}: 0/${totalFrames}`, 0);
-
-        const renderFrame = () => {
-            if (cancelled) {
-                capturer.stop();
-                hideLoading();
-                return;
-            }
-            if (frameIdx >= totalFrames) {
-                capturer.stop();
-                hideLoading();
-                capturer.save();
-                return;
-            }
-            // Draw the frame
-            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-            const frame = this.frames[frameIdx];
-            for (let i = 0; i < frame.layers.length; i++) {
-                const layer = frame.layers[i];
-                if (!layer.isVisible) continue;
-                tempCtx.globalAlpha = layer.opacity / 100;
-                tempCtx.globalCompositeOperation = layer.blendMode;
-                tempCtx.drawImage(layer.canvas, 0, 0);
-            }
-            tempCtx.globalAlpha = 1.0;
-            tempCtx.globalCompositeOperation = 'source-over';
-
-            // Wait for the browser to finish drawing, then capture
-            requestAnimationFrame(() => {
-                capturer.capture(tempCanvas);
-                frameIdx++;
-                showLoading(`Encoding ${format.toUpperCase()}: ${frameIdx}/${totalFrames}`, Math.round((frameIdx / totalFrames) * 100));
-                setTimeout(renderFrame, 1000 / this.fps);
-            });
-        };
-        renderFrame();
     }
-}
 
     // UNDO/REDO functionality
     undoAdd() {
@@ -1897,6 +2178,41 @@ function updateBottomPanelPosition() {
     }
 }
 
+function adjustMainContentHeight() {
+    const mainContent = document.querySelector('.main-content');
+    const menubar = document.querySelector('.menubar');
+    const toolbar = document.querySelector('.toolbar');
+    const bottomPanel = document.getElementById('bottomPanel');
+    if (!mainContent || !menubar || !toolbar || !bottomPanel) return;
+
+    const menubarHeight = menubar.offsetHeight;
+    const toolbarHeight = toolbar.offsetHeight;
+    const bottomPanelHeight = bottomPanel.offsetHeight;
+
+    // Set main-content height so panels fill to bottomPanel
+    mainContent.style.top = (menubarHeight + toolbarHeight) + 'px';
+    mainContent.style.bottom = bottomPanelHeight + 'px';
+    mainContent.style.height = `calc(100vh - ${menubarHeight + toolbarHeight + bottomPanelHeight}px)`;
+}
+
+function updateCanvasContainerScrolling() {
+    const canvasContainer = document.querySelector('.canvas-container');
+    const mainCanvas = document.getElementById('mainCanvas');
+    if (!canvasContainer || !mainCanvas) return;
+
+    // Check if canvas is taller than container (after zoom)
+    const canvasHeight = mainCanvas.offsetHeight;
+    const containerHeight = canvasContainer.clientHeight;
+
+    if (canvasHeight > containerHeight + 1) {
+        canvasContainer.classList.add('scrolling');
+    } else {
+        canvasContainer.classList.remove('scrolling');
+        // Center vertically by resetting scroll
+        canvasContainer.scrollTop = 0;
+    }
+}
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
     const app = new SpriteSpark();
@@ -1909,7 +2225,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let isResizingBottom = false;
     let startY = 0, startHeight = 0;
-    
+
     if (canvasContainer && zoomInput) {
         canvasContainer.addEventListener('wheel', (e) => {
             if (e.ctrlKey) {
@@ -1998,6 +2314,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const dy = e.clientY - panStart.y;
         canvasContainer.scrollLeft = scrollStart.left - dx;
         canvasContainer.scrollTop = scrollStart.top - dy;
+        clampCanvasScroll();
         e.preventDefault();
     }
 
@@ -2008,13 +2325,20 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
     }
 
+    function clampCanvasScroll() {
+        const canvasContainer = document.getElementById('canvasContainer');
+        if (!canvasContainer) return;
+        // Prevent scrolling above the top (menubar+toolbar)
+        if (canvasContainer.scrollTop < 0) canvasContainer.scrollTop = 0;
+    }
+
     if (canvasContainer) {
         canvasContainer.addEventListener('mousedown', startPan);
         canvasContainer.addEventListener('mousemove', panMove);
         window.addEventListener('mouseup', endPan);
 
         // Prevent default middle mouse scroll behavior
-        canvasContainer.addEventListener('mousedown', function(e) {
+        canvasContainer.addEventListener('mousedown', function (e) {
             if (e.button === 1) e.preventDefault();
         });
     }
@@ -2025,6 +2349,32 @@ document.addEventListener('DOMContentLoaded', () => {
             el.style.pointerEvents = anyMenuOpen ? 'none' : '';
         });
     }
+
+    // Call this after zoom, resize, or canvas size changes
+    const originalUpdateZoomLevel = SpriteSpark.prototype.updateZoomLevel;
+    SpriteSpark.prototype.updateZoomLevel = function () {
+        originalUpdateZoomLevel.call(this);
+        setTimeout(() => {
+            updateCanvasContainerScrolling();
+            clampCanvasScroll();
+        }, 0);
+    };
+
+    const originalResizeCanvases = SpriteSpark.prototype.resizeCanvases;
+    SpriteSpark.prototype.resizeCanvases = function () {
+        originalResizeCanvases.call(this);
+        setTimeout(() => {
+            updateCanvasContainerScrolling();
+            clampCanvasScroll();
+        }, 0);
+    };
+
+    window.addEventListener('resize', () => {
+        updateCanvasContainerScrolling();
+        clampCanvasScroll();
+    });
+
+    //adjustMainContentHeight();
 
     document.querySelectorAll('.menubar .menu-item').forEach(item => {
         item.addEventListener('mouseenter', updateResizerPointerEvents);

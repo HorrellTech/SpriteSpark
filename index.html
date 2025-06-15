@@ -207,18 +207,22 @@
                         <input type="range" id="opacity" min="0" max="100" value="100">
                     </div>
 
-                    <div class="property-group"></div>
-                    <label>
-                        <input type="checkbox" id="showBrushGhost" checked>
-                        Show Brush Ghost
-                    </label>
+                    <div class="property-group">
+                        <label>
+                            <input type="checkbox" id="showBrushGhost" checked>
+                            Show Brush Ghost
+                        </label>
                     </div>
-                    
+
                     <div class="property-group" id="floodFillOptions" style="display:none;">
                         <label>
                             Tolerance: <span id="floodFillToleranceValue">0</span>
                         </label>
                         <input type="range" id="floodFillTolerance" min="0" max="255" value="0">
+                        <label style="display:block; margin-top:6px;">
+                            <input type="checkbox" id="floodFillDetectAllLayers">
+                            Detect All Layers
+                        </label>
                     </div>
                 </div>
             </div>
