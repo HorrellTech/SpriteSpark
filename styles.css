@@ -581,8 +581,10 @@ body {
 /* Frames */
 .frames-controls {
     display: flex;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-md);
+    gap: 4px;
+    align-items: center; /* Ensure vertical centering */
+    height: 100%;
+    margin-right: 0; /* Remove margin if present */
 }
 
 .frames-list {
@@ -1133,10 +1135,13 @@ select:focus {
     border-bottom: 1px solid var(--border-color);
     font-size: 1rem;
     height: 32px;
+    gap: 12px;
 }
 
 .frame-size-controls {
-    margin-left: 12px;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
 }
 .frames-controls {
     display: flex;
@@ -1192,7 +1197,7 @@ select:focus {
 .frame-item.large { min-width: 132px; min-height: 104px; }
 
 .bottom-resize {
-    height: 6px;
+    height: 3px;
     cursor: ns-resize;
     background: var(--border-color, #444);
     width: 100%;

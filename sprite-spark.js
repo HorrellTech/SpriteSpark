@@ -340,34 +340,29 @@ class SpriteSpark {
             if (!isResizing) return;
 
             if (resizePanel === 'left') {
-                const newWidth = e.clientX;
-                if (newWidth >= 200 && newWidth <= 400) {
-                    leftPanel.style.width = newWidth + 'px';
-                    leftResize.style.left = newWidth + 'px';
-                    document.documentElement.style.setProperty('--left-panel-width', newWidth + 'px');
-                    this.leftPanelWidth = newWidth;
-                    updateBottomPanelPosition();
-                    syncBottomResizeBar();
-                }
+                const newWidth = Math.max(200, Math.min(e.clientX, 400));
+                leftPanel.style.width = newWidth + 'px';
+                leftResize.style.left = newWidth + 'px';
+                document.documentElement.style.setProperty('--left-panel-width', newWidth + 'px');
+                this.leftPanelWidth = newWidth;
             } else if (resizePanel === 'right') {
-                const newWidth = window.innerWidth - e.clientX;
-                if (newWidth >= 200 && newWidth <= 400) {
-                    rightPanel.style.width = newWidth + 'px';
-                    rightResize.style.right = newWidth + 'px';
-                    document.documentElement.style.setProperty('--right-panel-width', newWidth + 'px');
-                    this.rightPanelWidth = newWidth;
-                    updateBottomPanelPosition();
-                    syncBottomResizeBar();
-                }
+                const newWidth = Math.max(200, Math.min(window.innerWidth - e.clientX, 400));
+                rightPanel.style.width = newWidth + 'px';
+                rightResize.style.right = newWidth + 'px';
+                document.documentElement.style.setProperty('--right-panel-width', newWidth + 'px');
+                this.rightPanelWidth = newWidth;
             }
             updateBottomPanelPosition();
+            syncBottomResizeBar();
         };
 
         const stopResize = () => {
+            if (!isResizing) return;
             isResizing = false;
             resizePanel = null;
             document.body.style.cursor = '';
             updateBottomPanelPosition();
+            syncBottomResizeBar();
         };
 
         if (leftResize) leftResize.addEventListener('mousedown', (e) => startResize(e, 'left'));
@@ -1067,6 +1062,9 @@ class SpriteSpark {
             case 'add-frame':
                 this.addEmptyFrame();
                 break;
+            case 'insert-frame':
+                this.insertFrameBeforeCurrent();
+                break;
             case 'duplicate-frame':
                 this.duplicateCurrentFrame();
                 break;
@@ -1107,6 +1105,23 @@ class SpriteSpark {
         this.primaryColor = e.target.value;
         const primaryColorEl = document.getElementById('primaryColor');
         if (primaryColorEl) primaryColorEl.style.backgroundColor = this.primaryColor;
+    }
+
+    insertFrameBeforeCurrent() {
+        // Create a frame with the same number of layers, but blank canvases
+        const newFrame = {
+            layers: this.layers.map(layer => ({
+                id: layer.id,
+                name: layer.name,
+                isVisible: layer.isVisible,
+                opacity: layer.opacity,
+                blendMode: layer.blendMode,
+                canvas: this.createLayerCanvas()
+            }))
+        };
+        this.frames.splice(this.currentFrame, 0, newFrame);
+        this.selectFrame(this.currentFrame); // Stay on the same frame index (now the new frame)
+        this.updateFramesList();
     }
 
     // Add all other missing methods from the original script

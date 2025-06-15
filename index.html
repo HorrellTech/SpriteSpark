@@ -361,10 +361,20 @@
             </div>
         </div>
     </div>
+        
+    <!--div class="resize-handle bottom-resize" id="bottomResize"></div-->
 
     <div class="bottom-panel" id="bottomPanel" style="height:140px;">
         <div class="bottom-panel-header">
-            <span>Frames</span>
+            <div class="frames-controls">
+                <button class="small-btn" data-action="add-frame" title="Add Frame">+</button>
+                <button class="small-btn" data-action="insert-frame" title="Insert Frame">⇤</button>
+                <button class="small-btn" data-action="delete-frame" title="Delete Frame">−</button>
+                <button class="small-btn" data-action="duplicate-frame" title="Duplicate Frame">⧉</button>
+                <button class="small-btn" data-action="move-frame-up" title="Move Frame Up">←</button>
+                <button class="small-btn" data-action="move-frame-down" title="Move Frame Down">→</button>
+            </div>
+            <span style="margin-left: 30%; font-weight: 600;">Frames</span>
             <div class="frame-size-controls">
                 <label>Size:
                     <select id="frameThumbSize">
@@ -374,19 +384,10 @@
                     </select>
                 </label>
             </div>
-            <div class="frames-controls">
-                <button class="small-btn" data-action="add-frame" title="Add Frame">+</button>
-                <button class="small-btn" data-action="delete-frame" title="Delete Frame">−</button>
-                <button class="small-btn" data-action="duplicate-frame" title="Duplicate Frame">⧉</button>
-                <button class="small-btn" data-action="move-frame-up" title="Move Frame Up">←</button>
-                <button class="small-btn" data-action="move-frame-down" title="Move Frame Down">→</button>
-            </div>
         </div>
         <div class="frames-list-horizontal" id="framesList">
             <!-- Frames will be rendered here horizontally -->
         </div>
-        
-        <div class="resize-handle bottom-resize" id="bottomResize"></div>
     </div>
 
     <!-- Resize Handles -->
