@@ -173,7 +173,7 @@
                 <div class="tool-properties" id="toolProperties">
                     <div class="property-group">
                         <label>Brush Size: <span id="brushSizeValue">1</span>px</label>
-                        <input type="range" id="brushSize" min="1" max="50" value="1">
+                        <input type="range" id="brushSize" min="1" max="50" value="1" step="1">
                     </div>
                     <div class="property-group">
                         <label>Opacity: <span id="opacityValue">100</span>%</label>
@@ -247,6 +247,18 @@
                     <label>FPS: <input type="number" id="fpsInput" value="12" min="1" max="60"></label>
                     <label>
                         <input type="checkbox" id="loopAnimation" checked> Loop
+                    </label>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>Drawing Options</h3>
+                <div class="drawing-options">
+                    <label>
+                        <input type="checkbox" id="pixelPerfectCheckbox"> Pixel Perfect Drawing
+                    </label>
+                    <label>
+                        <input type="checkbox" id="pixelDrawingCheckbox"> Pixel Art Drawing
                     </label>
                 </div>
             </div>

@@ -527,6 +527,7 @@ body {
 #ghostCanvas {
     grid-area: 1 / 1;
     display: block;
+    image-rendering: auto;
 }
 
 #gridCanvas {
@@ -942,4 +943,27 @@ select:focus {
     outline: none;
     border-color: var(--accent-color);
     box-shadow: 0 0 0 2px var(--accent-color-alpha);
+}
+
+/* Adjustments for Drawing Tools and Color Palette */
+.drawing-tool {
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+}
+
+.color-palette .color-swatch {
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+}
+
+.tool-grid, .color-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.pixel-perfect #mainCanvas,
+.pixel-perfect #gridCanvas,
+.pixel-perfect #ghostCanvas {
+    image-rendering: pixelated;
 }

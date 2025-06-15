@@ -31,6 +31,10 @@ class SpriteSpark {
         this.showOnionSkin = false;
         this.onionSkinFrames = 1; // Number of frames before/after to show
 
+        // Options properties
+        this.pixelPerfect = false;
+        this.pixelDrawingMode = false;
+
         // Canvas properties
         this.canvasWidth = 320;
         this.canvasHeight = 240;
@@ -173,6 +177,20 @@ class SpriteSpark {
             });
         }
 
+        const pixelPerfectCheckbox = document.getElementById('pixelPerfectCheckbox');
+        if (pixelPerfectCheckbox) {
+            pixelPerfectCheckbox.addEventListener('change', (e) => {
+                this.pixelPerfect = e.target.checked;
+                document.body.classList.toggle('pixel-perfect', this.pixelPerfect);
+            });
+        }
+        const pixelDrawingCheckbox = document.getElementById('pixelDrawingCheckbox');
+        if (pixelDrawingCheckbox) {
+            pixelDrawingCheckbox.addEventListener('change', (e) => {
+                this.pixelDrawingMode = e.target.checked;
+            });
+        }
+
         // Tool properties
         this.initializeToolProperties();
 
@@ -254,10 +272,11 @@ class SpriteSpark {
         const opacity = document.getElementById('opacity');
         const brushSizeValue = document.getElementById('brushSizeValue');
         const opacityValue = document.getElementById('opacityValue');
+        const toolButtons = document.querySelectorAll('.drawing-tool');
 
         if (brushSize) {
             brushSize.addEventListener('input', (e) => {
-                this.brushSize = parseInt(e.target.value);
+                this.brushSize = Math.max(0.1, parseInt(e.target.value));
                 if (brushSizeValue) brushSizeValue.textContent = this.brushSize;
                 this.updateGhostCursor();
             });
@@ -269,6 +288,17 @@ class SpriteSpark {
                 if (opacityValue) opacityValue.textContent = this.opacity;
             });
         }
+
+        // Drawing tool buttons
+        //if(toolButtons) {
+            toolButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    toolButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    this.currentTool = btn.getAttribute('data-tool');
+                });
+            });
+        //}
     }
 
     initializePanelResizing() {
@@ -1058,7 +1088,36 @@ class SpriteSpark {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        if (this.currentTool === 'pen') {
+        if (this.pixelDrawingMode) {
+            // Use Bresenham's line algorithm for pixel-perfect lines
+            function drawPixelLine(ctx, x0, y0, x1, y1, color, size) {
+                let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+                let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+                let err = dx + dy, e2;
+                let prevX = x0, prevY = y0;
+
+                while (true) {
+                    ctx.fillStyle = color;
+                    ctx.globalAlpha = this.opacity / 100;
+                    ctx.fillRect(x0 - Math.floor(size/2), y0 - Math.floor(size/2), size, size);
+
+                    // Edge correction: fill diagonal gaps
+                    if (x0 !== prevX && y0 !== prevY) {
+                        ctx.fillRect(x0 - Math.floor(size/2), prevY - Math.floor(size/2), size, size);
+                        ctx.fillRect(prevX - Math.floor(size/2), y0 - Math.floor(size/2), size, size);
+                    }
+
+                    if (x0 === x1 && y0 === y1) break;
+                    prevX = x0; prevY = y0;
+                    e2 = 2 * err;
+                    
+                    if (e2 >= dy) { err += dy; x0 += sx; }
+                    if (e2 <= dx) { err += dx; y0 += sy; }
+                }
+            }
+
+            drawPixelLine.call(this, ctx, this.lastX, this.lastY, x, y, this.primaryColor, this.brushSize);
+        } else if (this.currentTool === 'pen') {
             ctx.beginPath();
             ctx.moveTo(this.lastX, this.lastY);
             ctx.lineTo(x, y);
@@ -1105,6 +1164,7 @@ class SpriteSpark {
     updateFramesList() {
         const framesList = document.getElementById('framesList');
         if (!framesList) return;
+
         framesList.innerHTML = '';
         this.frames.forEach((frame, idx) => {
             const item = document.createElement('div');
@@ -1124,17 +1184,38 @@ class SpriteSpark {
             thumbCanvas.width = 64;
             thumbCanvas.height = 48;
             const thumbCtx = thumbCanvas.getContext('2d');
+
             // Draw all layers for this frame, bottom to top
             if (frame.layers) {
                 for (let i = 0; i < frame.layers.length; i++) {
                     const l = frame.layers[i];
                     if (l.isVisible !== false && l.canvas instanceof HTMLCanvasElement) {
+                        // Fit and center the image in the thumbnail
+                        const srcW = l.canvas.width;
+                        const srcH = l.canvas.height;
+                        const dstW = thumbCanvas.width;
+                        const dstH = thumbCanvas.height;
+                        const srcAspect = srcW / srcH;
+                        const dstAspect = dstW / dstH;
+                        let drawW, drawH, dx, dy;
+                        if (srcAspect > dstAspect) {
+                            drawW = dstW;
+                            drawH = dstW / srcAspect;
+                            dx = 0;
+                            dy = (dstH - drawH) / 2;
+                        } else {
+                            drawH = dstH;
+                            drawW = dstH * srcAspect;
+                            dx = (dstW - drawW) / 2;
+                            dy = 0;
+                        }
                         thumbCtx.globalAlpha = l.opacity / 100 || 1;
                         thumbCtx.globalCompositeOperation = l.blendMode || 'source-over';
-                        thumbCtx.drawImage(l.canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+                        thumbCtx.drawImage(l.canvas, 0, 0, srcW, srcH, dx, dy, drawW, drawH);
                     }
                 }
             }
+            
             thumbCtx.globalAlpha = 1.0;
             thumbCtx.globalCompositeOperation = 'source-over';
             thumbDiv.appendChild(thumbCanvas);
@@ -1154,6 +1235,7 @@ class SpriteSpark {
                 newCanvas.height = this.canvasHeight;
                 const ctx = newCanvas.getContext('2d');
                 ctx.drawImage(layer.canvas, 0, 0);
+
                 // Only store plain data, not references to the original layer object
                 return {
                     id: layer.id,
@@ -1424,5 +1506,22 @@ class SpriteSpark {
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
-    new SpriteSpark();
+    const app = new SpriteSpark();
+
+    // Ctrl+Wheel zoom for canvas only
+    const canvasContainer = document.querySelector('.canvas-container');
+    const zoomInput = document.getElementById('zoomInput');
+    if (canvasContainer && zoomInput) {
+        canvasContainer.addEventListener('wheel', (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                let zoom = parseFloat(zoomInput.value);
+                if (e.deltaY < 0) zoom = Math.min(zoom + 0.1, 8);
+                else zoom = Math.max(zoom - 0.1, 0.1);
+                zoom = Math.round(zoom * 100) / 100;
+                zoomInput.value = zoom;
+                app.updateZoomLevel();
+            }
+        }, { passive: false });
+    }
 });
