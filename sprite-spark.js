@@ -344,22 +344,30 @@ class SpriteSpark {
                 if (newWidth >= 200 && newWidth <= 400) {
                     leftPanel.style.width = newWidth + 'px';
                     leftResize.style.left = newWidth + 'px';
+                    document.documentElement.style.setProperty('--left-panel-width', newWidth + 'px');
                     this.leftPanelWidth = newWidth;
+                    updateBottomPanelPosition();
+                    syncBottomResizeBar();
                 }
             } else if (resizePanel === 'right') {
                 const newWidth = window.innerWidth - e.clientX;
                 if (newWidth >= 200 && newWidth <= 400) {
                     rightPanel.style.width = newWidth + 'px';
                     rightResize.style.right = newWidth + 'px';
+                    document.documentElement.style.setProperty('--right-panel-width', newWidth + 'px');
                     this.rightPanelWidth = newWidth;
+                    updateBottomPanelPosition();
+                    syncBottomResizeBar();
                 }
             }
+            updateBottomPanelPosition();
         };
 
         const stopResize = () => {
             isResizing = false;
             resizePanel = null;
             document.body.style.cursor = '';
+            updateBottomPanelPosition();
         };
 
         if (leftResize) leftResize.addEventListener('mousedown', (e) => startResize(e, 'left'));
@@ -427,7 +435,10 @@ class SpriteSpark {
 
     // --- Theme Management ---
     populateThemeDropdown() {
-        const themes = ['dark', 'light', 'blue', 'green', 'purple', 'high-contrast'];
+        const themes = [
+            'dark', 'light', 'blue', 'green', 'purple', 'high-contrast',
+            'ironman', 'gold', 'midnight', 'sakura', 'emerald'
+        ];
         const themeMenu = document.querySelector('.menu-item:nth-child(5) .dropdown');
         if (!themeMenu) {
             console.error("Theme dropdown not found. Check selector.");
@@ -439,7 +450,7 @@ class SpriteSpark {
             const span = document.createElement('span');
             span.dataset.action = 'set-theme';
             span.dataset.theme = themeName;
-            span.textContent = themeName.charAt(0).toUpperCase() + themeName.slice(1);
+            span.textContent = themeName.charAt(0).toUpperCase() + themeName.slice(1).replace('-', ' ');
             li.appendChild(span);
             themeMenu.appendChild(li);
         });
@@ -1842,8 +1853,29 @@ class SpriteSpark {
 
 function syncBottomResizeBar() {
     if (bottomPanel && bottomResize) {
-        const height = parseInt(bottomPanel.style.height) || bottomPanel.offsetHeight || 140;
-        bottomResize.style.bottom = height + 'px';
+        const rect = bottomPanel.getBoundingClientRect();
+        bottomResize.style.top = (rect.top) + 'px';
+        // Also update left/right in case panels changed
+        updateBottomPanelPosition();
+    }
+}
+
+function updateBottomPanelPosition() {
+    const leftPanel = document.getElementById('leftPanel');
+    const rightPanel = document.getElementById('rightPanel');
+    const bottomPanel = document.getElementById('bottomPanel');
+    const bottomResize = document.getElementById('bottomResize');
+
+    const leftWidth = leftPanel ? leftPanel.offsetWidth : 280;
+    const rightWidth = rightPanel ? rightPanel.offsetWidth : 280;
+
+    if (bottomPanel) {
+        bottomPanel.style.left = leftWidth + 'px';
+        bottomPanel.style.right = rightWidth + 'px';
+    }
+    if (bottomResize) {
+        bottomResize.style.left = leftWidth + 'px';
+        bottomResize.style.right = rightWidth + 'px';
     }
 }
 
@@ -1905,14 +1937,24 @@ document.addEventListener('DOMContentLoaded', () => {
             syncBottomResizeBar();
         });
         window.addEventListener('mouseup', () => {
-            isResizingBottom = false;
-            document.body.style.cursor = '';
+            if (isResizingBottom) {
+                isResizingBottom = false;
+                document.body.style.cursor = '';
+                syncBottomResizeBar();
+                updateBottomPanelPosition();
+            }
         });
         // Initial sync
         syncBottomResizeBar();
         // Sync on window resize
-        window.addEventListener('resize', syncBottomResizeBar);
+        window.addEventListener('resize', () => {
+            app.handleResize();
+            updateBottomPanelPosition();
+            syncBottomResizeBar();
+        });
     }
+
+    updateBottomPanelPosition();
 
     function updateResizerPointerEvents() {
         const anyMenuOpen = !!document.querySelector('.menubar .dropdown.open');

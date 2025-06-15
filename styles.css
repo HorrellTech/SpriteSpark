@@ -1199,7 +1199,8 @@ select:focus {
     position: fixed;
     left: var(--left-panel-width, 280px);
     right: var(--right-panel-width, 280px);
-    bottom: 140px;
+    bottom: 0px;
+    top: auto;
     z-index: 30;
     /* Place it just above the bottom panel */
 }
@@ -1214,32 +1215,32 @@ select:focus {
 
 .menu-item,
 .menu-item > span {
-    color: var(--text-primary);
+    color: var(--accent-color);
     background: transparent;
 }
 
 .menu-item:hover,
 .menu-item.active {
     background: var(--bg-hover);
-    color: var(--accent-color);
+    color: var(--text-accent);
 }
 
 .menubar .dropdown li,
 .menubar .dropdown li span {
-    color: var(--text-primary);
+    color: var(--accent-color);
     background: transparent;
 }
 
 .menubar .dropdown li:hover,
 .menubar .dropdown li:hover span {
     background: var(--bg-hover);
-    color: var(--accent-color);
+    color: var(--text-accent);
 }
 
 .menubar .dropdown li.active,
 .menubar .dropdown li.active span {
     background: var(--accent-color);
-    color: var(--text-accent);
+    color: var(--accent-color);
 }
 
 .dropdown li,

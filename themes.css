@@ -236,6 +236,166 @@
     --scrollbar-thumb-hover: #9cdcf0;
 }
 
+/* Ironman Theme (Maroon & Gold) */
+[data-theme="ironman"] {
+    --bg-primary: #2d0909;
+    --bg-secondary: #3a1313;
+    --bg-elevated: #4b1a1a;
+    --bg-control: #7c2323;
+    --bg-hover: #a32626;
+
+    --text-primary: #ffe082;
+    --text-secondary: #ffd54f;
+    --text-accent: #fffde7;
+    --text-muted: #bfa76f;
+
+    --border-color: #b71c1c;
+    --border-hover: #ffb300;
+    --border-subtle: #a1887f;
+
+    --accent-color: #ffd700;
+    --accent-color-hover: #fff176;
+    --accent-color-alpha: rgba(255, 215, 0, 0.18);
+
+    --success-color: #43a047;
+    --warning-color: #ffb300;
+    --error-color: #d32f2f;
+    --info-color: #ffd700;
+
+    --shadow-color: rgba(255, 215, 0, 0.18);
+
+    --scrollbar-thumb: #b71c1c;
+    --scrollbar-thumb-hover: #ffd700;
+}
+
+/* Gold Theme */
+[data-theme="gold"] {
+    --bg-primary: #fff8e1;
+    --bg-secondary: #ffecb3;
+    --bg-elevated: #ffe082;
+    --bg-control: #ffd54f;
+    --bg-hover: #ffb300;
+
+    --text-primary: #6d4c00;
+    --text-secondary: #a67c00;
+    --text-accent: #fffde7;
+    --text-muted: #bfa76f;
+
+    --border-color: #ffd700;
+    --border-hover: #ffb300;
+    --border-subtle: #ffe082;
+
+    --accent-color: #ffd700;
+    --accent-color-hover: #ffb300;
+    --accent-color-alpha: rgba(255, 215, 0, 0.15);
+
+    --success-color: #43a047;
+    --warning-color: #ffb300;
+    --error-color: #d32f2f;
+    --info-color: #ffd700;
+
+    --shadow-color: rgba(255, 215, 0, 0.12);
+
+    --scrollbar-thumb: #ffd700;
+    --scrollbar-thumb-hover: #ffb300;
+}
+
+/* Midnight Blue Theme */
+[data-theme="midnight"] {
+    --bg-primary: #0a192f;
+    --bg-secondary: #112240;
+    --bg-elevated: #233554;
+    --bg-control: #233554;
+    --bg-hover: #2c3e50;
+
+    --text-primary: #ccd6f6;
+    --text-secondary: #8892b0;
+    --text-accent: #ffffff;
+    --text-muted: #7b879d;
+
+    --border-color: #233554;
+    --border-hover: #64ffda;
+    --border-subtle: #112240;
+
+    --accent-color: #64ffda;
+    --accent-color-hover: #00bfae;
+    --accent-color-alpha: rgba(100, 255, 218, 0.15);
+
+    --success-color: #43a047;
+    --warning-color: #ffb300;
+    --error-color: #d32f2f;
+    --info-color: #64ffda;
+
+    --shadow-color: rgba(100, 255, 218, 0.10);
+
+    --scrollbar-thumb: #233554;
+    --scrollbar-thumb-hover: #64ffda;
+}
+
+/* Sakura Pink Theme */
+[data-theme="sakura"] {
+    --bg-primary: #fff1f7;
+    --bg-secondary: #ffe4ef;
+    --bg-elevated: #ffd6e0;
+    --bg-control: #ffb7c5;
+    --bg-hover: #ff8fab;
+
+    --text-primary: #ad1457;
+    --text-secondary: #d81b60;
+    --text-accent: #fffde7;
+    --text-muted: #bfa76f;
+
+    --border-color: #f06292;
+    --border-hover: #ad1457;
+    --border-subtle: #ffd6e0;
+
+    --accent-color: #f06292;
+    --accent-color-hover: #ad1457;
+    --accent-color-alpha: rgba(240, 98, 146, 0.15);
+
+    --success-color: #43a047;
+    --warning-color: #ffb300;
+    --error-color: #d32f2f;
+    --info-color: #f06292;
+
+    --shadow-color: rgba(240, 98, 146, 0.10);
+
+    --scrollbar-thumb: #f06292;
+    --scrollbar-thumb-hover: #ad1457;
+}
+
+/* Emerald Theme */
+[data-theme="emerald"] {
+    --bg-primary: #e8f5e9;
+    --bg-secondary: #c8e6c9;
+    --bg-elevated: #a5d6a7;
+    --bg-control: #81c784;
+    --bg-hover: #388e3c;
+
+    --text-primary: #1b5e20;
+    --text-secondary: #388e3c;
+    --text-accent: #ffffff;
+    --text-muted: #7b879d;
+
+    --border-color: #388e3c;
+    --border-hover: #43a047;
+    --border-subtle: #a5d6a7;
+
+    --accent-color: #43a047;
+    --accent-color-hover: #388e3c;
+    --accent-color-alpha: rgba(67, 160, 71, 0.15);
+
+    --success-color: #43a047;
+    --warning-color: #ffb300;
+    --error-color: #d32f2f;
+    --info-color: #43a047;
+
+    --shadow-color: rgba(67, 160, 71, 0.10);
+
+    --scrollbar-thumb: #43a047;
+    --scrollbar-thumb-hover: #388e3c;
+}
+
 /* Custom Theme Variables - Users can override these */
 [data-theme="custom"] {
     /* These can be overridden by user preferences */
