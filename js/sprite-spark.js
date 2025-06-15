@@ -431,8 +431,11 @@ class SpriteSpark {
     // --- Theme Management ---
     populateThemeDropdown() {
         const themes = [
-            'dark', 'light', 'blue', 'green', 'purple', 'high-contrast',
-            'ironman', 'gold', 'midnight', 'sakura', 'emerald'
+            'dark', 'light', 'blue', 'green', 'purple', 'gold', 'red', 'orange', 'mono', 'high-contrast',
+            'ironman', 'midnight', 'sakura', 'emerald',
+            'neon-dark', 'neon-night', 'solarized-dark',
+            'dracula', 'oceanic-dark', 'nord-dark',
+            'cyberpunk-dark', 'midnight-forest', 'deep-space'
         ];
         const themeMenu = document.querySelector('.menu-item:nth-child(5) .dropdown');
         if (!themeMenu) {
@@ -1867,12 +1870,12 @@ class SpriteSpark {
 }
 
 function syncBottomResizeBar() {
-    if (bottomPanel && bottomResize) {
+    /*if (bottomPanel && bottomResize) {
         const rect = bottomPanel.getBoundingClientRect();
         bottomResize.style.top = (rect.top) + 'px';
         // Also update left/right in case panels changed
         updateBottomPanelPosition();
-    }
+    }*/
 }
 
 function updateBottomPanelPosition() {
@@ -1901,6 +1904,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ctrl+Wheel zoom for canvas only
     const canvasContainer = document.querySelector('.canvas-container');
     const zoomInput = document.getElementById('zoomInput');
+    const bottomPanel = document.getElementById('bottomPanel');
+    const bottomResize = document.getElementById('bottomResize');
+
+    let isResizingBottom = false;
+    let startY = 0, startHeight = 0;
+    
     if (canvasContainer && zoomInput) {
         canvasContainer.addEventListener('wheel', (e) => {
             if (e.ctrlKey) {
@@ -1932,10 +1941,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Bottom panel resizing
-    const bottomPanel = document.getElementById('bottomPanel');
-    const bottomResize = document.getElementById('bottomResize');
-    let isResizingBottom = false;
-    let startY = 0, startHeight = 0;
     if (bottomResize && bottomPanel) {
         bottomResize.addEventListener('mousedown', (e) => {
             isResizingBottom = true;
@@ -1970,6 +1975,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateBottomPanelPosition();
+
+    // --- Canvas Panning with Middle Mouse Button ---
+    let isPanning = false;
+    let panStart = { x: 0, y: 0 };
+    let scrollStart = { left: 0, top: 0 };
+
+    function startPan(e) {
+        if (e.button !== 1) return; // Only middle mouse button
+        isPanning = true;
+        panStart.x = e.clientX;
+        panStart.y = e.clientY;
+        scrollStart.left = canvasContainer.scrollLeft;
+        scrollStart.top = canvasContainer.scrollTop;
+        canvasContainer.style.cursor = 'grab';
+        e.preventDefault();
+    }
+
+    function panMove(e) {
+        if (!isPanning) return;
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+        canvasContainer.scrollLeft = scrollStart.left - dx;
+        canvasContainer.scrollTop = scrollStart.top - dy;
+        e.preventDefault();
+    }
+
+    function endPan(e) {
+        if (!isPanning) return;
+        isPanning = false;
+        canvasContainer.style.cursor = '';
+        e.preventDefault();
+    }
+
+    if (canvasContainer) {
+        canvasContainer.addEventListener('mousedown', startPan);
+        canvasContainer.addEventListener('mousemove', panMove);
+        window.addEventListener('mouseup', endPan);
+
+        // Prevent default middle mouse scroll behavior
+        canvasContainer.addEventListener('mousedown', function(e) {
+            if (e.button === 1) e.preventDefault();
+        });
+    }
 
     function updateResizerPointerEvents() {
         const anyMenuOpen = !!document.querySelector('.menubar .dropdown.open');
