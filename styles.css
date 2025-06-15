@@ -431,45 +431,73 @@ body {
 }
 
 .layer-item.active {
-    background: var(--accent-color);
-    color: var(--text-accent);
-    border-color: var(--accent-color);
+    background-color: var(--accent-color-alpha);
+    border-left: 3px solid var(--accent-color);
 }
 
 .layer-visibility {
-    width: 20px;
-    text-align: center;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
     cursor: pointer;
-    user-select: none;
+    padding: var(--spacing-xs);
+    font-size: var(--font-size-medium);
+}
+
+.layer-visibility:hover {
+    color: var(--text-primary);
 }
 
 .layer-name {
-    flex: 1;
-    margin-left: var(--spacing-sm);
+    flex-grow: 1;
+    padding: 0 var(--spacing-sm);
+    cursor: text;
+    outline: none;
+}
+
+.layer-name:focus {
+    background-color: var(--bg-control);
+    border-radius: var(--radius-sm);
+}
+
+.layer-blend-mode {
+    background-color: var(--bg-control);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-xs);
+    margin-right: var(--spacing-sm);
     font-size: var(--font-size-small);
 }
 
 .layer-opacity {
-    width: 60px;
-    margin-left: var(--spacing-sm);
+    width: 60px; /* Adjust as needed */
+    margin-right: var(--spacing-sm);
 }
+
 
 /* Canvas Area */
 .canvas-container {
-    flex: 1;
+    flex-grow: 1;
     display: flex;
-    align-items: center;
     justify-content: center;
-    background: var(--bg-primary);
-    overflow: auto;
-    position: relative;
+    align-items: center;
+    background-color: var(--bg-primary);
+    overflow: auto; /* Allow scrolling if canvas is larger than container */
+    position: relative; /* For positioning grid and ghost canvas */
 }
 
 .canvas-wrapper {
     position: relative;
-    border: 1px solid var(--border-color);
-    background: #ffffff;
     box-shadow: var(--shadow-md);
+    background-color: var(--bg-secondary); /* Fallback for browsers not supporting transparent background */
+    background-image: 
+        linear-gradient(45deg, var(--bg-control) 25%, transparent 25%), 
+        linear-gradient(-45deg, var(--bg-control) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, var(--bg-control) 75%),
+        linear-gradient(-45deg, transparent 75%, var(--bg-control) 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
 }
 
 #mainCanvas,
@@ -478,19 +506,22 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-    image-rendering: pixelated;
-    image-rendering: -moz-crisp-edges;
-    image-rendering: crisp-edges;
+    display: block; /* Remove extra space below canvas */
 }
 
 #gridCanvas {
-    pointer-events: none;
-    opacity: 0.3;
+    pointer-events: none; /* Grid should not interfere with drawing */
+    z-index: 1;
 }
 
 #ghostCanvas {
-    pointer-events: none;
-    opacity: 0.5;
+    pointer-events: none; /* Ghost should not interfere with drawing */
+    opacity: 0.5; /* Default onion skin opacity */
+    z-index: 2;
+}
+
+#mainCanvas {
+    z-index: 3; /* Main drawing canvas on top */
 }
 
 /* Animation Controls */
@@ -759,4 +790,98 @@ select:focus {
     .right-panel.visible {
         transform: translateX(0);
     }
+}
+
+/* Live Preview Section */
+.live-preview-controls {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.live-preview-controls label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.live-preview-controls input[type="checkbox"] {
+    margin-right: var(--spacing-sm);
+}
+
+.live-preview-wrapper {
+    width: 100%;
+    aspect-ratio: 4 / 3; /* Or match canvas aspect ratio */
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+#livePreviewCanvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* Canvas Size Section */
+.canvas-size-controls .property-group {
+    margin-bottom: var(--spacing-md);
+}
+
+.canvas-size-controls label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    color: var(--text-secondary);
+}
+
+.canvas-size-controls input[type="number"],
+.canvas-size-controls select {
+    width: 100%;
+    padding: var(--spacing-sm);
+    background-color: var(--bg-control);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+}
+
+.canvas-size-controls input[type="number"]:focus,
+.canvas-size-controls select:focus {
+    border-color: var(--accent-color);
+    outline: none;
+}
+
+.placement-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
+}
+
+.placement-grid button {
+    background-color: var(--bg-control);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+.placement-grid button:hover {
+    background-color: var(--bg-hover);
+}
+
+.placement-grid button.active {
+    background-color: var(--accent-color);
+    color: var(--text-accent);
+    border-color: var(--accent-color);
+}
+
+.canvas-size-controls .small-btn {
+    margin-top: var(--spacing-md);
+    width: 100%;
 }

@@ -46,12 +46,12 @@
         <div class="menu-item">
             <span>View</span>
             <ul class="dropdown">
+                <li><span data-action="toggle-grid">Toggle Grid</span></li>
+                <li><span data-action="toggle-onion-skin">Toggle Onion Skin</span></li>
+                <li class="separator"></li>
                 <li><span data-action="zoom-in">Zoom In</span></li>
                 <li><span data-action="zoom-out">Zoom Out</span></li>
-                <li><span data-action="zoom-fit">Fit to Screen</span></li>
-                <li class="separator"></li>
-                <li><span data-action="toggle-grid">Toggle Grid</span></li>
-                <li><span data-action="toggle-onion">Onion Skinning</span></li>
+                <li><span data-action="zoom-reset">Zoom Reset</span></li>
             </ul>
         </div>
         <div class="menu-item">
@@ -174,15 +174,33 @@
                     <div class="layers-controls">
                         <button class="small-btn" data-action="add-layer" title="Add Layer">+</button>
                         <button class="small-btn" data-action="delete-layer" title="Delete Layer">−</button>
-                        <button class="small-btn" data-action="duplicate-layer" title="Duplicate Layer">⧉</button>
+                        <button class="small-btn" data-action="move-layer-up" title="Move Layer Up">↑</button>
+                        <button class="small-btn" data-action="move-layer-down" title="Move Layer Down">↓</button>
                     </div>
                     <div class="layers-list" id="layersList">
-                        <div class="layer-item active" data-layer="0">
-                            <div class="layer-visibility">👁</div>
-                            <div class="layer-name">Layer 1</div>
-                            <div class="layer-opacity">
-                                <input type="range" min="0" max="100" value="100" class="opacity-slider">
-                            </div>
+                        <!-- Example Layer Item (to be dynamically generated) -->
+                        <div class="layer-item active" data-layer-id="1">
+                            <button class="layer-visibility" data-action="toggle-layer-visibility" title="Toggle Visibility">👁️</button>
+                            <span class="layer-name" contenteditable="true">Layer 1</span>
+                            <select class="layer-blend-mode" title="Blend Mode">
+                                <option value="source-over">Normal</option>
+                                <option value="multiply">Multiply</option>
+                                <option value="screen">Screen</option>
+                                <option value="overlay">Overlay</option>
+                                <option value="darken">Darken</option>
+                                <option value="lighten">Lighten</option>
+                                <option value="color-dodge">Color Dodge</option>
+                                <option value="color-burn">Color Burn</option>
+                                <option value="hard-light">Hard Light</option>
+                                <option value="soft-light">Soft Light</option>
+                                <option value="difference">Difference</option>
+                                <option value="exclusion">Exclusion</option>
+                                <option value="hue">Hue</option>
+                                <option value="saturation">Saturation</option>
+                                <option value="color">Color</option>
+                                <option value="luminosity">Luminosity</option>
+                            </select>
+                            <input type="range" class="layer-opacity" min="0" max="100" value="100" title="Opacity">
                         </div>
                     </div>
                 </div>
@@ -201,7 +219,7 @@
         <!-- Right Panel -->
         <div class="panel right-panel" id="rightPanel">
             <div class="panel-header">
-                <span>Animation</span>
+                <span>Properties</span>
                 <div class="panel-controls">
                     <button class="panel-toggle">−</button>
                 </div>
@@ -248,6 +266,57 @@
                         <label>Opacity: <span id="opacityValue">100</span>%</label>
                         <input type="range" id="opacity" min="0" max="100" value="100">
                     </div>
+                </div>
+            </div>
+
+            <!-- Live Preview Section -->
+            <div class="panel-section">
+                <h3>Live Preview</h3>
+                <div class="live-preview-controls">
+                    <label>
+                        <input type="checkbox" id="enablePreview" checked> Enable
+                    </label>
+                </div>
+                <div class="live-preview-wrapper">
+                    <canvas id="livePreviewCanvas" width="240" height="180"></canvas>
+                </div>
+            </div>
+
+            <!-- Canvas Size Section -->
+            <div class="panel-section">
+                <h3>Canvas Size</h3>
+                <div class="canvas-size-controls">
+                    <div class="property-group">
+                        <label for="canvasWidth">Width:</label>
+                        <input type="number" id="canvasWidth" value="320" min="1">
+                    </div>
+                    <div class="property-group">
+                        <label for="canvasHeight">Height:</label>
+                        <input type="number" id="canvasHeight" value="240" min="1">
+                    </div>
+                    <div class="property-group">
+                        <label for="resizeMethod">Resize Method:</label>
+                        <select id="resizeMethod">
+                            <option value="stretch">Stretch to fit</option>
+                            <option value="fit">Fit (keep aspect)</option>
+                            <option value="crop">Crop to fill</option>
+                        </select>
+                    </div>
+                    <div class="property-group" id="resizePlacementGroup" style="display:none;"> <!-- Show when method is 'fit' or 'crop' -->
+                        <label>Placement:</label>
+                        <div class="placement-grid">
+                            <button data-placement="top-left">↖</button>
+                            <button data-placement="top-center">↑</button>
+                            <button data-placement="top-right">↗</button>
+                            <button data-placement="center-left">←</button>
+                            <button data-placement="center">·</button>
+                            <button data-placement="center-right">→</button>
+                            <button data-placement="bottom-left">↙</button>
+                            <button data-placement="bottom-center">↓</button>
+                            <button data-placement="bottom-right">↘</button>
+                        </div>
+                    </div>
+                    <button class="small-btn" data-action="apply-canvas-size">Apply</button>
                 </div>
             </div>
         </div>
