@@ -1840,6 +1840,13 @@ class SpriteSpark {
     }
 }
 
+function syncBottomResizeBar() {
+    if (bottomPanel && bottomResize) {
+        const height = parseInt(bottomPanel.style.height) || bottomPanel.offsetHeight || 140;
+        bottomResize.style.bottom = height + 'px';
+    }
+}
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
     const app = new SpriteSpark();
@@ -1895,16 +1902,28 @@ document.addEventListener('DOMContentLoaded', () => {
             let newHeight = startHeight - (e.clientY - startY);
             newHeight = Math.max(60, Math.min(newHeight, 320));
             bottomPanel.style.height = newHeight + 'px';
-            bottomResize.style.bottom = newHeight + 'px';
+            syncBottomResizeBar();
         });
         window.addEventListener('mouseup', () => {
             isResizingBottom = false;
             document.body.style.cursor = '';
         });
+        // Initial sync
+        syncBottomResizeBar();
+        // Sync on window resize
+        window.addEventListener('resize', syncBottomResizeBar);
     }
 
-    if (bottomResize && bottomPanel) {
-        // Set initial position
-        bottomResize.style.bottom = (parseInt(bottomPanel.style.height) || 140) + 'px';
+    function updateResizerPointerEvents() {
+        const anyMenuOpen = !!document.querySelector('.menubar .dropdown.open');
+        document.querySelectorAll('.resize-handle').forEach(el => {
+            el.style.pointerEvents = anyMenuOpen ? 'none' : '';
+        });
     }
+
+    document.querySelectorAll('.menubar .menu-item').forEach(item => {
+        item.addEventListener('mouseenter', updateResizerPointerEvents);
+        item.addEventListener('mouseleave', updateResizerPointerEvents);
+    });
+    document.addEventListener('click', updateResizerPointerEvents);
 });
