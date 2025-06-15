@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpriteSpark - Animation Studio</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="themes.css">
+</head>
+<body>
+    <!-- Menu Bar -->
+    <nav class="menubar">
+        <div class="menu-item">
+            <span>File</span>
+            <ul class="dropdown">
+                <li><span data-action="new">New</span></li>
+                <li><span data-action="open">Open</span></li>
+                <li><span data-action="save">Save</span></li>
+                <li><span data-action="save-as">Save As</span></li>
+                <li class="separator"></li>
+                <li><span data-action="export">Export</span></li>
+            </ul>
+        </div>
+        <div class="menu-item">
+            <span>Edit</span>
+            <ul class="dropdown">
+                <li><span data-action="undo">Undo</span></li>
+                <li><span data-action="redo">Redo</span></li>
+                <li class="separator"></li>
+                <li><span data-action="copy">Copy Frame</span></li>
+                <li><span data-action="paste">Paste Frame</span></li>
+                <li><span data-action="clear">Clear Frame</span></li>
+            </ul>
+        </div>
+        <div class="menu-item">
+            <span>Effects</span>
+            <ul class="dropdown">
+                <li><span data-action="flip-h">Flip Horizontal</span></li>
+                <li><span data-action="flip-v">Flip Vertical</span></li>
+                <li><span data-action="rotate">Rotate</span></li>
+                <li class="separator"></li>
+                <li><span data-action="blur">Blur</span></li>
+                <li><span data-action="sharpen">Sharpen</span></li>
+            </ul>
+        </div>
+        <div class="menu-item">
+            <span>View</span>
+            <ul class="dropdown">
+                <li><span data-action="zoom-in">Zoom In</span></li>
+                <li><span data-action="zoom-out">Zoom Out</span></li>
+                <li><span data-action="zoom-fit">Fit to Screen</span></li>
+                <li class="separator"></li>
+                <li><span data-action="toggle-grid">Toggle Grid</span></li>
+                <li><span data-action="toggle-onion">Onion Skinning</span></li>
+            </ul>
+        </div>
+        <div class="menu-item">
+            <span>Theme</span>
+            <ul class="dropdown">
+                <li><span data-action="theme-dark">Dark</span></li>
+                <li><span data-action="theme-light">Light</span></li>
+                <li><span data-action="theme-blue">Blue</span></li>
+                <li><span data-action="theme-green">Green</span></li>
+                <li><span data-action="theme-purple">Purple</span></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button class="tool-btn" data-action="new" title="New Project">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </button>
+        <button class="tool-btn" data-action="open" title="Open Project">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2 4v8a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2H6L4 2H2z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            </svg>
+        </button>
+        <button class="tool-btn" data-action="save-as" title="Save As">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2 2v12h12V4l-2-2H2z M4 14V9h8v5H4z M6 2v4h4V2H6z" stroke="currentColor" stroke-width="1" fill="none"/>
+            </svg>
+        </button>
+        
+        <div class="toolbar-separator"></div>
+        
+        <button class="tool-btn" data-action="prev-frame" title="Previous Frame">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M10 3L5 8l5 5V3z" fill="currentColor"/>
+            </svg>
+        </button>
+        <button class="tool-btn" data-action="next-frame" title="Next Frame">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M6 3l5 5-5 5V3z" fill="currentColor"/>
+            </svg>
+        </button>
+        <button class="tool-btn play-btn" data-action="play" title="Play/Pause Animation">
+            <svg class="play-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4 3l8 5-8 5V3z" fill="currentColor"/>
+            </svg>
+            <svg class="pause-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="display: none;">
+                <path d="M5 3h2v10H5V3zM9 3h2v10H9V3z" fill="currentColor"/>
+            </svg>
+        </button>
+        
+        <div class="toolbar-separator"></div>
+        
+        <div class="zoom-controls">
+            <button class="tool-btn" data-action="zoom-out" title="Zoom Out">-</button>
+            <span class="zoom-level">100%</span>
+            <button class="tool-btn" data-action="zoom-in" title="Zoom In">+</button>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <!-- Left Panel -->
+        <div class="panel left-panel" id="leftPanel">
+            <div class="panel-header">
+                <span>Tools</span>
+                <div class="panel-controls">
+                    <button class="panel-toggle">−</button>
+                </div>
+            </div>
+            
+            <!-- Color Picker Section -->
+            <div class="panel-section">
+                <h3>Colors</h3>
+                <div class="color-picker-container">
+                    <div class="current-colors">
+                        <div class="color-swatch primary-color" id="primaryColor"></div>
+                        <div class="color-swatch secondary-color" id="secondaryColor"></div>
+                    </div>
+                    <input type="color" id="colorPicker" value="#000000">
+                    <div class="color-palette" id="colorPalette">
+                        <!-- Color swatches will be generated here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tools Section -->
+            <div class="panel-section">
+                <h3>Drawing Tools</h3>
+                <div class="tool-grid">
+                    <button class="drawing-tool active" data-tool="pen" title="Pen">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M12.146 1.146a.5.5 0 01.708 0l2 2a.5.5 0 010 .708L6.207 12.5 3 13l.5-3.207L12.146 1.146z"/>
+                        </svg>
+                    </button>
+                    <button class="drawing-tool" data-tool="eraser" title="Eraser">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8.086 2.207a2 2 0 01-2.828 0l-.586-.586A2 2 0 002.793.207l10 10a2 2 0 010 2.828L11.5 14.328a2 2 0 01-2.828 0l-6-6a2 2 0 010-2.828l5.414-5.414z"/>
+                        </svg>
+                    </button>
+                    <button class="drawing-tool" data-tool="bucket" title="Fill">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M6.5 1A1.5 1.5 0 005 2.5v2.872l-.803-.267A1.5 1.5 0 003 6.632v6.736A1.5 1.5 0 004.5 15h7a1.5 1.5 0 001.5-1.5V6.5a1.5 1.5 0 00-1.5-1.5H11V2.5A1.5 1.5 0 009.5 1h-3z"/>
+                        </svg>
+                    </button>
+                    <button class="drawing-tool" data-tool="eyedropper" title="Eyedropper">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M2 2.5a.5.5 0 01.5-.5h3a.5.5 0 010 1H3.707l3.853 3.854a.5.5 0 11-.708.708L3 3.707V5.5a.5.5 0 01-1 0v-3z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Layers Section -->
+            <div class="panel-section">
+                <h3>Layers</h3>
+                <div class="layers-container">
+                    <div class="layers-controls">
+                        <button class="small-btn" data-action="add-layer" title="Add Layer">+</button>
+                        <button class="small-btn" data-action="delete-layer" title="Delete Layer">−</button>
+                        <button class="small-btn" data-action="duplicate-layer" title="Duplicate Layer">⧉</button>
+                    </div>
+                    <div class="layers-list" id="layersList">
+                        <div class="layer-item active" data-layer="0">
+                            <div class="layer-visibility">👁</div>
+                            <div class="layer-name">Layer 1</div>
+                            <div class="layer-opacity">
+                                <input type="range" min="0" max="100" value="100" class="opacity-slider">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Area -->
+        <div class="canvas-container" id="canvasContainer">
+            <div class="canvas-wrapper">
+                <canvas id="mainCanvas" width="320" height="240"></canvas>
+                <canvas id="gridCanvas" width="320" height="240"></canvas>
+                <canvas id="ghostCanvas" width="320" height="240"></canvas>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="panel right-panel" id="rightPanel">
+            <div class="panel-header">
+                <span>Animation</span>
+                <div class="panel-controls">
+                    <button class="panel-toggle">−</button>
+                </div>
+            </div>
+            
+            <!-- Animation Controls -->
+            <div class="panel-section">
+                <h3>Playback</h3>
+                <div class="animation-controls">
+                    <label>FPS: <input type="number" id="fpsInput" value="12" min="1" max="60"></label>
+                    <label>
+                        <input type="checkbox" id="loopAnimation" checked> Loop
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Frames List -->
+            <div class="panel-section">
+                <h3>Frames</h3>
+                <div class="frames-controls">
+                    <button class="small-btn" data-action="add-frame" title="Add Frame">+</button>
+                    <button class="small-btn" data-action="delete-frame" title="Delete Frame">−</button>
+                    <button class="small-btn" data-action="duplicate-frame" title="Duplicate Frame">⧉</button>
+                </div>
+                <div class="frames-list" id="framesList">
+                    <div class="frame-item active" data-frame="0">
+                        <div class="frame-number">1</div>
+                        <div class="frame-thumbnail">
+                            <canvas width="64" height="48"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tool Properties -->
+            <div class="panel-section">
+                <h3>Tool Properties</h3>
+                <div class="tool-properties" id="toolProperties">
+                    <div class="property-group">
+                        <label>Brush Size: <span id="brushSizeValue">1</span>px</label>
+                        <input type="range" id="brushSize" min="1" max="50" value="1">
+                    </div>
+                    <div class="property-group">
+                        <label>Opacity: <span id="opacityValue">100</span>%</label>
+                        <input type="range" id="opacity" min="0" max="100" value="100">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resize Handles -->
+    <div class="resize-handle left-resize" data-panel="left"></div>
+    <div class="resize-handle right-resize" data-panel="right"></div>
+
+    <!-- Hidden File Input -->
+    <input type="file" id="fileInput" accept=".json,.png,.jpg,.jpeg" style="display: none;">
+
+    <script src="script.js"></script>
+</body>
+</html>
