@@ -27,6 +27,10 @@ class SpriteSpark {
         this.animationInterval = null;
         this.loopAnimation = true;
 
+        // Onion skin properties
+        this.showOnionSkin = false;
+        this.onionSkinFrames = 1; // Number of frames before/after to show
+
         // Canvas properties
         this.canvasWidth = 320;
         this.canvasHeight = 240;
@@ -152,6 +156,21 @@ class SpriteSpark {
         const zoomInput = document.getElementById('zoomInput');
         if (zoomInput) {
             zoomInput.addEventListener('input', this.updateZoomLevel.bind(this));
+        }
+
+        const onionSkinCheckbox = document.getElementById('onionSkinCheckbox');
+        if (onionSkinCheckbox) {
+            onionSkinCheckbox.addEventListener('change', (e) => {
+                this.showOnionSkin = e.target.checked;
+                this.renderCurrentFrameToMainCanvas();
+            });
+        }
+        const onionSkinFramesInput = document.getElementById('onionSkinFrames');
+        if (onionSkinFramesInput) {
+            onionSkinFramesInput.addEventListener('input', (e) => {
+                this.onionSkinFrames = parseInt(e.target.value, 10) || 1;
+                this.renderCurrentFrameToMainCanvas();
+            });
         }
 
         // Tool properties
@@ -336,7 +355,7 @@ class SpriteSpark {
     }
 
     initializeFrames() {
-        // Create initial frame
+        // Create initial frame with current layers
         this.frames = [this.createEmptyFrame()];
         this.updateFramesList();
     }
@@ -394,31 +413,72 @@ class SpriteSpark {
             canvas: this.createLayerCanvas()
         };
         this.layers.push(newLayer);
+
+        // Add a blank layer to every frame at the same index
+        this.frames.forEach(frame => {
+            const blankLayer = {
+                ...newLayer,
+                canvas: this.createLayerCanvas()
+            };
+            frame.layers.push(blankLayer);
+        });
+
         this.renderLayersList();
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+        this.updateFramesList();
     }
 
     deleteLayer(layerId) {
         if (this.layers.length <= 1) return;
-        
-        this.layers = this.layers.filter(layer => layer.id !== layerId);
+
+        const index = this.layers.findIndex(layer => layer.id === layerId);
+        if (index === -1) return;
+
+        this.layers.splice(index, 1);
+
+        // Remove the layer from every frame
+        this.frames.forEach(frame => {
+            frame.layers.splice(index, 1);
+        });
+
         if (this.activeLayerId === layerId && this.layers.length > 0) {
             this.setActiveLayer(this.layers[0].id);
         } else if (this.layers.length === 0) {
             this.activeLayerId = null;
         }
         this.renderLayersList();
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+        this.updateFramesList();
     }
     
     moveLayer(layerId, direction) {
         const index = this.layers.findIndex(l => l.id === layerId);
         if (index === -1) return;
 
+        let newIndex = index;
         if (direction === 'up' && index > 0) {
-            [this.layers[index - 1], this.layers[index]] = [this.layers[index], this.layers[index - 1]];
+            newIndex = index - 1;
         } else if (direction === 'down' && index < this.layers.length - 1) {
-            [this.layers[index + 1], this.layers[index]] = [this.layers[index], this.layers[index + 1]];
+            newIndex = index + 1;
         }
+        if (newIndex === index) return;
+
+        // Move in global layers
+        const [moved] = this.layers.splice(index, 1);
+        this.layers.splice(newIndex, 0, moved);
+
+        // Move in every frame
+        this.frames.forEach(frame => {
+            const [frameMoved] = frame.layers.splice(index, 1);
+            frame.layers.splice(newIndex, 0, frameMoved);
+        });
+
         this.renderLayersList();
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+        this.updateFramesList();
     }
 
     setActiveLayer(layerId) {
@@ -562,22 +622,20 @@ class SpriteSpark {
 
     renderFrameToLivePreview(frameIndexToRender) {
         if (!this.livePreviewCtx || !this.livePreviewCanvas || this.frames.length === 0) return;
-        
         this.livePreviewCtx.clearRect(0, 0, this.livePreviewCanvas.width, this.livePreviewCanvas.height);
 
         const frameData = this.frames[frameIndexToRender];
-        if (!frameData) return;
+        if (!frameData || !frameData.layers) return;
 
-        this.layers.forEach(layer => {
-            if (!layer.isVisible) return;
-            
-            if (layer.canvas) {
-                this.livePreviewCtx.globalAlpha = layer.opacity / 100;
-                this.livePreviewCtx.globalCompositeOperation = layer.blendMode;
+        // Draw all layers for this frame, bottom to top
+        for (let i = 0; i < frameData.layers.length; i++) {
+            const layer = frameData.layers[i];
+            if (layer.isVisible !== false && layer.canvas instanceof HTMLCanvasElement) {
+                this.livePreviewCtx.globalAlpha = layer.opacity / 100 || 1;
+                this.livePreviewCtx.globalCompositeOperation = layer.blendMode || 'source-over';
                 this.livePreviewCtx.drawImage(layer.canvas, 0, 0, this.livePreviewCanvas.width, this.livePreviewCanvas.height);
             }
-        });
-        
+        }
         this.livePreviewCtx.globalAlpha = 1.0;
         this.livePreviewCtx.globalCompositeOperation = 'source-over';
     }
@@ -690,15 +748,72 @@ class SpriteSpark {
         console.log(`Zoom level set to ${this.zoom}`);
     }
 
-    // Rest of the existing methods...
     createEmptyFrame() {
-        const canvas = document.createElement('canvas');
-        canvas.width = this.canvasWidth;
-        canvas.height = this.canvasHeight;
+        // Create a frame with the same number of layers as the current global layers
         return {
-            canvas: canvas,
-            layers: [this.createLayerCanvas()]
+            layers: this.layers.map(layer => {
+                const newCanvas = document.createElement('canvas');
+                newCanvas.width = this.canvasWidth;
+                newCanvas.height = this.canvasHeight;
+                const ctx = newCanvas.getContext('2d');
+                ctx.drawImage(layer.canvas, 0, 0);
+                return {
+                    id: layer.id,
+                    name: layer.name,
+                    isVisible: layer.isVisible,
+                    opacity: layer.opacity,
+                    blendMode: layer.blendMode,
+                    canvas: newCanvas
+                };
+            })
         };
+    }
+
+    addEmptyFrame() {
+        // Create a frame with the same number of layers, but blank canvases
+        const newFrame = {
+            layers: this.layers.map(layer => {
+                return {
+                    id: layer.id,
+                    name: layer.name,
+                    isVisible: layer.isVisible,
+                    opacity: layer.opacity,
+                    blendMode: layer.blendMode,
+                    canvas: this.createLayerCanvas()
+                };
+            })
+        };
+        this.frames.push(newFrame);
+        this.currentFrame = this.frames.length - 1;
+        this.selectFrame(this.currentFrame);
+        this.updateFramesList();
+    }
+
+    duplicateCurrentFrame() {
+        const current = this.frames[this.currentFrame];
+        if (!current) return;
+        // Deep copy all layers
+        const newFrame = {
+            layers: current.layers.map(layer => {
+                const newCanvas = document.createElement('canvas');
+                newCanvas.width = layer.canvas.width;
+                newCanvas.height = layer.canvas.height;
+                const ctx = newCanvas.getContext('2d');
+                ctx.drawImage(layer.canvas, 0, 0);
+                return {
+                    id: layer.id,
+                    name: layer.name,
+                    isVisible: layer.isVisible,
+                    opacity: layer.opacity,
+                    blendMode: layer.blendMode,
+                    canvas: newCanvas
+                };
+            })
+        };
+        this.frames.splice(this.currentFrame + 1, 0, newFrame);
+        this.currentFrame = this.currentFrame + 1;
+        this.selectFrame(this.currentFrame);
+        this.updateFramesList();
     }
 
     createLayerCanvas() {
@@ -736,20 +851,35 @@ class SpriteSpark {
     
     renderCurrentFrameToMainCanvas() {
         if (!this.ctx || !this.mainCanvas || this.frames.length === 0 || !this.layers.length) return;
-
         this.ctx.clearRect(0, 0, this.mainCanvas.width, this.mainCanvas.height);
         this.drawCheckerboardBackground();
 
-        this.layers.forEach(layer => {
-            if (!layer.isVisible) return;
+        // Onion skin: draw previous/next frames with transparency
+        if (this.showOnionSkin && this.frames.length > 1) {
+            for (let offset = -this.onionSkinFrames; offset <= this.onionSkinFrames; offset++) {
+                if (offset === 0) continue;
+                const frameIdx = this.currentFrame + offset;
+                if (frameIdx < 0 || frameIdx >= this.frames.length) continue;
+                const frame = this.frames[frameIdx];
+                frame.layers.forEach((layer, i) => {
+                    if (!layer.isVisible) return;
+                    this.ctx.globalAlpha = 0.2; // Faint
+                    this.ctx.globalCompositeOperation = 'source-over';
+                    this.ctx.drawImage(layer.canvas, 0, 0);
+                });
+            }
+        }
 
+        // Draw current frame layers
+        for (let i = 0; i < this.layers.length; i++) {
+            const layer = this.layers[i];
+            if (!layer.isVisible) continue;
             if (layer.canvas) {
                 this.ctx.globalAlpha = layer.opacity / 100;
                 this.ctx.globalCompositeOperation = layer.blendMode;
                 this.ctx.drawImage(layer.canvas, 0, 0);
             }
-        });
-        
+        }
         this.ctx.globalAlpha = 1.0;
         this.ctx.globalCompositeOperation = 'source-over';
     }
@@ -787,6 +917,12 @@ class SpriteSpark {
                 break;
             case 'move-layer-down':
                 if (this.activeLayerId) this.moveLayer(this.activeLayerId, 'down');
+                break;
+                case 'add-frame':
+                this.addEmptyFrame();
+                break;
+            case 'duplicate-frame':
+                this.duplicateCurrentFrame();
                 break;
             case 'apply-canvas-size':
                 this.applyCanvasSize();
@@ -827,6 +963,7 @@ class SpriteSpark {
         this.lastX = Math.floor((e.clientX - rect.left) / this.zoom);
         this.lastY = Math.floor((e.clientY - rect.top) / this.zoom);
         this.draw(e); // Draw initial point
+        this.syncGlobalLayersToCurrentFrame(); 
     }
 
     draw(e) {
@@ -855,10 +992,12 @@ class SpriteSpark {
         this.lastX = x;
         this.lastY = y;
         this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame(); 
     }
 
     stopDrawing() {
         this.isDrawing = false;
+        this.syncGlobalLayersToCurrentFrame(); 
     }
 
     updateGhostCursor(e) {
@@ -893,9 +1032,132 @@ class SpriteSpark {
         this.frames.forEach((frame, idx) => {
             const item = document.createElement('div');
             item.className = 'frame-item' + (idx === this.currentFrame ? ' active' : '');
-            item.textContent = `Frame ${idx + 1}`;
+            item.dataset.frame = idx;
+
+            // Frame number
+            const numberDiv = document.createElement('div');
+            numberDiv.className = 'frame-number';
+            numberDiv.textContent = idx + 1;
+            item.appendChild(numberDiv);
+
+            // Thumbnail
+            const thumbDiv = document.createElement('div');
+            thumbDiv.className = 'frame-thumbnail';
+            const thumbCanvas = document.createElement('canvas');
+            thumbCanvas.width = 64;
+            thumbCanvas.height = 48;
+            const thumbCtx = thumbCanvas.getContext('2d');
+            // Draw all layers for this frame, bottom to top
+            if (frame.layers) {
+                for (let i = 0; i < frame.layers.length; i++) {
+                    const l = frame.layers[i];
+                    if (l.isVisible !== false && l.canvas instanceof HTMLCanvasElement) {
+                        thumbCtx.globalAlpha = l.opacity / 100 || 1;
+                        thumbCtx.globalCompositeOperation = l.blendMode || 'source-over';
+                        thumbCtx.drawImage(l.canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+                    }
+                }
+            }
+            thumbCtx.globalAlpha = 1.0;
+            thumbCtx.globalCompositeOperation = 'source-over';
+            thumbDiv.appendChild(thumbCanvas);
+            item.appendChild(thumbDiv);
+
             item.addEventListener('click', () => this.selectFrame(idx));
             framesList.appendChild(item);
+        });
+    }
+
+    addFrame() {
+        // Deep copy all layer canvases for the new frame
+        const newFrame = {
+            layers: this.layers.map(layer => {
+                const newCanvas = document.createElement('canvas');
+                newCanvas.width = this.canvasWidth;
+                newCanvas.height = this.canvasHeight;
+                const ctx = newCanvas.getContext('2d');
+                ctx.drawImage(layer.canvas, 0, 0);
+                // Only store plain data, not references to the original layer object
+                return {
+                    id: layer.id,
+                    name: layer.name,
+                    isVisible: layer.isVisible,
+                    opacity: layer.opacity,
+                    blendMode: layer.blendMode,
+                    canvas: newCanvas
+                };
+            })
+        };
+        this.frames.push(newFrame);
+        this.currentFrame = this.frames.length - 1;
+        this.updateFramesList();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    selectFrame(frameIndex) {
+        if (frameIndex < 0 || frameIndex >= this.frames.length) return;
+        this.currentFrame = frameIndex;
+        const frame = this.frames[frameIndex];
+        if (!frame || !frame.layers) return;
+
+        // Only sync layer count if different
+        if (this.layers.length !== frame.layers.length) {
+            // Remove extra layers
+            while (this.layers.length > frame.layers.length) {
+                this.layers.pop();
+            }
+            // Add blank layers if needed (should not happen if frames are created correctly)
+            while (this.layers.length < frame.layers.length) {
+                const blankLayer = {
+                    id: Date.now().toString() + Math.random(),
+                    name: `Layer ${this.layers.length + 1}`,
+                    isVisible: true,
+                    opacity: 100,
+                    blendMode: 'source-over',
+                    canvas: this.createLayerCanvas()
+                };
+                this.layers.push(blankLayer);
+            }
+        }
+
+        // Copy properties and image data from frame's layers to global layers
+        this.layers.forEach((layer, i) => {
+            const frameLayer = frame.layers[i];
+            if (frameLayer) {
+                layer.name = frameLayer.name;
+                layer.isVisible = frameLayer.isVisible;
+                layer.opacity = frameLayer.opacity;
+                layer.blendMode = frameLayer.blendMode;
+                // Copy image data
+                const ctx = layer.canvas.getContext('2d');
+                ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+                if (frameLayer.canvas instanceof HTMLCanvasElement) {
+                    ctx.drawImage(frameLayer.canvas, 0, 0);
+                }
+            }
+        });
+
+        this.renderLayersList();
+        this.renderCurrentFrameToMainCanvas();
+        this.updateFramesList();
+    }
+
+    syncGlobalLayersToCurrentFrame() {
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !frame.layers) return;
+        this.layers.forEach((layer, i) => {
+            const frameLayer = frame.layers[i];
+            if (frameLayer && layer.canvas && frameLayer.canvas) {
+                // Copy image data from global layer to frame layer
+                const ctx = frameLayer.canvas.getContext('2d');
+                ctx.clearRect(0, 0, frameLayer.canvas.width, frameLayer.canvas.height);
+                ctx.drawImage(layer.canvas, 0, 0);
+                // Also sync properties
+                frameLayer.name = layer.name;
+                frameLayer.isVisible = layer.isVisible;
+                frameLayer.opacity = layer.opacity;
+                frameLayer.blendMode = layer.blendMode;
+            }
         });
     }
 
