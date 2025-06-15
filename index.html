@@ -121,7 +121,7 @@
             <div class="panel-header">
                 <span>Tools</span>
                 <div class="panel-controls">
-                    <button class="panel-toggle">−</button>
+                    <!--button class="panel-toggle">−</button-->
                 </div>
             </div>
             
@@ -164,6 +164,21 @@
                             <path d="M2 2.5a.5.5 0 01.5-.5h3a.5.5 0 010 1H3.707l3.853 3.854a.5.5 0 11-.708.708L3 3.707V5.5a.5.5 0 01-1 0v-3z"/>
                         </svg>
                     </button>
+                </div>
+            </div>
+            
+            <!-- Tool Properties -->
+            <div class="panel-section">
+                <h3>Tool Properties</h3>
+                <div class="tool-properties" id="toolProperties">
+                    <div class="property-group">
+                        <label>Brush Size: <span id="brushSizeValue">1</span>px</label>
+                        <input type="range" id="brushSize" min="1" max="50" value="1">
+                    </div>
+                    <div class="property-group">
+                        <label>Opacity: <span id="opacityValue">100</span>%</label>
+                        <input type="range" id="opacity" min="0" max="100" value="100">
+                    </div>
                 </div>
             </div>
             
@@ -221,7 +236,7 @@
             <div class="panel-header">
                 <span>Properties</span>
                 <div class="panel-controls">
-                    <button class="panel-toggle">−</button>
+                    <!--button class="panel-toggle">−</button-->
                 </div>
             </div>
             
@@ -235,6 +250,19 @@
                     </label>
                 </div>
             </div>
+
+            <!-- Onion Skin Controls -->
+            <div class="panel-section">
+                <h3>Onion Skin</h3>
+                <div class="animation-controls">
+                    <label>
+                        <input type="checkbox" id="onionSkinCheckbox"> Enable Onion Skin
+                    </label>
+                    <label>
+                        Frames: <input type="number" id="onionSkinFrames" value="1" min="1" max="10" style="width:50px;">
+                    </label>
+                </div>
+            </div>
             
             <!-- Frames List -->
             <div class="panel-section">
@@ -243,6 +271,8 @@
                     <button class="small-btn" data-action="add-frame" title="Add Frame">+</button>
                     <button class="small-btn" data-action="delete-frame" title="Delete Frame">−</button>
                     <button class="small-btn" data-action="duplicate-frame" title="Duplicate Frame">⧉</button>
+                    <button class="small-btn" data-action="move-frame-up" title="Move Frame Up">↑</button>
+                    <button class="small-btn" data-action="move-frame-down" title="Move Frame Down">↓</button>
                 </div>
                 <div class="frames-list" id="framesList">
                     <div class="frame-item active" data-frame="0">
@@ -250,21 +280,6 @@
                         <div class="frame-thumbnail">
                             <canvas width="64" height="48"></canvas>
                         </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Tool Properties -->
-            <div class="panel-section">
-                <h3>Tool Properties</h3>
-                <div class="tool-properties" id="toolProperties">
-                    <div class="property-group">
-                        <label>Brush Size: <span id="brushSizeValue">1</span>px</label>
-                        <input type="range" id="brushSize" min="1" max="50" value="1">
-                    </div>
-                    <div class="property-group">
-                        <label>Opacity: <span id="opacityValue">100</span>%</label>
-                        <input type="range" id="opacity" min="0" max="100" value="100">
                     </div>
                 </div>
             </div>
@@ -329,6 +344,6 @@
     <!-- Hidden File Input -->
     <input type="file" id="fileInput" accept=".json,.png,.jpg,.jpeg" style="display: none;">
 
-    <script src="script.js"></script>
+    <script src="sprite-spark.js"></script>
 </body>
 </html>

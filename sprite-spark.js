@@ -188,9 +188,11 @@ class SpriteSpark {
         const enablePreviewCheckbox = document.getElementById('enablePreview');
         if (enablePreviewCheckbox) {
             enablePreviewCheckbox.addEventListener('change', () => {
-                if (enablePreviewCheckbox.checked && this.isPlaying) {
+                if (enablePreviewCheckbox.checked) {
+                    this.isPlaying = true;
                     this.playAnimation();
-                } else if (!enablePreviewCheckbox.checked) {
+                } else {
+                    this.isPlaying = false;
                     this.pauseAnimation();
                     if (this.livePreviewCtx) {
                         this.livePreviewCtx.clearRect(0, 0, this.livePreviewCanvas.width, this.livePreviewCanvas.height);
@@ -540,6 +542,17 @@ class SpriteSpark {
             nameSpan.contentEditable = true;
             nameSpan.addEventListener('blur', (e) => this.setLayerName(layer.id, e.target.textContent));
 
+            nameSpan.addEventListener('mousedown', e => e.stopPropagation());
+            nameSpan.addEventListener('mouseup', e => e.stopPropagation());
+            nameSpan.addEventListener('click', e => e.stopPropagation());
+
+            nameSpan.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                nameSpan.blur();
+            }
+        });
+
             const blendSelect = document.createElement('select');
             blendSelect.className = 'layer-blend-mode';
             blendSelect.title = 'Blend Mode';
@@ -552,6 +565,12 @@ class SpriteSpark {
                     blendSelect.appendChild(option);
                 });
             blendSelect.addEventListener('change', (e) => this.setLayerBlendMode(layer.id, e.target.value));
+
+            // Prevent parent click when interacting with dropdown
+            blendSelect.addEventListener('mousedown', e => e.stopPropagation());
+            blendSelect.addEventListener('mouseup', e => e.stopPropagation());
+            blendSelect.addEventListener('click', e => e.stopPropagation());
+            blendSelect.addEventListener('focus', e => e.stopPropagation());
 
             const opacityInput = document.createElement('input');
             opacityInput.type = 'range';
@@ -567,6 +586,55 @@ class SpriteSpark {
             item.appendChild(blendSelect);
             item.appendChild(opacityInput);
             item.addEventListener('click', () => this.setActiveLayer(layer.id));
+
+            // Make each layer item draggable
+            item.draggable = true;
+            item.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', layer.id);
+                item.classList.add('dragging');
+            });
+            item.addEventListener('dragend', () => {
+                item.classList.remove('dragging');
+            });
+            item.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                item.classList.add('drag-over');
+            });
+            item.addEventListener('dragleave', () => {
+                item.classList.remove('drag-over');
+            });
+            item.addEventListener('drop', (e) => {
+                e.preventDefault();
+                item.classList.remove('drag-over');
+                const draggedLayerId = e.dataTransfer.getData('text/plain');
+                const fromIndex = this.layers.findIndex(l => l.id === draggedLayerId);
+                const toIndex = this.layers.findIndex(l => l.id === layer.id);
+                if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
+                    this.undoAdd();
+                    const [moved] = this.layers.splice(fromIndex, 1);
+                    this.layers.splice(toIndex, 0, moved);
+                    // Move in every frame
+                    this.frames.forEach(frame => {
+                        const [frameMoved] = frame.layers.splice(fromIndex, 1);
+                        frame.layers.splice(toIndex, 0, frameMoved);
+                    });
+                    this.renderLayersList();
+                    this.renderCurrentFrameToMainCanvas();
+                    this.syncGlobalLayersToCurrentFrame();
+                    this.updateFramesList();
+                }
+            });
+
+            // Only set active layer if not clicking on editable elements
+            item.addEventListener('click', (evt) => {
+                if (
+                    evt.target === nameSpan ||
+                    evt.target === blendSelect ||
+                    evt.target === opacityInput ||
+                    evt.target === visibilityBtn
+                ) return;
+                this.setActiveLayer(layer.id);
+            });
 
             layersList.appendChild(item);
         });
@@ -596,11 +664,11 @@ class SpriteSpark {
             this.isPlaying = false;
             return;
         }
-        
         this.pauseAnimation();
-        
+        this.currentFrameIndex = this.currentFrame; // Start from current frame
         const frameDuration = 1000 / this.fps;
         this.animationInterval = setInterval(() => {
+            this.renderFrameToLivePreview(this.currentFrameIndex);
             this.currentFrameIndex++;
             if (this.currentFrameIndex >= this.frames.length) {
                 if (this.loopAnimation) {
@@ -611,7 +679,6 @@ class SpriteSpark {
                     return;
                 }
             }
-            this.renderFrameToLivePreview(this.currentFrameIndex);
         }, frameDuration);
     }
 
@@ -906,6 +973,7 @@ class SpriteSpark {
             case 'set-theme':
                 if (theme) this.applyTheme(theme);
                 break;
+
             case 'add-layer':
                 this.addLayer();
                 break;
@@ -918,20 +986,29 @@ class SpriteSpark {
             case 'move-layer-down':
                 if (this.activeLayerId) this.moveLayer(this.activeLayerId, 'down');
                 break;
-                case 'add-frame':
+
+            case 'add-frame':
                 this.addEmptyFrame();
                 break;
             case 'duplicate-frame':
                 this.duplicateCurrentFrame();
                 break;
+            case 'delete-frame':
+                this.removeFrame(this.currentFrame);
+                break;
+            case 'move-frame-up':
+                this.moveFrame(this.currentFrame, 'up');
+                break;
+            case 'move-frame-down':
+                this.moveFrame(this.currentFrame, 'down');
+                break;
+
             case 'apply-canvas-size':
                 this.applyCanvasSize();
                 break;
+
             case 'play':
                 this.togglePlay();
-                break;
-            case 'add-frame':
-                this.addFrame();
                 break;
             // Add other actions as needed...
         }
@@ -1142,6 +1219,42 @@ class SpriteSpark {
         this.updateFramesList();
     }
 
+    removeFrame(frameIndex) {
+        if (this.frames.length <= 1) return;
+        const confirmed = confirm("Are you sure you want to delete this frame?");
+        if (!confirmed) return;
+        this.undoAdd();
+        this.frames.splice(frameIndex, 1);
+        if (this.currentFrame >= this.frames.length) {
+            this.currentFrame = this.frames.length - 1;
+        }
+        this.selectFrame(this.currentFrame);
+        this.updateFramesList();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    moveFrame(frameIndex, direction) {
+        if (direction === 'up' && frameIndex > 0) {
+            this.undoAdd();
+            const temp = this.frames[frameIndex];
+            this.frames[frameIndex] = this.frames[frameIndex - 1];
+            this.frames[frameIndex - 1] = temp;
+            if (this.currentFrame === frameIndex) this.currentFrame--;
+            else if (this.currentFrame === frameIndex - 1) this.currentFrame++;
+            this.updateFramesList();
+            this.selectFrame(this.currentFrame);
+        } else if (direction === 'down' && frameIndex < this.frames.length - 1) {
+            this.undoAdd();
+            const temp = this.frames[frameIndex];
+            this.frames[frameIndex] = this.frames[frameIndex + 1];
+            this.frames[frameIndex + 1] = temp;
+            if (this.currentFrame === frameIndex) this.currentFrame++;
+            else if (this.currentFrame === frameIndex + 1) this.currentFrame--;
+            this.updateFramesList();
+            this.selectFrame(this.currentFrame);
+        }
+    }
+
     syncGlobalLayersToCurrentFrame() {
         const frame = this.frames[this.currentFrame];
         if (!frame || !frame.layers) return;
@@ -1164,10 +1277,10 @@ class SpriteSpark {
     handleKeyboard(e) {
         // Example: Ctrl+Z for undo, Ctrl+Y for redo, Space for play/pause
         if (e.ctrlKey && e.key === 'z') {
-            // this.undo();
+            this.undo();
             e.preventDefault();
         } else if (e.ctrlKey && e.key === 'y') {
-            // this.redo();
+            this.redo();
             e.preventDefault();
         } else if (e.key === ' ') {
             this.togglePlay();
@@ -1200,6 +1313,112 @@ class SpriteSpark {
             img.src = evt.target.result;
         };
         reader.readAsDataURL(file);
+    }
+
+    // UNDO/REDO functionality
+    undoAdd() {
+        const state = {
+            frames: this.frames.map(frame => ({
+                layers: frame.layers.map(layer => ({
+                    ...layer,
+                    canvas: (() => {
+                        const c = document.createElement('canvas');
+                        c.width = layer.canvas.width;
+                        c.height = layer.canvas.height;
+                        c.getContext('2d').drawImage(layer.canvas, 0, 0);
+                        return c;
+                    })()
+                }))
+            })),
+            layers: this.layers.map(layer => ({
+                ...layer,
+                canvas: (() => {
+                    const c = document.createElement('canvas');
+                    c.width = layer.canvas.width;
+                    c.height = layer.canvas.height;
+                    c.getContext('2d').drawImage(layer.canvas, 0, 0);
+                    return c;
+                })()
+            })),
+            currentFrame: this.currentFrame,
+            activeLayerId: this.activeLayerId
+        };
+        this.undoStack.push(state);
+        if (this.undoStack.length > this.maxUndoSteps) this.undoStack.shift();
+        this.redoStack = [];
+    }
+
+    undo() {
+        if (this.undoStack.length === 0) return;
+        const prev = this.undoStack.pop();
+        this.redoStack.push(this._getCurrentState());
+        this._restoreState(prev);
+    }
+
+    redo() {
+        if (this.redoStack.length === 0) return;
+        const next = this.redoStack.pop();
+        this.undoStack.push(this._getCurrentState());
+        this._restoreState(next);
+    }
+
+    _getCurrentState() {
+        return {
+            frames: this.frames.map(frame => ({
+                layers: frame.layers.map(layer => ({
+                    ...layer,
+                    canvas: (() => {
+                        const c = document.createElement('canvas');
+                        c.width = layer.canvas.width;
+                        c.height = layer.canvas.height;
+                        c.getContext('2d').drawImage(layer.canvas, 0, 0);
+                        return c;
+                    })()
+                }))
+            })),
+            layers: this.layers.map(layer => ({
+                ...layer,
+                canvas: (() => {
+                    const c = document.createElement('canvas');
+                    c.width = layer.canvas.width;
+                    c.height = layer.canvas.height;
+                    c.getContext('2d').drawImage(layer.canvas, 0, 0);
+                    return c;
+                })()
+            })),
+            currentFrame: this.currentFrame,
+            activeLayerId: this.activeLayerId
+        };
+    }
+
+    _restoreState(state) {
+        this.frames = state.frames.map(frame => ({
+            layers: frame.layers.map(layer => ({
+                ...layer,
+                canvas: (() => {
+                    const c = document.createElement('canvas');
+                    c.width = layer.canvas.width;
+                    c.height = layer.canvas.height;
+                    c.getContext('2d').drawImage(layer.canvas, 0, 0);
+                    return c;
+                })()
+            }))
+        }));
+        this.layers = state.layers.map(layer => ({
+            ...layer,
+            canvas: (() => {
+                const c = document.createElement('canvas');
+                c.width = layer.canvas.width;
+                c.height = layer.canvas.height;
+                c.getContext('2d').drawImage(layer.canvas, 0, 0);
+                return c;
+            })()
+        }));
+        this.currentFrame = state.currentFrame;
+        this.activeLayerId = state.activeLayerId;
+        this.renderLayersList();
+        this.updateFramesList();
+        this.renderCurrentFrameToMainCanvas();
     }
 }
 
