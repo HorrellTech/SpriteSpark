@@ -34,6 +34,7 @@ class SpriteSpark {
         // Options properties
         this.pixelPerfect = false;
         this.pixelDrawingMode = false;
+        this.pixelEdgeCorrection = false;
 
         // Canvas properties
         this.canvasWidth = 320;
@@ -191,6 +192,24 @@ class SpriteSpark {
             });
         }
 
+        const pixelEdgeCorrectionCheckbox = document.getElementById('pixelEdgeCorrectionCheckbox');
+        if (pixelEdgeCorrectionCheckbox) {
+            pixelEdgeCorrectionCheckbox.addEventListener('change', (e) => {
+                this.pixelEdgeCorrection = e.target.checked;
+            });
+        }
+
+        const sizeSelect = document.getElementById('frameThumbSize');
+        if (sizeSelect) {
+            sizeSelect.addEventListener('change', () => this.updateFramesList());
+        }
+
+        const bottomResize = document.getElementById('bottomResize');
+        if (bottomResize && bottomPanel) {
+            // Position the resize bar just above the bottom panel
+            bottomResize.style.bottom = (parseInt(bottomPanel.style.height) || 140) + 'px';
+        }
+
         // Tool properties
         this.initializeToolProperties();
 
@@ -291,13 +310,13 @@ class SpriteSpark {
 
         // Drawing tool buttons
         //if(toolButtons) {
-            toolButtons.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    toolButtons.forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    this.currentTool = btn.getAttribute('data-tool');
-                });
+        toolButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                toolButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.currentTool = btn.getAttribute('data-tool');
             });
+        });
         //}
     }
 
@@ -484,7 +503,7 @@ class SpriteSpark {
         this.syncGlobalLayersToCurrentFrame();
         this.updateFramesList();
     }
-    
+
     moveLayer(layerId, direction) {
         const index = this.layers.findIndex(l => l.id === layerId);
         if (index === -1) return;
@@ -542,7 +561,7 @@ class SpriteSpark {
             this.renderCurrentFrameToMainCanvas();
         }
     }
-    
+
     setLayerName(layerId, name) {
         const layer = this.layers.find(l => l.id === layerId);
         if (layer) {
@@ -553,7 +572,7 @@ class SpriteSpark {
     renderLayersList() {
         const layersList = document.getElementById('layersList');
         if (!layersList) return;
-        
+
         layersList.innerHTML = '';
         this.layers.forEach(layer => {
             const item = document.createElement('div');
@@ -577,11 +596,11 @@ class SpriteSpark {
             nameSpan.addEventListener('click', e => e.stopPropagation());
 
             nameSpan.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                nameSpan.blur();
-            }
-        });
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    nameSpan.blur();
+                }
+            });
 
             const blendSelect = document.createElement('select');
             blendSelect.className = 'layer-blend-mode';
@@ -610,7 +629,7 @@ class SpriteSpark {
             opacityInput.value = layer.opacity;
             opacityInput.title = 'Opacity';
             opacityInput.addEventListener('input', (e) => this.setLayerOpacity(layer.id, e.target.value));
-            
+
             item.appendChild(visibilityBtn);
             item.appendChild(nameSpan);
             item.appendChild(blendSelect);
@@ -678,7 +697,7 @@ class SpriteSpark {
         } else {
             this.pauseAnimation();
         }
-        
+
         const playBtn = document.querySelector('.play-btn');
         if (playBtn) {
             const playIcon = playBtn.querySelector('.play-icon');
@@ -742,7 +761,7 @@ class SpriteSpark {
         const canvasWidthInput = document.getElementById('canvasWidth');
         const canvasHeightInput = document.getElementById('canvasHeight');
         const resizeMethodSelect = document.getElementById('resizeMethod');
-        
+
         if (!canvasWidthInput || !canvasHeightInput || !resizeMethodSelect) return;
 
         const newWidth = parseInt(canvasWidthInput.value, 10);
@@ -782,7 +801,7 @@ class SpriteSpark {
 
             layer.canvas.width = newWidth;
             layer.canvas.height = newHeight;
-            
+
             const lc = layer.canvas.getContext('2d');
             lc.clearRect(0, 0, newWidth, newHeight);
 
@@ -800,7 +819,7 @@ class SpriteSpark {
                     drawWidth = newWidth;
                     drawHeight = drawWidth / oldAspect;
                 }
-                
+
                 dx = (newWidth - drawWidth) / 2;
                 dy = (newHeight - drawHeight) / 2;
                 lc.drawImage(tempCanvas, dx, dy, drawWidth, drawHeight);
@@ -817,7 +836,7 @@ class SpriteSpark {
 
     resizeCanvases() {
         if (!this.mainCanvas) return;
-        
+
         const canvases = [this.mainCanvas, this.gridCanvas, this.ghostCanvas];
         canvases.forEach(canvas => {
             if (canvas) {
@@ -924,7 +943,7 @@ class SpriteSpark {
 
     drawGrid() {
         if (!this.gridCanvas || !this.gridCtx) return;
-        
+
         this.gridCtx.clearRect(0, 0, this.gridCanvas.width, this.gridCanvas.height);
         if (!this.showGrid) return;
 
@@ -945,7 +964,7 @@ class SpriteSpark {
             this.gridCtx.stroke();
         }
     }
-    
+
     renderCurrentFrameToMainCanvas() {
         if (!this.ctx || !this.mainCanvas || this.frames.length === 0 || !this.layers.length) return;
         this.ctx.clearRect(0, 0, this.mainCanvas.width, this.mainCanvas.height);
@@ -985,12 +1004,29 @@ class SpriteSpark {
     handleMenuClick(e) {
         const action = e.target.getAttribute('data-action');
         const theme = e.target.getAttribute('data-theme');
-        
+
         if (!action) return;
 
         switch (action) {
             case 'new':
-                this.newProject();
+                if (confirm("Start a new project? Unsaved changes will be lost.")) {
+                    location.reload();
+                }
+                break;
+            case 'open':
+                this.openProject();
+                break;
+            case 'save':
+                this.saveProject(false);
+                break;
+            case 'save-as':
+                this.saveProject(true);
+                break;
+            case 'export-frame':
+                this.exportCurrentFrame();
+                break;
+            case 'export-animation':
+                this.exportAnimation();
                 break;
             case 'toggle-grid':
                 this.showGrid = !this.showGrid;
@@ -1070,7 +1106,7 @@ class SpriteSpark {
         this.lastX = Math.floor((e.clientX - rect.left) / this.zoom);
         this.lastY = Math.floor((e.clientY - rect.top) / this.zoom);
         this.draw(e); // Draw initial point
-        this.syncGlobalLayersToCurrentFrame(); 
+        this.syncGlobalLayersToCurrentFrame();
     }
 
     draw(e) {
@@ -1088,35 +1124,41 @@ class SpriteSpark {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        if (this.pixelDrawingMode) {
+        if (this.pixelDrawingMode && this.currentTool !== 'eraser' && this.brushSize === 1) {
             // Use Bresenham's line algorithm for pixel-perfect lines
-            function drawPixelLine(ctx, x0, y0, x1, y1, color, size) {
+            function drawPixelLine(ctx, x0, y0, x1, y1, color, size, preventCorners) {
                 let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
                 let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
                 let err = dx + dy, e2;
                 let prevX = x0, prevY = y0;
 
                 while (true) {
-                    ctx.fillStyle = color;
-                    ctx.globalAlpha = this.opacity / 100;
-                    ctx.fillRect(x0 - Math.floor(size/2), y0 - Math.floor(size/2), size, size);
-
-                    // Edge correction: fill diagonal gaps
-                    if (x0 !== prevX && y0 !== prevY) {
-                        ctx.fillRect(x0 - Math.floor(size/2), prevY - Math.floor(size/2), size, size);
-                        ctx.fillRect(prevX - Math.floor(size/2), y0 - Math.floor(size/2), size, size);
+                    // Prevent corners: only draw if not a diagonal-only move
+                    if (!preventCorners || (x0 === prevX || y0 === prevY)) {
+                        ctx.fillStyle = color;
+                        ctx.globalAlpha = this.opacity / 100;
+                        ctx.fillRect(x0 - Math.floor(size / 2), y0 - Math.floor(size / 2), size, size);
                     }
 
                     if (x0 === x1 && y0 === y1) break;
                     prevX = x0; prevY = y0;
                     e2 = 2 * err;
-                    
                     if (e2 >= dy) { err += dy; x0 += sx; }
                     if (e2 <= dx) { err += dx; y0 += sy; }
                 }
             }
 
-            drawPixelLine.call(this, ctx, this.lastX, this.lastY, x, y, this.primaryColor, this.brushSize);
+            drawPixelLine.call(
+                this,
+                ctx,
+                this.lastX,
+                this.lastY,
+                x,
+                y,
+                this.primaryColor,
+                this.brushSize,
+                this.pixelEdgeCorrection && this.brushSize > 1 // preventCorners only if enabled and brush is round
+            );
         } else if (this.currentTool === 'pen') {
             ctx.beginPath();
             ctx.moveTo(this.lastX, this.lastY);
@@ -1125,15 +1167,16 @@ class SpriteSpark {
         } else if (this.currentTool === 'eraser') {
             ctx.clearRect(x - this.brushSize / 2, y - this.brushSize / 2, this.brushSize, this.brushSize);
         }
+
         this.lastX = x;
         this.lastY = y;
         this.renderCurrentFrameToMainCanvas();
-        this.syncGlobalLayersToCurrentFrame(); 
+        this.syncGlobalLayersToCurrentFrame();
     }
 
     stopDrawing() {
         this.isDrawing = false;
-        this.syncGlobalLayersToCurrentFrame(); 
+        this.syncGlobalLayersToCurrentFrame();
     }
 
     updateGhostCursor(e) {
@@ -1143,11 +1186,23 @@ class SpriteSpark {
         const rect = this.ghostCanvas.getBoundingClientRect();
         const x = Math.floor((e.clientX - rect.left) / this.zoom);
         const y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+        // Draw ghost brush
+        this.ghostCtx.save();
+        this.ghostCtx.globalAlpha = 0.7;
         this.ghostCtx.strokeStyle = '#888';
         this.ghostCtx.lineWidth = 1;
         this.ghostCtx.beginPath();
         this.ghostCtx.arc(x, y, this.brushSize / 2, 0, 2 * Math.PI);
         this.ghostCtx.stroke();
+
+        // Fill with brush color
+        this.ghostCtx.fillStyle = this.primaryColor;
+        this.ghostCtx.globalAlpha = 0.3;
+        this.ghostCtx.beginPath();
+        this.ghostCtx.arc(x, y, this.brushSize / 2, 0, 2 * Math.PI);
+        this.ghostCtx.fill();
+        this.ghostCtx.restore();
     }
 
     showGhostCursor() {
@@ -1162,69 +1217,78 @@ class SpriteSpark {
     }
 
     updateFramesList() {
-        const framesList = document.getElementById('framesList');
-        if (!framesList) return;
+    const framesList = document.getElementById('framesList');
+    if (!framesList) return;
 
-        framesList.innerHTML = '';
-        this.frames.forEach((frame, idx) => {
-            const item = document.createElement('div');
-            item.className = 'frame-item' + (idx === this.currentFrame ? ' active' : '');
-            item.dataset.frame = idx;
+    // Get selected size
+    const sizeSelect = document.getElementById('frameThumbSize');
+    let size = 'medium';
+    if (sizeSelect) size = sizeSelect.value;
 
-            // Frame number
-            const numberDiv = document.createElement('div');
-            numberDiv.className = 'frame-number';
-            numberDiv.textContent = idx + 1;
-            item.appendChild(numberDiv);
+    framesList.innerHTML = '';
+    this.frames.forEach((frame, idx) => {
+        const item = document.createElement('div');
+        item.className = `frame-item ${size} ${idx === this.currentFrame ? 'active' : ''}`;
+        item.dataset.frame = idx;
 
-            // Thumbnail
-            const thumbDiv = document.createElement('div');
-            thumbDiv.className = 'frame-thumbnail';
-            const thumbCanvas = document.createElement('canvas');
-            thumbCanvas.width = 64;
-            thumbCanvas.height = 48;
-            const thumbCtx = thumbCanvas.getContext('2d');
+        // Frame number
+        const numberDiv = document.createElement('div');
+        numberDiv.className = 'frame-number';
+        numberDiv.textContent = idx + 1;
+        item.appendChild(numberDiv);
 
-            // Draw all layers for this frame, bottom to top
-            if (frame.layers) {
-                for (let i = 0; i < frame.layers.length; i++) {
-                    const l = frame.layers[i];
-                    if (l.isVisible !== false && l.canvas instanceof HTMLCanvasElement) {
-                        // Fit and center the image in the thumbnail
-                        const srcW = l.canvas.width;
-                        const srcH = l.canvas.height;
-                        const dstW = thumbCanvas.width;
-                        const dstH = thumbCanvas.height;
-                        const srcAspect = srcW / srcH;
-                        const dstAspect = dstW / dstH;
-                        let drawW, drawH, dx, dy;
-                        if (srcAspect > dstAspect) {
-                            drawW = dstW;
-                            drawH = dstW / srcAspect;
-                            dx = 0;
-                            dy = (dstH - drawH) / 2;
-                        } else {
-                            drawH = dstH;
-                            drawW = dstH * srcAspect;
-                            dx = (dstW - drawW) / 2;
-                            dy = 0;
-                        }
-                        thumbCtx.globalAlpha = l.opacity / 100 || 1;
-                        thumbCtx.globalCompositeOperation = l.blendMode || 'source-over';
-                        thumbCtx.drawImage(l.canvas, 0, 0, srcW, srcH, dx, dy, drawW, drawH);
+        // Thumbnail
+        const thumbDiv = document.createElement('div');
+        thumbDiv.className = 'frame-thumbnail';
+        const thumbCanvas = document.createElement('canvas');
+        // Set canvas size based on size
+        let w = 64, h = 48;
+        if (size === 'small') { w = 32; h = 24; }
+        if (size === 'large') { w = 128; h = 96; }
+        thumbCanvas.width = w;
+        thumbCanvas.height = h;
+        const thumbCtx = thumbCanvas.getContext('2d');
+
+        // Draw all layers for this frame, bottom to top
+        if (frame.layers) {
+            for (let i = 0; i < frame.layers.length; i++) {
+                const l = frame.layers[i];
+                if (l.isVisible !== false && l.canvas instanceof HTMLCanvasElement) {
+                    // Fit and center the image in the thumbnail
+                    const srcW = l.canvas.width;
+                    const srcH = l.canvas.height;
+                    const dstW = thumbCanvas.width;
+                    const dstH = thumbCanvas.height;
+                    const srcAspect = srcW / srcH;
+                    const dstAspect = dstW / dstH;
+                    let drawW, drawH, dx, dy;
+                    if (srcAspect > dstAspect) {
+                        drawW = dstW;
+                        drawH = dstW / srcAspect;
+                        dx = 0;
+                        dy = (dstH - drawH) / 2;
+                    } else {
+                        drawH = dstH;
+                        drawW = dstH * srcAspect;
+                        dx = (dstW - drawW) / 2;
+                        dy = 0;
                     }
+                    thumbCtx.globalAlpha = l.opacity / 100 || 1;
+                    thumbCtx.globalCompositeOperation = l.blendMode || 'source-over';
+                    thumbCtx.drawImage(l.canvas, 0, 0, srcW, srcH, dx, dy, drawW, drawH);
                 }
             }
-            
-            thumbCtx.globalAlpha = 1.0;
-            thumbCtx.globalCompositeOperation = 'source-over';
-            thumbDiv.appendChild(thumbCanvas);
-            item.appendChild(thumbDiv);
+        }
 
-            item.addEventListener('click', () => this.selectFrame(idx));
-            framesList.appendChild(item);
-        });
-    }
+        thumbCtx.globalAlpha = 1.0;
+        thumbCtx.globalCompositeOperation = 'source-over';
+        thumbDiv.appendChild(thumbCanvas);
+        item.appendChild(thumbDiv);
+
+        item.addEventListener('click', () => this.selectFrame(idx));
+        framesList.appendChild(item);
+    });
+}
 
     addFrame() {
         // Deep copy all layer canvases for the new frame
@@ -1397,6 +1461,278 @@ class SpriteSpark {
         reader.readAsDataURL(file);
     }
 
+    async openProject() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const text = await file.text();
+            try {
+                const data = JSON.parse(text);
+                this.loadProjectData(data);
+            } catch (err) {
+                alert("Invalid project file.");
+            }
+        };
+        input.click();
+    }
+
+    async saveProject(forcePrompt = false) {
+        let name = this.projectName;
+        if (!name || forcePrompt) {
+            name = prompt("Enter a name for your project:", name || "SpriteSparkProject");
+            if (!name) return;
+            this.projectName = name;
+        }
+        const data = this.getProjectData();
+        const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name + ".json";
+        a.click();
+    }
+
+    getProjectData() {
+        // Serialize all frames, layers, and settings
+        return {
+            canvasWidth: this.canvasWidth,
+            canvasHeight: this.canvasHeight,
+            frames: this.frames.map(frame => ({
+                layers: frame.layers.map(layer => ({
+                    id: layer.id,
+                    name: layer.name,
+                    isVisible: layer.isVisible,
+                    opacity: layer.opacity,
+                    blendMode: layer.blendMode,
+                    image: layer.canvas.toDataURL()
+                }))
+            })),
+            layers: this.layers.map(layer => ({
+                id: layer.id,
+                name: layer.name,
+                isVisible: layer.isVisible,
+                opacity: layer.opacity,
+                blendMode: layer.blendMode
+            })),
+            currentFrame: this.currentFrame,
+            activeLayerId: this.activeLayerId,
+            theme: this.currentTheme
+        };
+    }
+
+    loadProjectData(data) {
+        // Restore project from JSON
+        this.canvasWidth = data.canvasWidth;
+        this.canvasHeight = data.canvasHeight;
+        this.currentFrame = data.currentFrame || 0;
+        this.activeLayerId = data.activeLayerId || null;
+        this.theme = data.theme || 'dark';
+        this.applyTheme(this.theme);
+
+        // Restore layers and frames
+        this.layers = data.layers.map(l => ({
+            ...l,
+            canvas: this.createLayerCanvas()
+        }));
+        this.frames = data.frames.map(frame => ({
+            layers: frame.layers.map(l => {
+                const canvas = this.createLayerCanvas();
+                const ctx = canvas.getContext('2d');
+                if (l.image) {
+                    const img = new window.Image();
+                    img.src = l.image;
+                    img.onload = () => ctx.drawImage(img, 0, 0);
+                }
+                return { ...l, canvas };
+            })
+        }));
+        setTimeout(() => {
+            this.renderLayersList();
+            this.updateFramesList();
+            this.renderCurrentFrameToMainCanvas();
+        }, 100);
+    }
+
+    exportCurrentFrame() {
+        let name = prompt("Enter a name for the exported frame:", "frame");
+        if (!name) return;
+        // Render current frame to a temp canvas
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.canvasWidth;
+        tempCanvas.height = this.canvasHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+        // Draw all visible layers
+        for (let i = 0; i < this.layers.length; i++) {
+            const layer = this.layers[i];
+            if (!layer.isVisible) continue;
+            tempCtx.globalAlpha = layer.opacity / 100;
+            tempCtx.globalCompositeOperation = layer.blendMode;
+            tempCtx.drawImage(layer.canvas, 0, 0);
+        }
+        tempCtx.globalAlpha = 1.0;
+        tempCtx.globalCompositeOperation = 'source-over';
+        // Download as PNG
+        tempCanvas.toBlob(blob => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name + ".png";
+            a.click();
+        });
+    }
+
+    exportAnimation() {
+        // Show modal
+        const modal = document.getElementById('exportModal');
+        const formatSelect = document.getElementById('exportFormat');
+        const nameInput = document.getElementById('exportName');
+        const confirmBtn = document.getElementById('exportConfirm');
+        const cancelBtn = document.getElementById('exportCancel');
+        if (!modal || !formatSelect || !nameInput || !confirmBtn || !cancelBtn) return;
+
+        // Reset modal fields
+        nameInput.value = "animation";
+        formatSelect.value = "gif";
+        modal.classList.remove('hidden');
+        nameInput.focus();
+
+        // Remove previous listeners
+        confirmBtn.onclick = null;
+        cancelBtn.onclick = null;
+
+        // Confirm export
+        confirmBtn.onclick = () => {
+            const name = nameInput.value.trim() || "animation";
+            const format = formatSelect.value;
+            modal.classList.add('hidden');
+            this._doExportAnimation(name, format);
+        };
+        // Cancel export
+        cancelBtn.onclick = () => {
+            modal.classList.add('hidden');
+        };
+    }
+
+    _doExportAnimation(name, format) {
+    const loadingModal = document.getElementById('exportLoadingModal');
+    const progressText = document.getElementById('exportProgressText');
+    const progressBar = document.getElementById('exportProgressBar');
+    const cancelBtn = document.getElementById('exportLoadingCancel');
+    let cancelled = false;
+
+    function showLoading(text, percent) {
+        if (loadingModal) loadingModal.classList.remove('hidden');
+        if (progressText) progressText.textContent = text;
+        if (progressBar) progressBar.style.width = percent + "%";
+    }
+    function hideLoading() {
+        if (loadingModal) loadingModal.classList.add('hidden');
+    }
+
+    if (cancelBtn) {
+        cancelBtn.onclick = () => {
+            cancelled = true;
+            hideLoading();
+        };
+    }
+
+    if (format === "gif") {
+        const gif = new window.GIF({
+            workers: 2,
+            quality: 10,
+            width: this.canvasWidth,
+            height: this.canvasHeight,
+            workerScript: 'https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js'
+        });
+
+        let totalFrames = this.frames.length;
+        for (let f = 0; f < totalFrames; f++) {
+            if (cancelled) return;
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = this.canvasWidth;
+            tempCanvas.height = this.canvasHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            const frame = this.frames[f];
+            for (let i = 0; i < frame.layers.length; i++) {
+                const layer = frame.layers[i];
+                if (!layer.isVisible) continue;
+                tempCtx.globalAlpha = layer.opacity / 100;
+                tempCtx.globalCompositeOperation = layer.blendMode;
+                tempCtx.drawImage(layer.canvas, 0, 0);
+            }
+            tempCtx.globalAlpha = 1.0;
+            tempCtx.globalCompositeOperation = 'source-over';
+            gif.addFrame(tempCanvas, { delay: 1000 / this.fps });
+        }
+
+        gif.on('progress', (p) => {
+            showLoading(`Encoding GIF: ${Math.round(p * 100)}%`, Math.round(p * 100));
+        });
+        gif.on('finished', function (blob) {
+            hideLoading();
+            if (cancelled) return;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name + ".gif";
+            a.click();
+        });
+        showLoading("Encoding GIF: 0%", 0);
+        gif.render();
+    } else {
+        // WebM/MP4 export using CCapture.js
+        const capturer = new window.CCapture({
+            format: format,
+            framerate: this.fps,
+            verbose: true,
+            name: name
+        });
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.canvasWidth;
+        tempCanvas.height = this.canvasHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+        let totalFrames = this.frames.length;
+        let frameIdx = 0;
+        capturer.start();
+        showLoading(`Encoding ${format.toUpperCase()}: 0/${totalFrames}`, 0);
+
+        const renderFrame = () => {
+            if (cancelled) {
+                capturer.stop();
+                hideLoading();
+                return;
+            }
+            if (frameIdx >= totalFrames) {
+                capturer.stop();
+                hideLoading();
+                capturer.save();
+                return;
+            }
+            // Draw the frame
+            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+            const frame = this.frames[frameIdx];
+            for (let i = 0; i < frame.layers.length; i++) {
+                const layer = frame.layers[i];
+                if (!layer.isVisible) continue;
+                tempCtx.globalAlpha = layer.opacity / 100;
+                tempCtx.globalCompositeOperation = layer.blendMode;
+                tempCtx.drawImage(layer.canvas, 0, 0);
+            }
+            tempCtx.globalAlpha = 1.0;
+            tempCtx.globalCompositeOperation = 'source-over';
+
+            // Wait for the browser to finish drawing, then capture
+            requestAnimationFrame(() => {
+                capturer.capture(tempCanvas);
+                frameIdx++;
+                showLoading(`Encoding ${format.toUpperCase()}: ${frameIdx}/${totalFrames}`, Math.round((frameIdx / totalFrames) * 100));
+                setTimeout(renderFrame, 1000 / this.fps);
+            });
+        };
+        renderFrame();
+    }
+}
+
     // UNDO/REDO functionality
     undoAdd() {
         const state = {
@@ -1523,5 +1859,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 app.updateZoomLevel();
             }
         }, { passive: false });
+    }
+
+    // Make menu-item fully clickable for dropdowns
+    document.querySelectorAll('.menubar .menu-item').forEach(item => {
+        item.addEventListener('click', function (e) {
+            // Only open dropdown if not clicking on a dropdown item
+            if (!e.target.closest('.dropdown')) {
+                document.querySelectorAll('.menubar .dropdown').forEach(d => d.classList.remove('open'));
+                const dropdown = this.querySelector('.dropdown');
+                if (dropdown) dropdown.classList.toggle('open');
+                e.stopPropagation();
+            }
+        });
+    });
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.menubar .dropdown').forEach(d => d.classList.remove('open'));
+    });
+
+    // Bottom panel resizing
+    const bottomPanel = document.getElementById('bottomPanel');
+    const bottomResize = document.getElementById('bottomResize');
+    let isResizingBottom = false;
+    let startY = 0, startHeight = 0;
+    if (bottomResize && bottomPanel) {
+        bottomResize.addEventListener('mousedown', (e) => {
+            isResizingBottom = true;
+            startY = e.clientY;
+            startHeight = bottomPanel.offsetHeight;
+            document.body.style.cursor = 'ns-resize';
+            e.preventDefault();
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isResizingBottom) return;
+            let newHeight = startHeight - (e.clientY - startY);
+            newHeight = Math.max(60, Math.min(newHeight, 320));
+            bottomPanel.style.height = newHeight + 'px';
+            bottomResize.style.bottom = newHeight + 'px';
+        });
+        window.addEventListener('mouseup', () => {
+            isResizingBottom = false;
+            document.body.style.cursor = '';
+        });
+    }
+
+    if (bottomResize && bottomPanel) {
+        // Set initial position
+        bottomResize.style.bottom = (parseInt(bottomPanel.style.height) || 140) + 'px';
     }
 });

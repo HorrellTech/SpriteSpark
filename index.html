@@ -6,6 +6,10 @@
     <title>SpriteSpark - Animation Studio</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="themes.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ccapture.js@1.1.0/build/CCapture.all.min.js"></script>
 </head>
 <body>
     <!-- Menu Bar -->
@@ -18,7 +22,8 @@
                 <li><span data-action="save">Save</span></li>
                 <li><span data-action="save-as">Save As</span></li>
                 <li class="separator"></li>
-                <li><span data-action="export">Export</span></li>
+                <li><span data-action="export-frame">Export Frame</span></li>
+                <li><span data-action="export-animation">Export Animation</span></li>
             </ul>
         </div>
         <div class="menu-item">
@@ -85,6 +90,20 @@
         </button>
         
         <div class="toolbar-separator"></div>
+
+        <button class="tool-btn" data-action="export-frame" title="Export Current Frame">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1v10M4 7l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </button>
+        <button class="tool-btn" data-action="export-animation" title="Export Animation">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <rect x="2" y="4" width="12" height="8" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+                <path d="M6 8l2 2 2-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </button>
+
+        <div class="toolbar-separator"></div>
         
         <button class="tool-btn" data-action="prev-frame" title="Previous Frame">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -96,14 +115,14 @@
                 <path d="M6 3l5 5-5 5V3z" fill="currentColor"/>
             </svg>
         </button>
-        <button class="tool-btn play-btn" data-action="play" title="Play/Pause Animation">
+        <!--button class="tool-btn play-btn" data-action="play" title="Play/Pause Animation">
             <svg class="play-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M4 3l8 5-8 5V3z" fill="currentColor"/>
             </svg>
             <svg class="pause-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="display: none;">
                 <path d="M5 3h2v10H5V3zM9 3h2v10H9V3z" fill="currentColor"/>
             </svg>
-        </button>
+        </button-->
         
         <div class="toolbar-separator"></div>
         
@@ -255,11 +274,14 @@
                 <h3>Drawing Options</h3>
                 <div class="drawing-options">
                     <label>
-                        <input type="checkbox" id="pixelPerfectCheckbox"> Pixel Perfect Drawing
+                        <input type="checkbox" id="pixelPerfectCheckbox"> Clean Pixels
                     </label>
                     <label>
-                        <input type="checkbox" id="pixelDrawingCheckbox"> Pixel Art Drawing
+                        <input type="checkbox" id="pixelDrawingCheckbox"> Pixel Perfect Drawing
                     </label>
+                    <!--label>
+                        <input type="checkbox" id="pixelEdgeCorrectionCheckbox"> Pixel Corner Correction
+                    </label-->
                 </div>
             </div>
 
@@ -273,26 +295,6 @@
                     <label>
                         Frames: <input type="number" id="onionSkinFrames" value="1" min="1" max="10" style="width:50px;">
                     </label>
-                </div>
-            </div>
-            
-            <!-- Frames List -->
-            <div class="panel-section">
-                <h3>Frames</h3>
-                <div class="frames-controls">
-                    <button class="small-btn" data-action="add-frame" title="Add Frame">+</button>
-                    <button class="small-btn" data-action="delete-frame" title="Delete Frame">−</button>
-                    <button class="small-btn" data-action="duplicate-frame" title="Duplicate Frame">⧉</button>
-                    <button class="small-btn" data-action="move-frame-up" title="Move Frame Up">↑</button>
-                    <button class="small-btn" data-action="move-frame-down" title="Move Frame Down">↓</button>
-                </div>
-                <div class="frames-list" id="framesList">
-                    <div class="frame-item active" data-frame="0">
-                        <div class="frame-number">1</div>
-                        <div class="frame-thumbnail">
-                            <canvas width="64" height="48"></canvas>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -348,6 +350,33 @@
             </div>
         </div>
     </div>
+    
+    <div class="resize-handle bottom-resize" id="bottomResize"></div>
+
+    <div class="bottom-panel" id="bottomPanel">
+        <div class="bottom-panel-header">
+            <span>Frames</span>
+            <div class="frame-size-controls">
+                <label>Size:
+                    <select id="frameThumbSize">
+                        <option value="small">Small</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="large">Large</option>
+                    </select>
+                </label>
+            </div>
+            <div class="frames-controls">
+                <button class="small-btn" data-action="add-frame" title="Add Frame">+</button>
+                <button class="small-btn" data-action="delete-frame" title="Delete Frame">−</button>
+                <button class="small-btn" data-action="duplicate-frame" title="Duplicate Frame">⧉</button>
+                <button class="small-btn" data-action="move-frame-up" title="Move Frame Up">←</button>
+                <button class="small-btn" data-action="move-frame-down" title="Move Frame Down">→</button>
+            </div>
+        </div>
+        <div class="frames-list-horizontal" id="framesList">
+            <!-- Frames will be rendered here horizontally -->
+        </div>
+    </div>
 
     <!-- Resize Handles -->
     <div class="resize-handle left-resize" data-panel="left"></div>
@@ -355,6 +384,35 @@
 
     <!-- Hidden File Input -->
     <input type="file" id="fileInput" accept=".json,.png,.jpg,.jpeg" style="display: none;">
+
+    <div id="exportModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Export Animation</h2>
+            <label for="exportFormat">Format:</label>
+            <select id="exportFormat">
+                <option value="gif">GIF</option>
+                <option value="webm">WebM</option>
+                <option value="mp4">MP4</option>
+            </select>
+            <label for="exportName">File Name:</label>
+            <input type="text" id="exportName" placeholder="animation">
+            <div class="modal-actions">
+                <button id="exportConfirm" class="modal-btn accent">Export</button>
+                <button id="exportCancel" class="modal-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="exportLoadingModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Exporting Animation...</h2>
+            <div id="exportProgressText" style="margin-bottom:12px;">Preparing...</div>
+            <div class="progress-bar-bg">
+                <div id="exportProgressBar" class="progress-bar"></div>
+            </div>
+            <button id="exportLoadingCancel" class="modal-btn" style="margin-top:18px;">Cancel</button>
+        </div>
+    </div>
 
     <script src="sprite-spark.js"></script>
 </body>
