@@ -1,0 +1,117 @@
+/* Mobile Panel Toggle Buttons */
+.mobile-panel-toggle {
+    display: none;
+    position: fixed;
+    z-index: 10001;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    color: var(--text-accent);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    cursor: pointer;
+    border: none;
+    opacity: 0.85;
+    transition: background 0.2s, opacity 0.2s;
+}
+.mobile-panel-toggle:hover {
+    opacity: 1;
+    background: var(--accent-color-hover);
+}
+.mobile-left-toggle {
+    left: 12px;
+    top: 60px;
+}
+.mobile-right-toggle {
+    right: 12px;
+    top: 60px;
+}
+.mobile-bottom-toggle {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 80px;
+}
+
+/* Show toggles only in mobile mode */
+body.mobile-mode .mobile-panel-toggle {
+    display: flex;
+}
+
+/* Hide panels by default in mobile mode */
+body.mobile-mode .left-panel,
+body.mobile-mode .right-panel,
+body.mobile-mode .bottom-panel {
+    display: none !important;
+    position: fixed !important;
+    z-index: 10000;
+    background: var(--bg-secondary);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+    transition: transform 0.2s;
+}
+
+/* Show only the open panel */
+body.mobile-mode .left-panel.mobile-open { display: flex !important; left: 0; top: 70px; bottom: 0; width: 90vw; max-width: 400px; }
+body.mobile-mode .right-panel.mobile-open { display: flex !important; right: 0; top: 70px; bottom: 0; width: 90vw; max-width: 400px; }
+body.mobile-mode .bottom-panel.mobile-open { display: flex !important; left: 0; right: 0; bottom: 0; height: 60vh; max-height: 400px; }
+
+/* Hide main-content panels when a mobile panel is open */
+body.mobile-mode .main-content > .panel:not(.mobile-open),
+body.mobile-mode .main-content > .bottom-panel:not(.mobile-open) {
+    display: none !important;
+}
+
+/* Hide toggles for open panel */
+body.mobile-mode .left-panel.mobile-open ~ .mobile-left-toggle,
+body.mobile-mode .right-panel.mobile-open ~ .mobile-right-toggle,
+body.mobile-mode .bottom-panel.mobile-open ~ .mobile-bottom-toggle {
+    display: none !important;
+}
+
+/* Prevent scroll when a panel is open */
+body.mobile-mode,
+body.mobile-mode .main-content {
+    overflow: hidden !important;
+}
+
+/* Responsive: Enable mobile mode automatically on small screens */
+@media (max-width: 800px) {
+    body:not(.desktop-mode) {
+        /* Enable mobile mode by default unless desktop-mode is set */
+        /* JS will add .mobile-mode */
+    }
+}
+
+#toggleMobileMode {
+    display: none !important;
+}
+
+/* Force landscape: show overlay if in portrait mode */
+@media screen and (orientation: portrait) {
+  body::before {
+    content: "Please rotate your device to landscape mode for the best experience.";
+    position: fixed;
+    z-index: 99999;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #222c;
+    color: #fff;
+    font-size: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    pointer-events: all;
+  }
+  .main-content,
+  .menubar,
+  .toolbar,
+  .panel,
+  .canvas-container,
+  .bottom-panel {
+    filter: blur(4px);
+    pointer-events: none;
+    user-select: none;
+  }
+}

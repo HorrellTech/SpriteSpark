@@ -2163,6 +2163,17 @@ class SpriteSpark {
     }
 }
 
+// --- Mobile Panel Toggle Logic ---
+function setMobilePanel(panel) {
+    document.body.classList.add('mobile-mode');
+    document.querySelectorAll('.left-panel, .right-panel, .bottom-panel').forEach(p => p.classList.remove('mobile-open'));
+    if (panel) panel.classList.add('mobile-open');
+}
+
+function closeMobilePanels() {
+    document.querySelectorAll('.left-panel, .right-panel, .bottom-panel').forEach(p => p.classList.remove('mobile-open'));
+}
+
 function syncBottomResizeBar() {
     /*if (bottomPanel && bottomResize) {
         const rect = bottomPanel.getBoundingClientRect();
@@ -2236,8 +2247,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const bottomPanel = document.getElementById('bottomPanel');
     const bottomResize = document.getElementById('bottomResize');
 
+    const originalUpdateZoomLevel = SpriteSpark.prototype.updateZoomLevel;
+    const originalResizeCanvases = SpriteSpark.prototype.resizeCanvases;
+
+    // Mobile panel toggles
+    const leftPanel = document.getElementById('leftPanel');
+    const rightPanel = document.getElementById('rightPanel');
+    const mobileLeftToggle = document.getElementById('mobileLeftToggle');
+    const mobileRightToggle = document.getElementById('mobileRightToggle');
+    const mobileBottomToggle = document.getElementById('mobileBottomToggle');
+    const toggleMobileMode = document.getElementById('toggleMobileMode');
+
     let isResizingBottom = false;
     let startY = 0, startHeight = 0;
+
+    let isPanning = false;
+    let panStart = { x: 0, y: 0 };
+    let scrollStart = { left: 0, top: 0 };
 
     if (canvasContainer && zoomInput) {
         canvasContainer.addEventListener('wheel', (e) => {
@@ -2309,9 +2335,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateBottomPanelPosition();
 
     // --- Canvas Panning with Middle Mouse Button ---
-    let isPanning = false;
-    let panStart = { x: 0, y: 0 };
-    let scrollStart = { left: 0, top: 0 };
 
     function startPan(e) {
         if (e.button !== 1) return; // Only middle mouse button
@@ -2367,7 +2390,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Call this after zoom, resize, or canvas size changes
-    const originalUpdateZoomLevel = SpriteSpark.prototype.updateZoomLevel;
     SpriteSpark.prototype.updateZoomLevel = function () {
         originalUpdateZoomLevel.call(this);
         setTimeout(() => {
@@ -2376,7 +2398,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 0);
     };
 
-    const originalResizeCanvases = SpriteSpark.prototype.resizeCanvases;
     SpriteSpark.prototype.resizeCanvases = function () {
         originalResizeCanvases.call(this);
         setTimeout(() => {
@@ -2385,13 +2406,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 0);
     };
 
+    // Show/hide panels
+    if (mobileLeftToggle && leftPanel) {
+        mobileLeftToggle.addEventListener('click', () => setMobilePanel(leftPanel));
+    }
+    if (mobileRightToggle && rightPanel) {
+        mobileRightToggle.addEventListener('click', () => setMobilePanel(rightPanel));
+    }
+    if (mobileBottomToggle && bottomPanel) {
+        mobileBottomToggle.addEventListener('click', () => setMobilePanel(bottomPanel));
+    }
+    // Close panel when clicking outside
+    document.addEventListener('click', (e) => {
+        if (document.body.classList.contains('mobile-mode')) {
+            if (
+                !e.target.closest('.panel.mobile-open') &&
+                !e.target.closest('.mobile-panel-toggle')
+            ) {
+                closeMobilePanels();
+            }
+        }
+    });
+
+    // Toolbar button to toggle mobile/desktop mode
+    if (toggleMobileMode) {
+        toggleMobileMode.addEventListener('click', () => {
+            if (document.body.classList.contains('mobile-mode')) {
+                document.body.classList.remove('mobile-mode');
+                document.body.classList.add('desktop-mode');
+                closeMobilePanels();
+            } else {
+                document.body.classList.add('mobile-mode');
+                document.body.classList.remove('desktop-mode');
+                closeMobilePanels();
+            }
+        });
+    }
+
+    // Force desktop mode always
+    document.body.classList.add('desktop-mode');
+    document.body.classList.remove('mobile-mode');
+
+    //adjustMainContentHeight();
 
     window.addEventListener('resize', () => {
         updateCanvasContainerScrolling();
         clampCanvasScroll();
     });
-
-    //adjustMainContentHeight();
 
     document.querySelectorAll('.menubar .menu-item').forEach(item => {
         item.addEventListener('mouseenter', updateResizerPointerEvents);
