@@ -1650,6 +1650,94 @@ class SpriteSpark {
         modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
     }
 
+    applyHSLEffect(hue = 0, saturation = 0, lightness = 0) {
+        const frame = this.frames[this.currentFrame];
+        if (!frame) return;
+        frame.layers.forEach(layer => {
+            if (!layer.isVisible) return;
+            const ctx = layer.canvas.getContext('2d');
+            const w = layer.canvas.width, h = layer.canvas.height;
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                // Convert RGB to HSL
+                let r = data[i] / 255, g = data[i + 1] / 255, b = data[i + 2] / 255;
+                let max = Math.max(r, g, b), min = Math.min(r, g, b);
+                let h, s, l = (max + min) / 2;
+                if (max === min) {
+                    h = s = 0;
+                } else {
+                    let d = max - min;
+                    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                    switch (max) {
+                        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                        case g: h = (b - r) / d + 2; break;
+                        case b: h = (r - g) / d + 4; break;
+                    }
+                    h /= 6;
+                }
+                // Adjust HSL
+                h = (h * 360 + hue + 360) % 360 / 360;
+                s = Math.min(1, Math.max(0, s + saturation / 100));
+                l = Math.min(1, Math.max(0, l + lightness / 100));
+                // Convert back to RGB
+                let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                let p = 2 * l - q;
+                function hue2rgb(p, q, t) {
+                    if (t < 0) t += 1;
+                    if (t > 1) t -= 1;
+                    if (t < 1 / 6) return p + (q - p) * 6 * t;
+                    if (t < 1 / 2) return q;
+                    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                    return p;
+                }
+                r = hue2rgb(p, q, h);
+                g = hue2rgb(p, q, h + 1 / 3);
+                b = hue2rgb(p, q, h - 1 / 3);
+                data[i] = Math.round(r * 255);
+                data[i + 1] = Math.round(g * 255);
+                data[i + 2] = Math.round(b * 255);
+            }
+            ctx.putImageData(imgData, 0, 0);
+        });
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+    }
+
+    applyRecolorEffect(fromColor, toColor, tolerance = 0) {
+        function hexToRgbArr(hex) {
+            hex = hex.replace(/^#/, '');
+            if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+            const num = parseInt(hex, 16);
+            return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+        }
+        const fromRgb = hexToRgbArr(fromColor);
+        const toRgb = hexToRgbArr(toColor);
+
+        const frame = this.frames[this.currentFrame];
+        if (!frame) return;
+        frame.layers.forEach(layer => {
+            if (!layer.isVisible) return;
+            const ctx = layer.canvas.getContext('2d');
+            const w = layer.canvas.width, h = layer.canvas.height;
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const dr = Math.abs(data[i] - fromRgb[0]);
+                const dg = Math.abs(data[i + 1] - fromRgb[1]);
+                const db = Math.abs(data[i + 2] - fromRgb[2]);
+                if (dr <= tolerance && dg <= tolerance && db <= tolerance) {
+                    data[i] = toRgb[0];
+                    data[i + 1] = toRgb[1];
+                    data[i + 2] = toRgb[2];
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+        });
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+    }
+
     renderCurrentFrameToMainCanvas() {
         if (!this.ctx || !this.mainCanvas || this.frames.length === 0 || !this.layers.length) return;
         this.ctx.clearRect(0, 0, this.mainCanvas.width, this.mainCanvas.height);
@@ -1926,6 +2014,39 @@ class SpriteSpark {
             case 'add-object':
                 this.addObject();
                 break;
+            case 'copy-frame':
+                this.copyFrame();
+                break;
+            case 'paste-frame':
+                this.pasteFrame();
+                break;
+            case 'clear-frame':
+                this.clearFrame();
+                break;
+            case 'zoom-in': {
+                const zoomInput = document.getElementById('zoomInput');
+                if (zoomInput) {
+                    zoomInput.value = Math.min(8, parseFloat(zoomInput.value) + 0.1);
+                    this.updateZoomLevel();
+                }
+                break;
+            }
+            case 'zoom-out': {
+                const zoomInput = document.getElementById('zoomInput');
+                if (zoomInput) {
+                    zoomInput.value = Math.max(0.5, parseFloat(zoomInput.value) - 0.1);
+                    this.updateZoomLevel();
+                }
+                break;
+            }
+            case 'zoom-reset': {
+                const zoomInput = document.getElementById('zoomInput');
+                if (zoomInput) {
+                    zoomInput.value = 1;
+                    this.updateZoomLevel();
+                }
+                break;
+            }
             case 'toggle-grid':
                 this.showGrid = !this.showGrid;
                 this.drawGrid();
@@ -1993,6 +2114,12 @@ class SpriteSpark {
                 break;
             case 'sharpen':
                 window.SpriteSparkModals && window.SpriteSparkModals.showSharpenModal(this);
+                break;
+            case 'hsl':
+                window.SpriteSparkModals && window.SpriteSparkModals.showHSLModal(this);
+                break;
+            case 'recolor':
+                window.SpriteSparkModals && window.SpriteSparkModals.showRecolorModal(this);
                 break;
 
             // Add other actions as needed...
@@ -3339,6 +3466,10 @@ class SpriteSpark {
         } else if (e.ctrlKey && e.key === 'a') {
             this.selectAll();
             e.preventDefault();
+        } else if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+            // Ctrl+F: Add a new frame
+            this.addEmptyFrame();
+            e.preventDefault();
         } else if (e.key === 'Delete') {
             this.deleteSelection();
             e.preventDefault();
@@ -3366,12 +3497,32 @@ class SpriteSpark {
                 btn.classList.toggle('active', btn.getAttribute('data-tool') === 'lasso-select');
             });
             e.preventDefault();
-        } else if (e.key === 'ArrowLeft') {
-            this.rotateSelection(-90);
-            e.preventDefault();
+        }  else if (e.key === 'ArrowLeft') {
+            if (!this.selectionActive) {
+                // Move to previous frame, loop to last if at first
+                if (this.frames.length > 1) {
+                    let prev = this.currentFrame - 1;
+                    if (prev < 0) prev = this.frames.length - 1;
+                    this.selectFrame(prev);
+                }
+                e.preventDefault();
+            } else {
+                this.rotateSelection(-90);
+                e.preventDefault();
+            }
         } else if (e.key === 'ArrowRight') {
-            this.rotateSelection(90);
-            e.preventDefault();
+            if (!this.selectionActive) {
+                // Move to next frame, loop to first if at last
+                if (this.frames.length > 1) {
+                    let next = this.currentFrame + 1;
+                    if (next >= this.frames.length) next = 0;
+                    this.selectFrame(next);
+                }
+                e.preventDefault();
+            } else {
+                this.rotateSelection(90);
+                e.preventDefault();
+            }
         }
     }
 
@@ -3535,7 +3686,8 @@ class SpriteSpark {
         setTimeout(() => {
             this.renderLayersList();
             this.updateFramesList();
-            this.renderCurrentFrameToMainCanvas();
+            // Always select the current frame (usually the last one loaded)
+            this.selectFrame(this.currentFrame);
         }, 100);
     }
 
