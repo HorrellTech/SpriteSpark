@@ -1,5 +1,5 @@
 # 🎨 SpriteSpark Animation Studio
-
+![Alt Text] (animation.gif)
 Welcome to SpriteSpark, a powerful web-based application for creating 2D, frame-by-frame animations, with a special focus on pixel art. This guide will walk you through its rich feature set.
 
 https://horrelltech.github.io/SpriteSpark/
