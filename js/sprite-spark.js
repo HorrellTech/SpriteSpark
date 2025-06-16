@@ -344,6 +344,24 @@ class SpriteSpark {
             });
         }
 
+        const pixelPerfectCheckbox = document.getElementById('pixelPerfectCheckbox');
+        if (pixelPerfectCheckbox) {
+            pixelPerfectCheckbox.checked = true; // Ensure checked by default
+            this.pixelPerfect = true;
+            pixelPerfectCheckbox.addEventListener('change', (e) => {
+                this.pixelPerfect = e.target.checked;
+                document.body.classList.toggle('pixel-perfect', this.pixelPerfect);
+            });
+        }
+        const pixelDrawingCheckbox = document.getElementById('pixelDrawingCheckbox');
+        if (pixelDrawingCheckbox) {
+            pixelDrawingCheckbox.checked = true; // Ensure checked by default
+            this.pixelDrawingMode = true;
+            pixelDrawingCheckbox.addEventListener('change', (e) => {
+                this.pixelDrawingMode = e.target.checked;
+            });
+        }
+
         toolButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 this.currentTool = btn.getAttribute('data-tool');
@@ -749,6 +767,54 @@ class SpriteSpark {
             item.className = `layer-item ${layer.id === this.activeLayerId ? 'active' : ''}`;
             item.dataset.layerId = layer.id;
 
+            // --- Add drag grip ---
+            const dragGrip = document.createElement('span');
+            dragGrip.className = 'layer-drag-grip';
+            dragGrip.title = 'Drag to reorder';
+            dragGrip.innerHTML = '&#9776;'; // Unicode hamburger
+            dragGrip.style.cursor = 'grab';
+            dragGrip.draggable = true;
+
+            // Only the drag grip is draggable
+            dragGrip.addEventListener('dragstart', (e) => {
+                e.stopPropagation();
+                e.dataTransfer.setData('text/plain', layer.id);
+                item.classList.add('dragging');
+            });
+            dragGrip.addEventListener('dragend', (e) => {
+                e.stopPropagation();
+                item.classList.remove('dragging');
+            });
+            dragGrip.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                item.classList.add('drag-over');
+            });
+            dragGrip.addEventListener('dragleave', () => {
+                item.classList.remove('drag-over');
+            });
+            dragGrip.addEventListener('drop', (e) => {
+                e.preventDefault();
+                item.classList.remove('drag-over');
+                const draggedLayerId = e.dataTransfer.getData('text/plain');
+                const fromIndex = this.layers.findIndex(l => l.id === draggedLayerId);
+                const toIndex = this.layers.findIndex(l => l.id === layer.id);
+                if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
+                    this.undoAdd();
+                    const [moved] = this.layers.splice(fromIndex, 1);
+                    this.layers.splice(toIndex, 0, moved);
+                    // Move in every frame
+                    this.frames.forEach(frame => {
+                        const [frameMoved] = frame.layers.splice(fromIndex, 1);
+                        frame.layers.splice(toIndex, 0, frameMoved);
+                    });
+                    this.renderLayersList();
+                    this.renderCurrentFrameToMainCanvas();
+                    this.syncGlobalLayersToCurrentFrame();
+                    this.updateFramesList();
+                }
+            });
+            item.appendChild(dragGrip);
+
             const visibilityBtn = document.createElement('button');
             visibilityBtn.className = 'layer-visibility';
             visibilityBtn.title = 'Toggle Visibility';
@@ -791,6 +857,7 @@ class SpriteSpark {
             blendSelect.addEventListener('click', e => e.stopPropagation());
             blendSelect.addEventListener('focus', e => e.stopPropagation());
 
+            // Prevent drag when interacting with controls
             const opacityInput = document.createElement('input');
             opacityInput.type = 'range';
             opacityInput.className = 'layer-opacity';
@@ -799,22 +866,27 @@ class SpriteSpark {
             opacityInput.value = layer.opacity;
             opacityInput.title = 'Opacity';
             opacityInput.addEventListener('input', (e) => this.setLayerOpacity(layer.id, e.target.value));
+            opacityInput.addEventListener('mousedown', e => e.stopPropagation());
+            opacityInput.addEventListener('pointerdown', e => e.stopPropagation());
+            opacityInput.addEventListener('touchstart', e => e.stopPropagation());
 
             item.appendChild(visibilityBtn);
             item.appendChild(nameSpan);
             item.appendChild(blendSelect);
             item.appendChild(opacityInput);
-            item.addEventListener('click', () => this.setActiveLayer(layer.id));
+            item.addEventListener('click', (evt) => {
+                if (
+                    evt.target === nameSpan ||
+                    evt.target === blendSelect ||
+                    evt.target === opacityInput ||
+                    evt.target === visibilityBtn ||
+                    evt.target === dragGrip
+                ) return;
+                this.setActiveLayer(layer.id);
+            });
 
             // Make each layer item draggable
-            item.draggable = true;
-            item.addEventListener('dragstart', (e) => {
-                e.dataTransfer.setData('text/plain', layer.id);
-                item.classList.add('dragging');
-            });
-            item.addEventListener('dragend', () => {
-                item.classList.remove('dragging');
-            });
+            item.draggable = false;
             item.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 item.classList.add('drag-over');
@@ -2265,6 +2337,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let panStart = { x: 0, y: 0 };
     let scrollStart = { left: 0, top: 0 };
 
+    // Stylus pressure option state
+    let stylusPressureEnabled = false;
+
     if (canvasContainer && zoomInput) {
         canvasContainer.addEventListener('wheel', (e) => {
             if (e.ctrlKey) {
@@ -2441,6 +2516,191 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeMobilePanels();
             }
         });
+    }
+
+    // Add stylus pressure option to the Drawing Options group (right panel)
+    const drawingOptions = document.querySelector('.drawing-options');
+    if (drawingOptions && !document.getElementById('stylusPressureCheckbox')) {
+        const stylusOption = document.createElement('label');
+        stylusOption.innerHTML = `
+            <input type="checkbox" id="stylusPressureCheckbox">
+            Stylus Pressure for Brush Size
+        `;
+        drawingOptions.appendChild(stylusOption);
+        document.getElementById('stylusPressureCheckbox').addEventListener('change', e => {
+            stylusPressureEnabled = e.target.checked;
+        });
+    }
+
+    // Touch and stylus gesture state
+    let lastTouchDist = null;
+    let lastTouchZoom = 1;
+    let isTouchPanning = false;
+    let touchPanStart = { x: 0, y: 0 };
+    let touchScrollStart = { left: 0, top: 0 };
+
+    // Helper: get distance between two touches
+    function getTouchDist(touches) {
+        if (touches.length < 2) return 0;
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    // Helper: get midpoint between two touches
+    function getTouchMid(touches) {
+        if (touches.length < 2) return { x: 0, y: 0 };
+        return {
+            x: (touches[0].clientX + touches[1].clientX) / 2,
+            y: (touches[0].clientY + touches[1].clientY) / 2
+        };
+    }
+
+    // Touch start
+    if (canvasContainer) {
+        canvasContainer.addEventListener('touchstart', function (e) {
+            if (e.touches.length === 1) {
+                // Single finger: drawing
+                const touch = e.touches[0];
+                // Simulate mouse event for drawing
+                const fakeEvent = {
+                    button: 0,
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    ctrlKey: false,
+                    preventDefault: () => {},
+                    pointerType: touch.touchType || 'touch',
+                    pressure: touch.force || 0.5 // fallback for browsers without force
+                };
+                // If stylus and pressure enabled, set brush size
+                if (stylusPressureEnabled && (touch.touchType === 'stylus' || touch.pointerType === 'pen') && fakeEvent.pressure) {
+                    const min = 1, max = 50;
+                    app.brushSize = Math.max(min, Math.round(fakeEvent.pressure * max));
+                    const brushSizeInput = document.getElementById('brushSize');
+                    if (brushSizeInput) brushSizeInput.value = app.brushSize;
+                    const brushSizeValue = document.getElementById('brushSizeValue');
+                    if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
+                }
+                app.startDrawing(fakeEvent);
+            } else if (e.touches.length === 2) {
+                // Two finger: pan/zoom
+                isTouchPanning = true;
+                lastTouchDist = getTouchDist(e.touches);
+                lastTouchZoom = parseFloat(zoomInput.value);
+                const mid = getTouchMid(e.touches);
+                touchPanStart.x = mid.x;
+                touchPanStart.y = mid.y;
+                touchScrollStart.left = canvasContainer.scrollLeft;
+                touchScrollStart.top = canvasContainer.scrollTop;
+            }
+        }, { passive: false });
+
+        // Touch move
+        canvasContainer.addEventListener('touchmove', function (e) {
+            if (e.touches.length === 1 && app.isDrawing) {
+                // Drawing
+                const touch = e.touches[0];
+                const fakeEvent = {
+                    button: 0,
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    ctrlKey: false,
+                    preventDefault: () => {},
+                    pointerType: touch.touchType || 'touch',
+                    pressure: touch.force || 0.5
+                };
+                // Stylus pressure
+                if (stylusPressureEnabled && (touch.touchType === 'stylus' || touch.pointerType === 'pen') && fakeEvent.pressure) {
+                    const min = 1, max = 50;
+                    app.brushSize = Math.max(min, Math.round(fakeEvent.pressure * max));
+                    const brushSizeInput = document.getElementById('brushSize');
+                    if (brushSizeInput) brushSizeInput.value = app.brushSize;
+                    const brushSizeValue = document.getElementById('brushSizeValue');
+                    if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
+                }
+                app.draw(fakeEvent);
+                e.preventDefault();
+            } else if (e.touches.length === 2 && isTouchPanning) {
+                // Pan and zoom
+                const mid = getTouchMid(e.touches);
+                // Pan
+                const dx = mid.x - touchPanStart.x;
+                const dy = mid.y - touchPanStart.y;
+                canvasContainer.scrollLeft = touchScrollStart.left - dx;
+                canvasContainer.scrollTop = touchScrollStart.top - dy;
+                // Zoom
+                const dist = getTouchDist(e.touches);
+                if (lastTouchDist && Math.abs(dist - lastTouchDist) > 2) {
+                    let scale = dist / lastTouchDist;
+                    let newZoom = Math.max(0.5, Math.min(8, lastTouchZoom * scale));
+                    zoomInput.value = Math.round(newZoom * 100) / 100;
+                    app.updateZoomLevel();
+                }
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Touch end/cancel
+        canvasContainer.addEventListener('touchend', function (e) {
+            if (e.touches.length === 0 && app.isDrawing) {
+                app.stopDrawing({ button: 0 });
+            }
+            if (e.touches.length < 2) {
+                isTouchPanning = false;
+                lastTouchDist = null;
+            }
+        });
+
+        canvasContainer.addEventListener('touchcancel', function (e) {
+            if (app.isDrawing) app.stopDrawing({ button: 0 });
+            isTouchPanning = false;
+            lastTouchDist = null;
+        });
+
+        // --- Stylus support via Pointer Events ---
+        if (window.PointerEvent) {
+            canvasContainer.addEventListener('pointerdown', function (e) {
+                if (e.pointerType === 'pen' || e.pointerType === 'touch') {
+                    // Only draw with pen if not two-finger touch
+                    if (e.pointerType === 'pen' || (e.pointerType === 'touch' && e.isPrimary)) {
+                        // Stylus pressure
+                        if (stylusPressureEnabled && e.pointerType === 'pen' && e.pressure) {
+                            const min = 1, max = 50;
+                            app.brushSize = Math.max(min, Math.round(e.pressure * max));
+                            const brushSizeInput = document.getElementById('brushSize');
+                            if (brushSizeInput) brushSizeInput.value = app.brushSize;
+                            const brushSizeValue = document.getElementById('brushSizeValue');
+                            if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
+                        }
+                        app.startDrawing(e);
+                    }
+                }
+            });
+            canvasContainer.addEventListener('pointermove', function (e) {
+                if ((e.pointerType === 'pen' || e.pointerType === 'touch') && app.isDrawing) {
+                    // Stylus pressure
+                    if (stylusPressureEnabled && e.pointerType === 'pen' && e.pressure) {
+                        const min = 1, max = 50;
+                        app.brushSize = Math.max(min, Math.round(e.pressure * max));
+                        const brushSizeInput = document.getElementById('brushSize');
+                        if (brushSizeInput) brushSizeInput.value = app.brushSize;
+                        const brushSizeValue = document.getElementById('brushSizeValue');
+                        if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
+                    }
+                    app.draw(e);
+                }
+            });
+            canvasContainer.addEventListener('pointerup', function (e) {
+                if ((e.pointerType === 'pen' || e.pointerType === 'touch') && app.isDrawing) {
+                    app.stopDrawing(e);
+                }
+            });
+            canvasContainer.addEventListener('pointercancel', function (e) {
+                if ((e.pointerType === 'pen' || e.pointerType === 'touch') && app.isDrawing) {
+                    app.stopDrawing(e);
+                }
+            });
+        }
     }
 
     // Force desktop mode always

@@ -472,6 +472,17 @@ body {
     overflow-y: auto;
 }
 
+.layer-drag-grip {
+    display: inline-block;
+    width: 18px;
+    margin-right: 6px;
+    color: var(--accent-color); /* Use theme accent color */
+    user-select: none;
+    vertical-align: middle;
+    cursor: grab;
+    transition: color 0.15s;
+}
+
 .layer-item {
     display: flex;
     align-items: center;
@@ -481,6 +492,22 @@ body {
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all var(--transition-fast);
+}
+
+.layer-drag-grip:active,
+.layer-drag-grip:focus {
+    color: var(--accent-color-hover); /* Brighter accent on drag */
+}
+
+.layer-item.dragging {
+    opacity: 0.5;
+    border-color: var(--accent-color); /* Highlight border on drag */
+    box-shadow: 0 0 0 2px var(--accent-color-alpha);
+}
+.layer-item.drag-over {
+    outline: 2px dashed var(--accent-color); /* Theme accent for drag-over */
+    outline-offset: -2px;
+    background: var(--accent-color-alpha);
 }
 
 .layer-item:hover {
@@ -1320,3 +1347,4 @@ select:focus {
     box-shadow: none;
     border-color: none;/*var(--border-color);*/
 }
+
