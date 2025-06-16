@@ -1512,7 +1512,7 @@ class SpriteSpark {
 
         // Draw ghost brush
         this.ghostCtx.save();
-        this.ghostCtx.globalAlpha = 0.7;
+        this.ghostCtx.globalAlpha = 1;
         this.ghostCtx.strokeStyle = '#888';
         this.ghostCtx.lineWidth = 1;
         this.ghostCtx.beginPath();
@@ -1521,7 +1521,7 @@ class SpriteSpark {
 
         // Fill with brush color
         this.ghostCtx.fillStyle = this.primaryColor;
-        this.ghostCtx.globalAlpha = 0.3;
+        this.ghostCtx.globalAlpha = 0.9;
         this.ghostCtx.beginPath();
         this.ghostCtx.arc(x, y, this.brushSize / 2, 0, 2 * Math.PI);
         this.ghostCtx.fill();
