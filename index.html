@@ -1,521 +1,187 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
+    <title>SpriteSpark - Pixel Animation Studio</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SpriteSpark - Animation Studio</title>
-    <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="css/themes.css">
-    <link rel="stylesheet" href="css/mobile.css">
-
-    <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/ccapture.js@1.1.0/build/CCapture.all.min.js"></script>
-
-    <script src="js/sprite-object.js"></script>
-    <script src="js/sprite-spark-modals.js"></script>
+    <style>
+        :root {
+            --bg: #181a20;
+            --bg-elevated: #232635;
+            --text: #e0e0e0;
+            --accent: #007acc;
+            --accent-hover: #1177bb;
+            --modal-bg: rgba(0,0,0,0.85);
+        }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            min-height: 100vh;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            background: var(--bg-elevated);
+            border-radius: 16px;
+            box-shadow: 0 4px 32px #000a;
+            padding: 40px 32px 32px 32px;
+            max-width: 420px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2.2rem;
+            margin-bottom: 0.5em;
+            letter-spacing: 0.02em;
+        }
+        p {
+            font-size: 1.1rem;
+            margin-bottom: 2em;
+            color: #b0b8c0;
+        }
+        .open-btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 0.9em 2.2em;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            box-shadow: 0 2px 8px #0004;
+        }
+        .open-btn:hover, .open-btn:focus {
+            background: var(--accent-hover);
+        }
+        /* Modal styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0; top: 0; right: 0; bottom: 0;
+            width: 100vw; height: 100vh;
+            background: var(--modal-bg);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-content {
+            position: relative;
+            background: var(--bg-elevated);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px #000c;
+            width: 90vw;
+            height: 90vh;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1.5px solid var(--accent);
+            animation: modalIn 0.25s cubic-bezier(.4,2,.6,1) 1;
+        }
+        @keyframes modalIn {
+            from { transform: scale(0.96) translateY(40px); opacity: 0; }
+            to   { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        .modal-close {
+            position: absolute;
+            top: 14px;
+            right: 18px;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 1.7rem;
+            cursor: pointer;
+            z-index: 10;
+            opacity: 0.7;
+            transition: opacity 0.15s;
+        }
+        .modal-close:hover {
+            opacity: 1;
+        }
+        .modal-iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            border-radius: 0 0 12px 12px;
+            display: block;
+        }
+        @media (max-width: 700px) {
+            .container { padding: 24px 8px 16px 8px; }
+            .modal-content { 
+                max-width: 99vw; 
+                max-height: 99vh; 
+                width: 99vw; 
+                height: 99vh; 
+            }
+        }
+    </style>
 </head>
-
 <body>
-    <!-- Menu Bar -->
-    <nav class="menubar">
-        <div class="menu-item">
-            <span>File</span>
-            <ul class="dropdown">
-                <li data-action="new">New</li>
-                <li data-action="open">Open</li>
-                <li data-action="save">Save</li>
-                <li data-action="save-as">Save As</li>
-                <li class="separator"></li>
-                <li data-action="export-frame">Export Frame</li>
-                <li data-action="export-animation">Export Animation</li>
-            </ul>
-        </div>
-        <div class="menu-item">
-            <span>Edit</span>
-            <ul class="dropdown">
-                <li data-action="undo">Undo</li>
-                <li data-action="redo">Redo</li>
-                <li class="separator"></li>
-                <li data-action="copy">Copy Selection</li>
-                <li data-action="paste">Paste Selection</li>
-                <li data-action="delete">Delete Selection</li>
-                <li class="separator"></li>
-                <li data-action="select-all">Select All</li>
-                <li data-action="deselect">Deselect</li>
-                <li class="separator"></li>
-                <li data-action="copy">Copy Frame</li>
-                <li data-action="paste">Paste Frame</li>
-                <li data-action="clear">Clear Frame</li>
-            </ul>
-        </div>
-        <div class="menu-item">
-            <span>Effects</span>
-            <ul class="dropdown">
-                <li data-action="flip-h">Flip Horizontal</li>
-                <li data-action="flip-v">Flip Vertical</li>
-                <li data-action="rotate">Rotate</li>
-                <li class="separator"></li>
-                <li data-action="blur">Blur</li>
-                <li data-action="sharpen">Sharpen</li>
-            </ul>
-        </div>
-        <div class="menu-item">
-            <span>View</span>
-            <ul class="dropdown">
-                <li data-action="toggle-grid">Toggle Grid</li>
-                <li data-action="toggle-onion-skin">Toggle Onion Skin</li>
-                <li class="separator"></li>
-                <li data-action="zoom-in">Zoom In</li>
-                <li data-action="zoom-out">Zoom Out</li>
-                <li data-action="zoom-reset">Zoom Reset</li>
-            </ul>
-        </div>
-        <div class="menu-item">
-            <span>Theme</span>
-            <ul class="dropdown">
-                <!-- Themes will be added here through javascript -->
-            </ul>
-        </div>
-    </nav>
-
-    <!-- Toolbar -->
-    <div class="toolbar">
-        <button class="tool-btn" data-action="new" title="New Project">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-        </button>
-        <button class="tool-btn" data-action="open" title="Open Project">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M2 4v8a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2H6L4 2H2z" stroke="currentColor"
-                    stroke-width="1.5" fill="none" />
-            </svg>
-        </button>
-        <button class="tool-btn" data-action="save-as" title="Save As">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M2 2v12h12V4l-2-2H2z M4 14V9h8v5H4z M6 2v4h4V2H6z" stroke="currentColor" stroke-width="1"
-                    fill="none" />
-            </svg>
-        </button>
-
-        <div class="toolbar-separator"></div>
-
-        <button class="tool-btn" data-action="export-frame" title="Export Current Frame">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1v10M4 7l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-        </button>
-        <button class="tool-btn" data-action="export-animation" title="Export Animation">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="2" y="4" width="12" height="8" rx="2" stroke="currentColor" stroke-width="2" fill="none" />
-                <path d="M6 8l2 2 2-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-        </button>
-
-        <div class="toolbar-separator"></div>
-
-        <div class="zoom-controls">
-            <label for="zoomInput" class="zoom-label">Zoom:</label>
-            <input type="range" id="zoomInput" min="0.5" max="8" step="0.1" value="1">
-            <span id="zoomLevelDisplay">100%</span>
-            <!-- Buy Me A Coffee button to the right of zoom controls -->
-            <a href="https://www.buymeacoffee.com/SynKrown" target="_blank" class="bmc-button" style="margin-left:16px;vertical-align:middle;display:inline-block;">
-                <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="30" style="vertical-align:middle;">
-            </a>
-        </div>
+    <div class="container">
+        <h1>SpriteSpark</h1>
+        <p>
+            Create pixel-perfect animated sprites in your browser.<br>
+            Fast, modern, and open source.<br>
+            <small style="color:#6ee7b7;">Try the editor below!</small>
+        </p>
+        <button class="open-btn" id="openSpriteSparkBtn">Open SpriteSpark Editor</button>
     </div>
 
-    <div class="mobile-panel-toggle mobile-left-toggle" id="mobileLeftToggle" title="Show Tools">&#9776;</div>
-    <div class="mobile-panel-toggle mobile-right-toggle" id="mobileRightToggle" title="Show Properties">&#9881;</div>
-    <div class="mobile-panel-toggle mobile-bottom-toggle" id="mobileBottomToggle" title="Show Frames">&#9635;</div>
-
-    <!-- Main Content Area -->
-    <div class="main-content">
-        <!-- Left Panel -->
-        <div class="panel left-panel" id="leftPanel">
-            <div class="panel-header">
-                <span>Tools</span>
-                <div class="panel-controls">
-                    <!--button class="panel-toggle">−</button-->
-                </div>
-            </div>
-
-            <!-- Color Picker Section -->
-            <div class="panel-section">
-                <h3>Colors</h3>
-                <div class="color-picker-container">
-                    <div class="current-colors">
-                        <div class="color-swatch primary-color" id="primaryColor"></div>
-                        <div class="color-swatch secondary-color" id="secondaryColor"></div>
-                    </div>
-                    <input type="color" id="colorPicker" value="#000000">
-                    <div class="color-palette" id="colorPalette">
-                        <!-- Color swatches will be generated here -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tools Section -->
-            <div class="panel-section">
-                <h3>Drawing Tools</h3>
-                <div class="tool-grid">
-                    <button class="drawing-tool" data-tool="pointer" title="Pointer/Select Tool">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M3 2l10 4-4 2-2 4L3 2z" stroke="currentColor" stroke-width="1" fill="currentColor"/>
-                        </svg>
-                    </button>
-                    <button class="drawing-tool active" data-tool="pen" title="Pen">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path
-                                d="M12.146 1.146a.5.5 0 01.708 0l2 2a.5.5 0 010 .708L6.207 12.5 3 13l.5-3.207L12.146 1.146z" />
-                        </svg>
-                    </button>
-                    <button class="drawing-tool" data-tool="eraser" title="Eraser">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path
-                                d="M8.086 2.207a2 2 0 01-2.828 0l-.586-.586A2 2 0 002.793.207l10 10a2 2 0 010 2.828L11.5 14.328a2 2 0 01-2.828 0l-6-6a2 2 0 010-2.828l5.414-5.414z" />
-                        </svg>
-                    </button>
-                    <button class="drawing-tool" data-tool="bucket" title="Fill">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path
-                                d="M6.5 1A1.5 1.5 0 005 2.5v2.872l-.803-.267A1.5 1.5 0 003 6.632v6.736A1.5 1.5 0 004.5 15h7a1.5 1.5 0 001.5-1.5V6.5a1.5 1.5 0 00-1.5-1.5H11V2.5A1.5 1.5 0 009.5 1h-3z" />
-                        </svg>
-                    </button>
-                    <button class="drawing-tool" data-tool="rectangle-select" title="Rectangle Selection">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3,3">
-                            <rect x="2" y="2" width="12" height="12"/>
-                        </svg>
-                    </button>
-                    <button class="drawing-tool" data-tool="lasso-select" title="Lasso Selection">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M2 8 Q8 2 14 8 Q10 14 6 10 Q2 12 2 8 Z" stroke-dasharray="3,3"/>
-                        </svg>
-                    </button>
-                    <button class="drawing-tool" data-tool="line" title="Line Tool">
-                        <svg width="16" height="16"><line x1="2" y1="14" x2="14" y2="2" stroke="currentColor" stroke-width="2"/></svg>
-                    </button>
-                    <button class="drawing-tool" data-tool="rectangle" title="Rectangle Tool">
-                        <svg width="16" height="16"><rect x="2" y="2" width="12" height="12" stroke="currentColor" fill="none" stroke-width="2"/></svg>
-                    </button>
-                    <button class="drawing-tool" data-tool="ellipse" title="Ellipse Tool">
-                        <svg width="16" height="16"><ellipse cx="8" cy="8" rx="6" ry="4" stroke="currentColor" fill="none" stroke-width="2"/></svg>
-                    </button>
-                    <button class="drawing-tool" data-tool="circle" title="Circle Tool">
-                        <svg width="16" height="16"><circle cx="8" cy="8" r="6" stroke="currentColor" fill="none" stroke-width="2"/></svg>
-                    </button>
-                    <button class="drawing-tool" data-tool="eyedropper" title="Eyedropper">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path
-                                d="M2 2.5a.5.5 0 01.5-.5h3a.5.5 0 010 1H3.707l3.853 3.854a.5.5 0 11-.708.708L3 3.707V5.5a.5.5 0 01-1 0v-3z" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Tool Properties -->
-            <div class="panel-section">
-                <h3>Tool Properties</h3>
-                <div class="tool-properties" id="toolProperties">
-                    <div class="property-group">
-                        <label>Brush Size: <span id="brushSizeValue">1</span>px</label>
-                        <input type="range" id="brushSize" min="1" max="50" value="1" step="1">
-                    </div>
-                    <div class="property-group">
-                        <label>Opacity: <span id="opacityValue">100</span>%</label>
-                        <input type="range" id="opacity" min="0" max="100" value="100">
-                    </div>
-
-                    <div class="property-group">
-                        <label>
-                            <input type="checkbox" id="showBrushGhost" checked>
-                            Show Brush Ghost
-                        </label>
-                    </div>
-
-                    <div class="property-group" id="floodFillOptions" style="display:none;">
-                        <label>
-                            Tolerance: <span id="floodFillToleranceValue">0</span>
-                        </label>
-                        <input type="range" id="floodFillTolerance" min="0" max="255" value="0">
-                        <label style="display:block; margin-top:6px;">
-                            <input type="checkbox" id="floodFillDetectAllLayers">
-                            Detect All Layers
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Layers Section -->
-            <div class="panel-section">
-                <h3>Layers</h3>
-                <div class="layers-container">
-                    <div class="layers-controls">
-                        <button class="small-btn" data-action="add-layer" title="Add Layer">+</button>
-                        <button class="small-btn" data-action="delete-layer" title="Delete Layer">−</button>
-                        <button class="small-btn" data-action="move-layer-up" title="Move Layer Up">↑</button>
-                        <button class="small-btn" data-action="move-layer-down" title="Move Layer Down">↓</button>
-                    </div>
-                    <div class="layers-list" id="layersList">
-                        <!-- Example Layer Item (to be dynamically generated) -->
-                        <div class="layer-item active" data-layer-id="1">
-                            <button class="layer-visibility" data-action="toggle-layer-visibility"
-                                title="Toggle Visibility">👁️</button>
-                            <span class="layer-name" contenteditable="true">Layer 1</span>
-                            <select class="layer-blend-mode" title="Blend Mode">
-                                <option value="source-over">Normal</option>
-                                <option value="multiply">Multiply</option>
-                                <option value="screen">Screen</option>
-                                <option value="overlay">Overlay</option>
-                                <option value="darken">Darken</option>
-                                <option value="lighten">Lighten</option>
-                                <option value="color-dodge">Color Dodge</option>
-                                <option value="color-burn">Color Burn</option>
-                                <option value="hard-light">Hard Light</option>
-                                <option value="soft-light">Soft Light</option>
-                                <option value="difference">Difference</option>
-                                <option value="exclusion">Exclusion</option>
-                                <option value="hue">Hue</option>
-                                <option value="saturation">Saturation</option>
-                                <option value="color">Color</option>
-                                <option value="luminosity">Luminosity</option>
-                            </select>
-                            <input type="range" class="layer-opacity" min="0" max="100" value="100" title="Opacity">
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Canvas Area -->
-        <div class="canvas-container" id="canvasContainer">
-            <div class="canvas-wrapper">
-                <canvas id="mainCanvas" width="320" height="240"></canvas>
-                <canvas id="gridCanvas" width="320" height="240"></canvas>
-                <canvas id="ghostCanvas" width="320" height="240"></canvas>
-            </div>
-        </div>
-
-        <!-- Right Panel -->
-        <div class="panel right-panel" id="rightPanel">
-            <div class="panel-header">
-                <span>Properties</span>
-                <div class="panel-controls">
-                    <!--button class="panel-toggle">−</button-->
-                </div>
-            </div>
-
-            <!-- Animation Controls -->
-            <div class="panel-section">
-                <h3>Playback</h3>
-                <div class="animation-controls">
-                    <label>FPS: <input type="number" id="fpsInput" value="12" min="1" max="60"></label>
-                    <label>
-                        <input type="checkbox" id="loopAnimation" checked> Loop
-                    </label>
-                </div>
-            </div>
-
-            <div class="panel-section">
-                <h3>Drawing Options</h3>
-                <div class="drawing-options">
-                    <label>
-                        <input type="checkbox" id="pixelPerfectCheckbox" checked> Clean Pixels
-                    </label>
-                    <label>
-                        <input type="checkbox" id="pixelDrawingCheckbox" checked> Pixel Perfect Drawing
-                    </label>
-                    <!--label>
-                        <input type="checkbox" id="pixelEdgeCorrectionCheckbox"> Pixel Corner Correction
-                    </label-->
-                    <label>
-                        <input type="checkbox" id="stylusPressureCheckbox">
-                        Stylus Pressure for Brush Size
-                    </label>
-
-                    <div class="option-group">
-                        <label class="option-label">Mirroring</label>
-                        <select id="mirrorMode">
-                            <option value="none">None</option>
-                            <option value="horizontal">Horizontal</option>
-                            <option value="vertical">Vertical</option>
-                            <option value="diagonal-tb">Diagonal Top to Bottom</option>
-                            <option value="diagonal-bt">Diagonal Bottom to Top</option>
-                            <option value="horizontal-vertical">Horizontal and Vertical</option>
-                            <option value="both-diagonals">Both Diagonals</option>
-                            <option value="all">Diagonals, Horizontal and Vertical</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Onion Skin Controls -->
-            <div class="panel-section">
-                <h3>Onion Skin</h3>
-                <div class="animation-controls">
-                    <label>
-                        <input type="checkbox" id="onionSkinCheckbox"> Enable Onion Skin
-                    </label>
-                    <label>
-                        Frames: <input type="number" id="onionSkinFrames" value="1" min="1" max="10"
-                            style="width:50px;">
-                    </label>
-                </div>
-            </div>
-
-            <div class="panel-section" id="objectPropertiesSection" style="display:none;">
-                <h3>Object Properties</h3>
-                <div class="property-group">
-                    <label>Name: <input type="text" id="objectName"></label>
-                    <label>X: <input type="number" id="objectX"></label>
-                    <label>Y: <input type="number" id="objectY"></label>
-                    <label>Scale: <input type="number" id="objectScale" step="0.01"></label>
-                    <label>Angle: <input type="number" id="objectAngle"></label>
-                    <label>Image: <input type="file" id="objectImageInput" accept="image/*"></label>
-                    <label><input type="checkbox" id="objectTween"> Tween (lerp) between frames</label>
-                    <label>
-                        <input type="checkbox" id="objectVisibleCheckbox" checked>
-                        Visible
-                    </label>
-                    <label>
-                        Alpha:
-                        <input type="range" id="objectAlpha" min="0" max="1" step="0.01" value="1">
-                    </label>
-                    <label>
-                        Hue:
-                        <input type="range" id="objectHue" min="0" max="360" step="1" value="0">
-                    </label>
-                    <label>
-                        Layer:
-                        <select id="objectLayer"></select>
-                    </label>
-                    <button class="small-btn" id="objectSetKeyframe">Set Keyframe</button>
-                    <button id="objectCenterBtn" title="Send to Center">Center</button>
-                    <button class="small-btn" id="objectRemoveKeyframe">Remove Keyframe</button>
-                </div>
-            </div>
-
-            <!-- Live Preview Section -->
-            <div class="panel-section">
-                <h3>Live Preview</h3>
-                <div class="live-preview-controls">
-                    <label>
-                        <input type="checkbox" id="enablePreview" checked> Enable
-                    </label>
-                </div>
-                <div class="live-preview-wrapper">
-                    <canvas id="livePreviewCanvas" width="240" height="180"></canvas>
-                </div>
-            </div>
-
-            <!-- Canvas Size Section -->
-            <div class="panel-section">
-                <h3>Canvas Size</h3>
-                <div class="canvas-size-controls">
-                    <div class="property-group">
-                        <label for="canvasWidth">Width:</label>
-                        <input type="number" id="canvasWidth" value="320" min="1">
-                    </div>
-                    <div class="property-group">
-                        <label for="canvasHeight">Height:</label>
-                        <input type="number" id="canvasHeight" value="240" min="1">
-                    </div>
-                    <div class="property-group">
-                        <label for="resizeMethod">Resize Method:</label>
-                        <select id="resizeMethod">
-                            <option value="stretch">Stretch to fit</option>
-                            <option value="fit">Fit (keep aspect)</option>
-                            <option value="crop">Crop to fill</option>
-                        </select>
-                    </div>
-                    <div class="property-group" id="resizePlacementGroup" style="display:none;">
-                        <!-- Show when method is 'fit' or 'crop' -->
-                        <label>Placement:</label>
-                        <div class="placement-grid">
-                            <button data-placement="top-left">↖</button>
-                            <button data-placement="top-center">↑</button>
-                            <button data-placement="top-right">↗</button>
-                            <button data-placement="center-left">←</button>
-                            <button data-placement="center">·</button>
-                            <button data-placement="center-right">→</button>
-                            <button data-placement="bottom-left">↙</button>
-                            <button data-placement="bottom-center">↓</button>
-                            <button data-placement="bottom-right">↘</button>
-                        </div>
-                    </div>
-                    <button class="small-btn" data-action="apply-canvas-size">Apply</button>
-                </div>
-            </div>
-        </div>
-        
-        <div class="bottom-panel" id="bottomPanel">
-            <div class="bottom-panel-header">
-                <div class="frames-controls">
-                    <button class="small-btn" data-action="add-frame" title="Add Frame">+</button>
-                    <button class="small-btn" data-action="insert-frame" title="Insert Frame">⇤</button>
-                    <button class="small-btn" data-action="delete-frame" title="Delete Frame">−</button>
-                    <button class="small-btn" data-action="duplicate-frame" title="Duplicate Frame">⧉</button>
-                    <button class="small-btn" data-action="move-frame-up" title="Move Frame Up">←</button>
-                    <button class="small-btn" data-action="move-frame-down" title="Move Frame Down">→</button>
-                </div>
-                <span style="margin-left: 30%; font-weight: 600;">Frames</span>
-                <div class="frame-size-controls">
-                    <label>Size:
-                        <select id="frameThumbSize">
-                            <option value="small">Small</option>
-                            <option value="medium" selected>Medium</option>
-                            <option value="large">Large</option>
-                        </select>
-                    </label>
-                </div>
-            </div>
-            <div class="frames-list-horizontal" id="framesList">
-                <!-- Frames will be rendered here horizontally -->
-            </div>
-        </div>
-    </div>
-        
-    <!--div class="resize-handle bottom-resize" id="bottomResize"></div-->
-
-    <!-- Resize Handles -->
-    <div class="resize-handle left-resize" data-panel="left"></div>
-    <div class="resize-handle right-resize" data-panel="right"></div>
-
-    <!-- Hidden File Input -->
-    <input type="file" id="fileInput" accept=".json,.png,.jpg,.jpeg" style="display: none;">
-
-    <div id="exportModal" class="modal hidden">
+    <!-- Modal Overlay -->
+    <div class="modal-overlay" id="spriteSparkModal" tabindex="-1" aria-modal="true" role="dialog">
         <div class="modal-content">
-            <h2>Export Animation</h2>
-            <label for="exportFormat">Format:</label>
-            <select id="exportFormat">
-                <option value="gif">GIF</option>
-                <option value="webm">WebM</option>
-                <option value="mp4">MP4</option>
-            </select>
-            <label for="exportName">File Name:</label>
-            <input type="text" id="exportName" placeholder="animation">
-            <div class="modal-actions">
-                <button id="exportConfirm" class="modal-btn accent">Export</button>
-                <button id="exportCancel" class="modal-btn">Cancel</button>
-            </div>
+            <button class="modal-close" id="closeSpriteSparkModal" title="Close">&times;</button>
+            <iframe class="modal-iframe" id="spriteSparkIframe" src="" allowfullscreen></iframe>
         </div>
     </div>
 
-    <div id="exportLoadingModal" class="modal hidden">
-        <div class="modal-content">
-            <h2>Exporting Animation...</h2>
-            <div id="exportProgressText" style="margin-bottom:12px;">Preparing...</div>
-            <div class="progress-bar-bg">
-                <div id="exportProgressBar" class="progress-bar"></div>
-            </div>
-            <button id="exportLoadingCancel" class="modal-btn" style="margin-top:18px;">Cancel</button>
-        </div>
-    </div>
-    
-    <script src="js/sprite-spark.js"></script>
+    <script>
+        // Modal logic
+        const openBtn = document.getElementById('openSpriteSparkBtn');
+        const modal = document.getElementById('spriteSparkModal');
+        const closeBtn = document.getElementById('closeSpriteSparkModal');
+        const iframe = document.getElementById('spriteSparkIframe');
+
+        openBtn.addEventListener('click', () => {
+            iframe.src = 'sprite-spark.html';
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => closeBtn.focus(), 300);
+        });
+
+        closeBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        function closeModal() {
+            if (confirm("Are you sure you want to close the editor? Unsaved work will be lost.")) {
+                modal.classList.remove('active');
+                iframe.src = '';
+                document.body.style.overflow = '';
+            }
+        }
+
+        // Optional: ESC to close
+        window.addEventListener('keydown', (e) => {
+            if (modal.classList.contains('active') && e.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
 </body>
-
 </html>

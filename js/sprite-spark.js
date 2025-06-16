@@ -3643,95 +3643,103 @@ class SpriteSpark {
 
         if (format === "gif") {
             const gif = new window.GIF({
-                workers: 2,
+                workers: 1,
                 quality: 10,
                 width: this.canvasWidth,
                 height: this.canvasHeight,
-                workerScript: 'https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js'
+                workerScript: 'js/gif.worker.js'
             });
 
             let totalFrames = this.frames.length;
-            for (let f = 0; f < totalFrames; f++) {
-                if (cancelled) return;
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = this.canvasWidth;
-                tempCanvas.height = this.canvasHeight;
-                const tempCtx = tempCanvas.getContext('2d');
-                const frame = this.frames[f];
-                for (let i = 0; i < frame.layers.length; i++) {
-                    const layer = frame.layers[i];
-                    if (!layer.isVisible) continue;
-                    tempCtx.globalAlpha = layer.opacity / 100;
-                    tempCtx.globalCompositeOperation = layer.blendMode;
-                    tempCtx.drawImage(layer.canvas, 0, 0);
-                }
-                tempCtx.globalAlpha = 1.0;
-                tempCtx.globalCompositeOperation = 'source-over';
-                gif.addFrame(tempCanvas, { delay: 1000 / this.fps });
-            }
 
-            gif.on('progress', (p) => {
-                showLoading(`Encoding GIF: ${Math.round(p * 100)}%`, Math.round(p * 100));
-            });
-            gif.on('finished', function (blob) {
-                hideLoading();
-                if (cancelled) return;
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = name + ".gif";
-                a.click();
-            });
-            showLoading("Encoding GIF: 0%", 0);
-            gif.render();
+            // --- ASYNC FRAME ADDITION ---
+            const addFramesAsync = async () => {
+                for (let f = 0; f < totalFrames; f++) {
+                    if (cancelled) return;
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = this.canvasWidth;
+                    tempCanvas.height = this.canvasHeight;
+                    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                    const frame = this.frames[f];
+                    for (let i = 0; i < frame.layers.length; i++) {
+                        const layer = frame.layers[i];
+                        if (!layer.isVisible) continue;
+                        tempCtx.globalAlpha = layer.opacity / 100;
+                        tempCtx.globalCompositeOperation = layer.blendMode;
+                        tempCtx.drawImage(layer.canvas, 0, 0);
+                    }
+                    tempCtx.globalAlpha = 1.0;
+                    tempCtx.globalCompositeOperation = 'source-over';
+                    gif.addFrame(tempCanvas, { delay: 1000 / this.fps });
+
+                    // Yield to the browser so UI/progress can update
+                    showLoading(`Preparing GIF: ${f + 1}/${totalFrames}`, Math.round(((f + 1) / totalFrames) * 100));
+                    await new Promise(r => setTimeout(r, 10));
+                }
+
+                gif.on('progress', (p) => {
+                    showLoading(`Encoding GIF: ${Math.round(p * 100)}%`, Math.round(p * 100));
+                });
+                gif.on('finished', function (blob) {
+                    hideLoading();
+                    if (cancelled) return;
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = name + ".gif";
+                    a.click();
+                });
+                showLoading("Encoding GIF: 0%", 0);
+                gif.render();
+            };
+
+            addFramesAsync();
         } else {
             // WebM/MP4 export using CCapture.js
-            const capturer = new window.CCapture({
-                format: format,
+            let capturer = new CCapture({
+                format: "webm",
                 framerate: this.fps,
                 verbose: true,
                 name: name
             });
+
+            let frameIdx = 0; 
+            const totalFrames = this.frames.length;
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = this.canvasWidth;
             tempCanvas.height = this.canvasHeight;
-            const tempCtx = tempCanvas.getContext('2d');
-            let totalFrames = this.frames.length;
-            let frameIdx = 0;
+            const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+
             capturer.start();
-            showLoading(`Encoding ${format.toUpperCase()}: 0/${totalFrames}`, 0);
 
-            const renderFrame = () => {
-                if (cancelled) {
-                    capturer.stop();
-                    hideLoading();
-                    return;
-                }
-                if (frameIdx >= totalFrames) {
-                    capturer.stop();
-                    hideLoading();
-                    capturer.save();
-                    return;
-                }
-                // Draw the frame
-                tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-                const frame = this.frames[frameIdx];
-                for (let i = 0; i < frame.layers.length; i++) {
-                    const layer = frame.layers[i];
-                    if (!layer.isVisible) continue;
-                    tempCtx.globalAlpha = layer.opacity / 100;
-                    tempCtx.globalCompositeOperation = layer.blendMode;
-                    tempCtx.drawImage(layer.canvas, 0, 0);
-                }
-                tempCtx.globalAlpha = 1.0;
-                tempCtx.globalCompositeOperation = 'source-over';
+            const renderFrame = async () => {
+                for (frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
+                    if (cancelled) {
+                        capturer.stop();
+                        hideLoading();
+                        return;
+                    }
+                    tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+                    const frame = this.frames[frameIdx];
+                    for (let i = 0; i < frame.layers.length; i++) {
+                        const layer = frame.layers[i];
+                        if (!layer.isVisible) continue;
+                        tempCtx.globalAlpha = layer.opacity / 100;
+                        tempCtx.globalCompositeOperation = layer.blendMode;
+                        tempCtx.drawImage(layer.canvas, 0, 0);
+                    }
+                    tempCtx.globalAlpha = 1.0;
+                    tempCtx.globalCompositeOperation = 'source-over';
 
-                // Wait for the browser to finish drawing, then capture
-                requestAnimationFrame(() => {
                     capturer.capture(tempCanvas);
-                    frameIdx++;
-                    showLoading(`Encoding ${format.toUpperCase()}: ${frameIdx}/${totalFrames}`, Math.round((frameIdx / totalFrames) * 100));
-                    setTimeout(renderFrame, 1000 / this.fps);
-                });
+                    showLoading(`Encoding WEBM: ${frameIdx + 1}/${totalFrames}`, Math.round(((frameIdx + 1) / totalFrames) * 100));
+                    // Wait for the correct frame interval
+                    await new Promise(r => setTimeout(r, 1000 / this.fps));
+                }
+                capturer.stop();
+                setTimeout(() => {
+                    capturer.save();
+                    hideLoading();
+                }, 500);
             };
             renderFrame();
         }
@@ -4038,7 +4046,10 @@ class SpriteSpark {
     }
 
     extractSelectionData() {
-        const layer = this.layers.find(l => l.id === this.activeLayerId);
+        // Use the current frame's layers, not global layers!
+        const frame = this.frames[this.currentFrame];
+        const layer = frame.layers.find(l => l.id === this.activeLayerId);
+
         if (!layer) return;
 
         const bounds = this.getAdjustedSelectionBounds();
@@ -4095,7 +4106,9 @@ class SpriteSpark {
     applySelectionToLayer() {
         if (!this.selectionData || !this.selectionActive) return;
 
-        const layer = this.layers.find(l => l.id === this.activeLayerId);
+        // Use the current frame's layers, not global layers!
+        const frame = this.frames[this.currentFrame];
+        const layer = frame.layers.find(l => l.id === this.activeLayerId);
         if (!layer) return;
 
         const bounds = this.getAdjustedSelectionBounds();
@@ -4517,19 +4530,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, { passive: false });
     }
-
-    // Make menu-item fully clickable for dropdowns
-    document.querySelectorAll('.menubar .menu-item').forEach(item => {
-        item.addEventListener('click', function (e) {
-            // Only open dropdown if not clicking on a dropdown item
-            if (!e.target.closest('.dropdown')) {
-                document.querySelectorAll('.menubar .dropdown').forEach(d => d.classList.remove('open'));
-                const dropdown = this.querySelector('.dropdown');
-                if (dropdown) dropdown.classList.toggle('open');
-                e.stopPropagation();
-            }
-        });
-    });
+    
     document.addEventListener('click', () => {
         document.querySelectorAll('.menubar .dropdown').forEach(d => d.classList.remove('open'));
     });
@@ -4905,7 +4906,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Toggle this dropdown
             const dropdown = this.querySelector('.dropdown');
             if (dropdown) {
-                //dropdown.classList.toggle('open');
+                dropdown.classList.toggle('open'); // UNCOMMENTED THIS LINE
             }
         });
     });
