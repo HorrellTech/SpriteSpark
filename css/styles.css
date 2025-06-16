@@ -41,7 +41,7 @@
     --right-panel-width: 300px;
     --menubar-height: 30px;
     --toolbar-height: 40px;
-    --bottom-panel-height: 320px;
+    --bottom-panel-height: 140px;
 }
 
 body {
@@ -214,7 +214,7 @@ body {
 /* Main Content */
 .main-content {
     position: absolute;
-    top: calc(var(--menubar-height) + var(--toolbar-height));
+    top: calc(var(--menubar-height) + var(--toolbar-height) );
     left: 0;
     right: 0;
     bottom: 0;
