@@ -217,7 +217,7 @@ body {
     top: calc(var(--menubar-height) + var(--toolbar-height));
     left: 0;
     right: 0;
-    bottom: 0; /* Fill to bottom of viewport */
+    bottom: 0;
     display: flex;
     min-height: 0;
     min-width: 0;
@@ -541,11 +541,15 @@ body {
     justify-content: center;
     align-items: center; /* Center vertically by default */
     position: relative;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background-color: var(--bg-primary);
     overflow: auto;
     min-height: 0;
     min-width: 0;
-    height: 100%;
+    height: calc(100vh - var(--menubar-height) - var(--toolbar-height) - var(--bottom-panel-height));
     width: 100%;
     box-sizing: border-box;
 }

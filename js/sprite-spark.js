@@ -128,21 +128,13 @@ class SpriteSpark {
         // Canvas events
         if (this.mainCanvas) {
             this.mainCanvas.addEventListener('mousedown', this.startDrawing.bind(this));
-            this.mainCanvas.addEventListener('mousemove', this.draw.bind(this));
-            this.mainCanvas.addEventListener('mouseup', this.stopDrawing.bind(this));
+            //this.mainCanvas.addEventListener('mousemove', this.draw.bind(this));
+            //this.mainCanvas.addEventListener('mouseup', this.stopDrawing.bind(this));
             //this.mainCanvas.addEventListener('mouseleave', this.stopDrawing.bind(this));
+            // Swap colors on right click
             this.mainCanvas.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
-                // Swap primary and secondary colors
-                const temp = this.primaryColor;
-                this.primaryColor = this.secondaryColor;
-                this.secondaryColor = temp;
-                // Update UI
-                const primaryColorEl = document.getElementById('primaryColor');
-                const secondaryColorEl = document.getElementById('secondaryColor');
-                if (primaryColorEl) primaryColorEl.style.backgroundColor = this.primaryColor;
-                if (secondaryColorEl) secondaryColorEl.style.backgroundColor = this.secondaryColor;
-                this.updateColorSwatchHighlight();
+                this.swapPrimaryAndSecondaryColors();
             });
 
             // Ghost cursor
@@ -159,6 +151,8 @@ class SpriteSpark {
 
         // Window resize
         window.addEventListener('resize', this.handleResize.bind(this));
+        window.addEventListener('mousemove', this.draw.bind(this));
+        window.addEventListener('mouseup', this.stopDrawing.bind(this));        
 
         // File input
         const fileInput = document.getElementById('fileInput');
@@ -548,6 +542,20 @@ class SpriteSpark {
                 secondaryColorEl.classList.remove('active');
             }
         }
+    }
+
+    swapPrimaryAndSecondaryColors() {
+        const temp = this.primaryColor;
+        this.primaryColor = this.secondaryColor;
+        this.secondaryColor = temp;
+        // Update UI
+        const primaryColorEl = document.getElementById('primaryColor');
+        const secondaryColorEl = document.getElementById('secondaryColor');
+        if (primaryColorEl) primaryColorEl.style.backgroundColor = this.primaryColor;
+        if (secondaryColorEl) secondaryColorEl.style.backgroundColor = this.secondaryColor;
+        this.updateColorSwatchHighlight();
+        const colorPicker = document.getElementById('colorPicker');
+        if (colorPicker) colorPicker.value = this.primaryColor;
     }
 
     // Utility to convert hex to rgb string for comparison
@@ -1290,7 +1298,9 @@ class SpriteSpark {
                 const temp = this.primaryColor;
                 this.primaryColor = this.secondaryColor;
                 this.secondaryColor = temp;
-                this.updateColorSwatchHighlight();
+                if (e.button === 2) {
+                    this.swapPrimaryAndSecondaryColors();
+                }
             }
             return;
         }
@@ -1484,9 +1494,12 @@ class SpriteSpark {
         if (colorPicker) colorPicker.value = hex;
     }
 
-    stopDrawing() {
-        this.isDrawing = false;
-        this.syncGlobalLayersToCurrentFrame();
+    stopDrawing(e) {
+        // Only stop drawing if left mouse button is released or if no event is provided (e.g., window blur)
+        if (!e || e.button === 0) {
+            this.isDrawing = false;
+            this.syncGlobalLayersToCurrentFrame();
+        }
     }
 
     updateGhostCursor(e) {
@@ -2231,8 +2244,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.ctrlKey) {
                 e.preventDefault();
                 let zoom = parseFloat(zoomInput.value);
-                if (e.deltaY < 0) zoom = Math.min(zoom + 0.1, 8);
-                else zoom = Math.max(zoom - 0.1, 0.1);
+                if (e.deltaY < 0) {
+                    zoom = Math.min(zoom + 0.1, 8);
+                } else {
+                    zoom = Math.max(zoom - 0.1, 0.1);
+                }
                 zoom = Math.round(zoom * 100) / 100;
                 zoomInput.value = zoom;
                 app.updateZoomLevel();
@@ -2368,6 +2384,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clampCanvasScroll();
         }, 0);
     };
+
 
     window.addEventListener('resize', () => {
         updateCanvasContainerScrolling();
