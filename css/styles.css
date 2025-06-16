@@ -1356,3 +1356,34 @@ select:focus {
     color: var(--text-accent);
     border-color: var(--accent-color);
 }
+
+/* Glow settings button style */
+.layer-glow-settings {
+    margin-left: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--accent-color);
+    transition: color 0.15s;
+}
+.layer-glow-settings:hover {
+    color: var(--accent-color-hover);
+}
+
+.canvas-container {
+    cursor: crosshair;
+}
+
+.canvas-container[data-tool="pointer"] {
+    cursor: default;
+}
+
+.canvas-container[data-tool="rectangle-select"],
+.canvas-container[data-tool="lasso-select"] {
+    cursor: crosshair;
+}
+
+.canvas-container.dragging-selection {
+    cursor: move !important;
+}

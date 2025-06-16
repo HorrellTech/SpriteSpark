@@ -27,6 +27,10 @@ class SpriteSpark {
         this.animationInterval = null;
         this.loopAnimation = true;
 
+        // layer glow
+
+        this.layerGlowSettings = {};
+
         // Onion skin properties
         this.showOnionSkin = false;
         this.onionSkinFrames = 1; // Number of frames before/after to show
@@ -46,6 +50,8 @@ class SpriteSpark {
 
         // Drawing properties
         this.currentTool = 'pen';
+        this.drawingBuffer = null;
+        this.smoothBrushPoints = [];
         this.primaryColor = '#000000';
         this.secondaryColor = '#ffffff';
         this.brushSize = 1;
@@ -54,6 +60,24 @@ class SpriteSpark {
         this.floodFillTolerance = 0;
         this.floodFillDetectAllLayers = false;
 
+        this.curveBrushPoints = []; // For interactive curve brush
+        this.curveBrushActive = false;
+        this.curveBrushDraggingPoint = null;
+        this.curveBrushApplyIconPos = null;
+
+        // Selection properties
+        this.selectionActive = false;
+        this.selectionBounds = { x: 0, y: 0, width: 0, height: 0 };
+        this.selectionPath = []; // For lasso selection
+        this.selectionData = null; // Copied selection image data
+        this.isDraggingSelection = false;
+        this.selectionOffset = { x: 0, y: 0 };
+        this.copiedSelection = null; // For copy/paste
+        this.isCreatingSelection = false;
+        this.selectionAnimationPhase = 0; 
+        this.selectionStartX = 0;
+        this.selectionStartY = 0;
+        
         // UI properties
         this.theme = 'dark';
         this.currentTheme = 'dark';
@@ -138,14 +162,14 @@ class SpriteSpark {
         const imageInput = document.getElementById('objectImageInput');
         const setKeyframeBtn = document.getElementById('objectSetKeyframe');
         const removeKeyframeBtn = document.getElementById('objectRemoveKeyframe');
-        
+
         const objectCenterBtn = document.getElementById('objectCenterBtn');
         const objectVisibleCheckbox = document.getElementById('objectVisibleCheckbox');
         const objectAlpha = document.getElementById('objectAlpha');
         const objectHue = document.getElementById('objectHue');
         const objectLayer = document.getElementById('objectLayer');
 
-        
+
         // Object list
         this.renderObjectsList();
 
@@ -169,6 +193,10 @@ class SpriteSpark {
             this.mainCanvas.addEventListener('mousedown', this.handleCanvasMouseDown.bind(this));
             this.mainCanvas.addEventListener('mousemove', this.handleCanvasMouseMove.bind(this));
             this.mainCanvas.addEventListener('mouseup', this.handleCanvasMouseUp.bind(this));
+
+            this.mainCanvas.addEventListener('mousedown', this.handleCurveBrushMouseDown.bind(this));
+            this.mainCanvas.addEventListener('mousemove', this.handleCurveBrushMouseMove.bind(this));
+            this.mainCanvas.addEventListener('mouseup', this.handleCurveBrushMouseUp.bind(this));
         }
 
         // Panel resizing
@@ -180,7 +208,7 @@ class SpriteSpark {
         // Window resize
         window.addEventListener('resize', this.handleResize.bind(this));
         window.addEventListener('mousemove', this.draw.bind(this));
-        window.addEventListener('mouseup', this.stopDrawing.bind(this));        
+        window.addEventListener('mouseup', this.stopDrawing.bind(this));
 
         // File input
         const fileInput = document.getElementById('fileInput');
@@ -506,6 +534,20 @@ class SpriteSpark {
             });
         }
 
+        // Re-query toolButtons after adding new ones
+        const allToolButtons = document.querySelectorAll('.drawing-tool');
+        allToolButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                allToolButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.currentTool = btn.getAttribute('data-tool');
+                const floodFillOptions = document.getElementById('floodFillOptions');
+                if (floodFillOptions) {
+                    floodFillOptions.style.display = (this.currentTool === 'bucket') ? 'block' : 'none';
+                }
+            });
+        });
+
         toolButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 this.currentTool = btn.getAttribute('data-tool');
@@ -724,11 +766,11 @@ class SpriteSpark {
     hexToRgb(hex) {
         // Expand shorthand form (e.g. "03F") to full form ("0033FF")
         let shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-        hex = hex.replace(shorthandRegex, function(m, r, g, b) {
+        hex = hex.replace(shorthandRegex, function (m, r, g, b) {
             return r + r + g + g + b + b;
         });
         let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? `rgb(${parseInt(result[1],16)}, ${parseInt(result[2],16)}, ${parseInt(result[3],16)})` : hex;
+        return result ? `rgb(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)})` : hex;
     }
 
     initializeFrames() {
@@ -1014,10 +1056,28 @@ class SpriteSpark {
             opacityInput.addEventListener('pointerdown', e => e.stopPropagation());
             opacityInput.addEventListener('touchstart', e => e.stopPropagation());
 
+            // --- Glow settings button ---
+            /*const glowBtn = document.createElement('button');
+            glowBtn.className = 'layer-glow-settings';
+            glowBtn.title = 'Layer Glow Settings';
+            glowBtn.innerHTML = '✨';
+            glowBtn.style.marginLeft = '6px';
+            glowBtn.style.background = 'none';
+            glowBtn.style.border = 'none';
+            glowBtn.style.cursor = 'pointer';
+            glowBtn.style.fontSize = '18px';
+            glowBtn.style.color = 'var(--accent-color)';
+            glowBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showLayerGlowModal(layer.id);
+            });*/
+
             item.appendChild(visibilityBtn);
             item.appendChild(nameSpan);
             item.appendChild(blendSelect);
             item.appendChild(opacityInput);
+            //item.appendChild(glowBtn);
+
             item.addEventListener('click', (evt) => {
                 if (
                     evt.target === nameSpan ||
@@ -1289,6 +1349,7 @@ class SpriteSpark {
         this.currentFrame = this.frames.length - 1;
         this.selectFrame(this.currentFrame);
         this.updateFramesList();
+        this.triggerLivePreviewIfEnabled();
     }
 
     duplicateCurrentFrame() {
@@ -1316,6 +1377,7 @@ class SpriteSpark {
         this.currentFrame = this.currentFrame + 1;
         this.selectFrame(this.currentFrame);
         this.updateFramesList();
+        this.triggerLivePreviewIfEnabled();
     }
 
     createLayerCanvas() {
@@ -1351,6 +1413,223 @@ class SpriteSpark {
         }
     }
 
+    // --- Curve Brush Event Handlers ---
+    handleCurveBrushMouseDown(e) {
+        if (this.currentTool !== 'curve-brush') return;
+        const rect = this.mainCanvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / this.zoom);
+        const y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+        // Check if clicking on a control point
+        for (let i = 0; i < this.curveBrushPoints.length; i++) {
+            const pt = this.curveBrushPoints[i];
+            if (Math.hypot(pt.x - x, pt.y - y) < 8) {
+                this.curveBrushDraggingPoint = i;
+                return;
+            }
+        }
+
+        // Check if clicking on the apply icon
+        if (this.curveBrushApplyIconPos && Math.hypot(this.curveBrushApplyIconPos.x - x, this.curveBrushApplyIconPos.y - y) < 16) {
+            this.applyCurveBrush();
+            return;
+        }
+
+        // Otherwise, add a new point
+        this.curveBrushPoints.push({ x, y });
+        this.curveBrushActive = true;
+        this.renderCurrentFrameToMainCanvas();
+        this.drawCurveBrushPreview();
+    }
+
+    handleCurveBrushMouseMove(e) {
+        if (this.currentTool !== 'curve-brush' || this.curveBrushDraggingPoint === null) return;
+        const rect = this.mainCanvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / this.zoom);
+        const y = Math.floor((e.clientY - rect.top) / this.zoom);
+        this.curveBrushPoints[this.curveBrushDraggingPoint] = { x, y };
+        this.renderCurrentFrameToMainCanvas();
+        this.drawCurveBrushPreview();
+    }
+
+    handleCurveBrushMouseUp(e) {
+        if (this.currentTool !== 'curve-brush') return;
+        this.curveBrushDraggingPoint = null;
+    }
+
+    // --- Draw Curve Brush Preview and Controls ---
+    drawCurveBrushPreview() {
+        if (!this.ctx || this.curveBrushPoints.length === 0) return;
+
+        // Draw the spline curve
+        this.ctx.save();
+        this.ctx.globalAlpha = 0.8;
+        this.ctx.strokeStyle = this.primaryColor;
+        this.ctx.lineWidth = this.brushSize;
+        this.ctx.setLineDash([6, 4]);
+        this.drawSmoothCurve(this.ctx, this.curveBrushPoints);
+        this.ctx.setLineDash([]);
+        this.ctx.restore();
+
+        // Draw control points
+        for (let pt of this.curveBrushPoints) {
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.arc(pt.x, pt.y, 8, 0, 2 * Math.PI);
+            this.ctx.fillStyle = '#fff';
+            this.ctx.globalAlpha = 0.9;
+            this.ctx.fill();
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeStyle = '#222';
+            this.ctx.globalAlpha = 1;
+            this.ctx.stroke();
+            this.ctx.restore();
+        }
+
+        // Draw lines between points
+        this.ctx.save();
+        this.ctx.strokeStyle = '#888';
+        this.ctx.lineWidth = 1;
+        this.ctx.setLineDash([2, 4]);
+        this.ctx.beginPath();
+        for (let i = 0; i < this.curveBrushPoints.length; i++) {
+            const pt = this.curveBrushPoints[i];
+            if (i === 0) this.ctx.moveTo(pt.x, pt.y);
+            else this.ctx.lineTo(pt.x, pt.y);
+        }
+        this.ctx.stroke();
+        this.ctx.setLineDash([]);
+        this.ctx.restore();
+
+        // Draw apply (tick) icon at center of all points
+        if (this.curveBrushPoints.length > 1) {
+            const center = this.getCurveBrushCenter();
+            this.curveBrushApplyIconPos = center;
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.arc(center.x, center.y, 14, 0, 2 * Math.PI);
+            this.ctx.fillStyle = '#4caf50';
+            this.ctx.globalAlpha = 0.85;
+            this.ctx.fill();
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeStyle = '#222';
+            this.ctx.globalAlpha = 1;
+            this.ctx.stroke();
+            // Draw tick
+            this.ctx.beginPath();
+            this.ctx.strokeStyle = '#fff';
+            this.ctx.lineWidth = 3;
+            this.ctx.moveTo(center.x - 5, center.y + 1);
+            this.ctx.lineTo(center.x, center.y + 7);
+            this.ctx.lineTo(center.x + 7, center.y - 6);
+            this.ctx.stroke();
+            this.ctx.restore();
+        } else {
+            this.curveBrushApplyIconPos = null;
+        }
+    }
+
+    // --- Utility: Get Center of Curve Points ---
+    getCurveBrushCenter() {
+        let x = 0, y = 0;
+        for (const pt of this.curveBrushPoints) {
+            x += pt.x;
+            y += pt.y;
+        }
+        return {
+            x: x / this.curveBrushPoints.length,
+            y: y / this.curveBrushPoints.length
+        };
+    }
+
+    // --- Apply the Curve to the Layer ---
+    applyCurveBrush() {
+        if (!this.activeLayerId || this.curveBrushPoints.length < 2) return;
+        this.undoAdd();
+        const layer = this.layers.find(l => l.id === this.activeLayerId);
+        if (layer) {
+            const ctx = layer.canvas.getContext('2d');
+            ctx.save();
+            ctx.globalAlpha = this.opacity / 100;
+            ctx.strokeStyle = this.primaryColor;
+            ctx.lineWidth = this.brushSize;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            this.drawSmoothCurve(ctx, this.curveBrushPoints);
+            ctx.restore();
+        }
+        this.curveBrushPoints = [];
+        this.curveBrushActive = false;
+        this.curveBrushApplyIconPos = null;
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+    }
+
+    // --- Modal for Glow Settings ---
+    showLayerGlowModal(layerId) {
+        // Remove any existing modal
+        let modal = document.getElementById('layerGlowModal');
+        if (modal) modal.remove();
+
+        const settings = this.layerGlowSettings[layerId] || {
+            enabled: false,
+            size: 8,
+            color: getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim() || '#007acc'
+        };
+
+        // Modal HTML
+        modal = document.createElement('div');
+        modal.id = 'layerGlowModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="min-width:320px;">
+                <h2>Layer Glow Settings</h2>
+                <label style="margin-bottom:8px;">
+                    <input type="checkbox" id="glowEnabled" ${settings.enabled ? 'checked' : ''}>
+                    Enable Glow
+                </label>
+                <label>
+                    Glow Size:
+                    <input type="range" id="glowSize" min="1" max="64" value="${settings.size}" style="width:120px;">
+                    <span id="glowSizeValue">${settings.size}</span> px
+                </label>
+                <label>
+                    Glow Color:
+                    <input type="color" id="glowColor" value="${settings.color}">
+                </label>
+                <div class="modal-actions" style="margin-top:16px;">
+                    <button id="glowSaveBtn" class="modal-btn accent">Save</button>
+                    <button id="glowCancelBtn" class="modal-btn">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Theme conformity
+        modal.querySelector('.modal-content').style.background = getComputedStyle(document.documentElement).getPropertyValue('--bg-elevated');
+        modal.querySelector('.modal-content').style.color = getComputedStyle(document.documentElement).getPropertyValue('--text-primary');
+
+        // Live update size value
+        modal.querySelector('#glowSize').addEventListener('input', function () {
+            modal.querySelector('#glowSizeValue').textContent = this.value;
+        });
+
+        // Save
+        modal.querySelector('#glowSaveBtn').onclick = () => {
+            this.layerGlowSettings[layerId] = {
+                enabled: modal.querySelector('#glowEnabled').checked,
+                size: parseInt(modal.querySelector('#glowSize').value, 10),
+                color: modal.querySelector('#glowColor').value
+            };
+            modal.remove();
+            this.renderCurrentFrameToMainCanvas();
+        };
+        // Cancel
+        modal.querySelector('#glowCancelBtn').onclick = () => modal.remove();
+        // Close on outside click
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    }
+
     renderCurrentFrameToMainCanvas() {
         if (!this.ctx || !this.mainCanvas || this.frames.length === 0 || !this.layers.length) return;
         this.ctx.clearRect(0, 0, this.mainCanvas.width, this.mainCanvas.height);
@@ -1374,7 +1653,7 @@ class SpriteSpark {
 
         // Sprite objects: draw all objects at current frame
         // Draw sprite objects (respect visibility, alpha, hue, layer)
-        for (const obj of this.objects) {
+        /*for (const obj of this.objects) {
             if (obj.visible === false) continue;
             const transform = obj.getTransformAt(this.currentFrame);
             // Only draw if on the active layer or all layers (optional: filter by obj.layerId)
@@ -1415,18 +1694,76 @@ class SpriteSpark {
             if (this.selectedObjectId === obj.id && this.currentTool === 'object-tool') {
                 this.drawObjectTransformControls(transform, transform.image);
             }
-        }
+        }*/
 
-        // Draw current frame layers
+        // Draw current frame layers with glow if enabled
         for (let i = 0; i < this.layers.length; i++) {
             const layer = this.layers[i];
             if (!layer.isVisible) continue;
+            const glow = this.layerGlowSettings[layer.id];
+            if (glow && glow.enabled && glow.size > 0) {
+                // 1. Create a colored mask of the layer
+                const mask = document.createElement('canvas');
+                mask.width = layer.canvas.width;
+                mask.height = layer.canvas.height;
+                const maskCtx = mask.getContext('2d');
+                maskCtx.drawImage(layer.canvas, 0, 0);
+                maskCtx.globalCompositeOperation = 'source-in';
+                maskCtx.fillStyle = glow.color;
+                maskCtx.globalAlpha = 1;
+                maskCtx.fillRect(0, 0, mask.width, mask.height);
+
+                // 2. Blur the mask
+                const blurred = document.createElement('canvas');
+                blurred.width = mask.width;
+                blurred.height = mask.height;
+                const blurredCtx = blurred.getContext('2d');
+                blurredCtx.filter = `blur(${glow.size}px)`;
+                blurredCtx.drawImage(mask, 0, 0);
+
+                // 3. Punch out the original layer content from the blurred glow
+                blurredCtx.globalCompositeOperation = 'destination-out';
+                blurredCtx.drawImage(layer.canvas, 0, 0);
+
+                // 4. Draw the glow to the main canvas
+                this.ctx.save();
+                this.ctx.globalAlpha = 1.0;
+                this.ctx.globalCompositeOperation = 'lighter';
+                this.ctx.drawImage(blurred, 0, 0);
+                this.ctx.restore();
+            }
+            // Draw the layer content
             if (layer.canvas) {
                 this.ctx.globalAlpha = layer.opacity / 100;
                 this.ctx.globalCompositeOperation = layer.blendMode;
                 this.ctx.drawImage(layer.canvas, 0, 0);
             }
         }
+
+        // Draw selection overlay
+        if (this.selectionActive && this.selectionData) {
+            const bounds = this.getAdjustedSelectionBounds();
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = bounds.width;
+            tempCanvas.height = bounds.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.putImageData(this.selectionData, 0, 0);
+
+            this.ctx.globalAlpha = 1.0;
+            this.ctx.globalCompositeOperation = 'source-over';
+            this.ctx.drawImage(tempCanvas, bounds.x, bounds.y);
+        }
+
+        // Draw selection outline
+        if (this.selectionActive || this.isCreatingSelection) {
+            this.drawSelectionOutline();
+        }
+
+        // After drawing everything else:
+        if (this.currentTool === 'curve-brush' && this.curveBrushPoints.length > 0) {
+            this.drawCurveBrushPreview();
+        }
+
         this.ctx.globalAlpha = 1.0;
         this.ctx.globalCompositeOperation = 'source-over';
     }
@@ -1504,6 +1841,13 @@ class SpriteSpark {
 
     // Include all the existing methods from the original script...
     handleMenuClick(e) {
+        // Find the closest element with data-action
+        let target = e.target;
+        while (target && !target.getAttribute('data-action') && target !== document) {
+            target = target.parentElement;
+        }
+        if (!target || !target.getAttribute('data-action')) return;
+
         const action = e.target.getAttribute('data-action');
         const theme = e.target.getAttribute('data-theme');
 
@@ -1529,6 +1873,27 @@ class SpriteSpark {
                 break;
             case 'export-animation':
                 this.exportAnimation();
+                break;
+            case 'undo':
+                this.undo();
+                break;
+            case 'redo':
+                this.redo();
+                break;
+            case 'copy':
+                this.copySelection();
+                break;
+            case 'paste':
+                this.pasteSelection();
+                break;
+            case 'delete':
+                this.deleteSelection();
+                break;
+            case 'select-all':
+                this.selectAll();
+                break;
+            case 'deselect':
+                this.clearSelection();
                 break;
             case 'add-object':
                 this.addObject();
@@ -1584,6 +1949,24 @@ class SpriteSpark {
             case 'play':
                 this.togglePlay();
                 break;
+
+            // Effects menu
+            case 'flip-h':
+                this.flipFrame('horizontal');
+                break;
+            case 'flip-v':
+                this.flipFrame('vertical');
+                break;
+            case 'rotate':
+                this.rotateFrame();
+                break;
+            case 'blur':
+                window.SpriteSparkModals && window.SpriteSparkModals.showBlurModal(this);
+                break;
+            case 'sharpen':
+                window.SpriteSparkModals && window.SpriteSparkModals.showSharpenModal(this);
+                break;
+
             // Add other actions as needed...
         }
 
@@ -1685,6 +2068,7 @@ class SpriteSpark {
         this.frames.splice(this.currentFrame, 0, newFrame);
         this.selectFrame(this.currentFrame); // Stay on the same frame index (now the new frame)
         this.updateFramesList();
+        this.triggerLivePreviewIfEnabled();
     }
 
     startDrawing(e) {
@@ -1707,6 +2091,40 @@ class SpriteSpark {
         const rect = this.mainCanvas.getBoundingClientRect();
         const x = Math.floor((e.clientX - rect.left) / this.zoom);
         const y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+        // Handle selection tools and pointer tool
+        if (this.currentTool === 'rectangle-select' || this.currentTool === 'lasso-select' || this.currentTool === 'pointer') {
+            // Check if clicking on existing selection first
+            if (this.selectionActive && this.isPointInSelection(x, y)) {
+                this.startDraggingSelection(x, y);
+                return;
+            }
+            
+            // Clear selection if clicking outside
+            if (this.selectionActive && !this.isPointInSelection(x, y)) {
+                this.clearSelection();
+            }
+            
+            // Only start new selection if not pointer tool
+            if (this.currentTool !== 'pointer') {
+                this.startSelection(x, y);
+            }
+            return;
+        }
+
+        // Check if clicking on existing selection
+        if (this.selectionActive && this.isPointInSelection(x, y)) {
+            this.startDraggingSelection(x, y);
+            return;
+        }
+
+        // Clear selection if clicking outside
+        if (this.selectionActive && !this.isPointInSelection(x, y)) {
+            this.clearSelection();
+        }
+
+        // --- Add undo step before drawing ---
+        this.undoAdd();
 
         // Eyedropper with Ctrl+Click
         if ((this.currentTool === 'eyedropper') ||
@@ -1732,6 +2150,16 @@ class SpriteSpark {
             return;
         }
 
+        // Shape tools and smooth brush
+        if (['line', 'rectangle', 'ellipse', 'circle', 'smooth-brush'].includes(this.currentTool)) {
+            this.drawingBuffer = { x0: x, y0: y, x1: x, y1: y };
+            if (this.currentTool === 'smooth-brush') {
+                this.smoothBrushPoints = [{ x, y }];
+            }
+            this.isDrawing = true;
+            return;
+        }
+
         this.isDrawing = true;
         this.lastX = x;
         this.lastY = y;
@@ -1740,11 +2168,45 @@ class SpriteSpark {
     }
 
     draw(e) {
-        if (!this.isDrawing || !this.activeLayerId) return;
+        if (!this.isDrawing && !this.isCreatingSelection && !this.isDraggingSelection) return;
+
         const rect = this.mainCanvas.getBoundingClientRect();
         const x = Math.floor((e.clientX - rect.left) / this.zoom);
         const y = Math.floor((e.clientY - rect.top) / this.zoom);
 
+        // Handle selection tools and pointer tool
+        if (this.isCreatingSelection) {
+            this.updateSelection(x, y);
+            return;
+        }
+
+        if (this.isDraggingSelection) {
+            this.updateSelectionDrag(x, y);
+            return;
+        }
+
+        // Pointer tool doesn't draw
+        if (this.currentTool === 'pointer') {
+            return;
+        }
+
+        if (!this.activeLayerId) return;
+
+        // --- SHAPE TOOLS: Only update buffer and preview, do NOT draw to layer here ---
+        if (['line', 'rectangle', 'ellipse', 'circle', 'smooth-brush'].includes(this.currentTool)) {
+            if (this.currentTool === 'smooth-brush') {
+                this.smoothBrushPoints.push({ x, y });
+            }
+            if (this.drawingBuffer) {
+                this.drawingBuffer.x1 = x;
+                this.drawingBuffer.y1 = y;
+            }
+            this.renderCurrentFrameToMainCanvas();
+            this.drawShapePreview();
+            return;
+        }
+
+        // --- NORMAL DRAWING TOOLS ---
         const layer = this.layers.find(l => l.id === this.activeLayerId);
         if (!layer) return;
         const ctx = layer.canvas.getContext('2d');
@@ -1763,13 +2225,11 @@ class SpriteSpark {
                 let prevX = x0, prevY = y0;
 
                 while (true) {
-                    // Prevent corners: only draw if not a diagonal-only move
                     if (!preventCorners || (x0 === prevX || y0 === prevY)) {
                         ctx.fillStyle = color;
                         ctx.globalAlpha = this.opacity / 100;
                         ctx.fillRect(x0 - Math.floor(size / 2), y0 - Math.floor(size / 2), size, size);
                     }
-
                     if (x0 === x1 && y0 === y1) break;
                     prevX = x0; prevY = y0;
                     e2 = 2 * err;
@@ -1787,7 +2247,7 @@ class SpriteSpark {
                 y,
                 this.primaryColor,
                 this.brushSize,
-                this.pixelEdgeCorrection && this.brushSize > 1 // preventCorners only if enabled and brush is round
+                this.pixelEdgeCorrection && this.brushSize > 1
             );
         } else if (this.currentTool === 'pen') {
             ctx.beginPath();
@@ -1802,9 +2262,13 @@ class SpriteSpark {
         this.lastY = y;
         this.renderCurrentFrameToMainCanvas();
         this.syncGlobalLayersToCurrentFrame();
+        this.triggerLivePreviewIfEnabled();
     }
 
     floodFill(ctx, x, y, fillColor, tolerance = 0, detectAllLayers = false) {
+        // --- Add undo step before flood fill ---
+        this.undoAdd();
+
         const width = ctx.canvas.width;
         const height = ctx.canvas.height;
         let imageData, data;
@@ -1867,6 +2331,7 @@ class SpriteSpark {
             stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
         }
         ctx.putImageData(targetImageData, 0, 0);
+        this.triggerLivePreviewIfEnabled();
     }
 
     pickColorAt(x, y) {
@@ -1894,10 +2359,228 @@ class SpriteSpark {
     }
 
     stopDrawing(e) {
-        // Only stop drawing if left mouse button is released or if no event is provided (e.g., window blur)
         if (!e || e.button === 0) {
+            if (this.isCreatingSelection) {
+                this.finishSelection();
+                return;
+            }
+
+            if (this.isDraggingSelection) {
+                this.stopDraggingSelection();
+                return;
+            }
+
+            if (this.isDrawing && this.drawingBuffer && ['line', 'rectangle', 'ellipse', 'circle'].includes(this.currentTool)) {
+                // Commit shape to layer
+                const layer = this.layers.find(l => l.id === this.activeLayerId);
+                if (layer) {
+                    const ctx = layer.canvas.getContext('2d');
+                    ctx.save();
+                    ctx.globalAlpha = this.opacity / 100;
+                    ctx.strokeStyle = this.primaryColor;
+                    ctx.lineWidth = this.brushSize;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    this.drawShape(ctx, this.drawingBuffer, this.currentTool);
+                    ctx.restore();
+                }
+                this.drawingBuffer = null;
+                this.renderCurrentFrameToMainCanvas();
+                this.syncGlobalLayersToCurrentFrame();
+            } else if (this.isDrawing && this.currentTool === 'smooth-brush' && this.smoothBrushPoints.length > 1) {
+                // Draw only the final smooth curve to the layer
+                const layer = this.layers.find(l => l.id === this.activeLayerId);
+                if (layer) {
+                    const ctx = layer.canvas.getContext('2d');
+                    ctx.save();
+                    ctx.globalAlpha = this.opacity / 100;
+                    ctx.strokeStyle = this.primaryColor;
+                    ctx.lineWidth = this.brushSize;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    // Only draw the final curve, not the segments
+                    this.drawSmoothCurve(ctx, this.smoothBrushPoints);
+                    ctx.restore();
+                }
+                this.smoothBrushPoints = [];
+                this.drawingBuffer = null;
+                this.renderCurrentFrameToMainCanvas();
+                this.syncGlobalLayersToCurrentFrame();
+            }
             this.isDrawing = false;
-            this.syncGlobalLayersToCurrentFrame();
+        }
+    }
+
+    // --- Helper to draw shape preview on main canvas ---
+    drawShapePreview() {
+        if (!this.drawingBuffer || !this.ctx) return;
+        this.ctx.save();
+        this.ctx.globalAlpha = 0.5;
+        this.ctx.strokeStyle = this.primaryColor;
+        this.ctx.lineWidth = this.brushSize;
+        this.ctx.setLineDash([4, 4]);
+        this.drawShape(this.ctx, this.drawingBuffer, this.currentTool);
+        this.ctx.setLineDash([]);
+        this.ctx.restore();
+
+        // For smooth-brush, show the current curve
+        if (this.currentTool === 'smooth-brush' && this.smoothBrushPoints.length > 1) {
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.7;
+            this.ctx.strokeStyle = this.primaryColor;
+            this.ctx.lineWidth = this.brushSize;
+            this.ctx.setLineDash([]);
+            this.drawSmoothCurve(this.ctx, this.smoothBrushPoints);
+            this.ctx.restore();
+        }
+    }
+
+    // --- Helper to draw shapes ---
+    drawShape(ctx, buffer, tool) {
+        const { x0, y0, x1, y1 } = buffer;
+        if (this.pixelDrawingMode && this.brushSize === 1) {
+            switch (tool) {
+                case 'line':
+                    this._drawPixelLine(ctx, x0, y0, x1, y1, this.primaryColor, this.brushSize, this.pixelEdgeCorrection && this.brushSize > 1);
+                    break;
+                case 'rectangle': {
+                    // Four pixel lines for rectangle
+                    this._drawPixelLine(ctx, x0, y0, x1, y0, this.primaryColor, this.brushSize, false);
+                    this._drawPixelLine(ctx, x1, y0, x1, y1, this.primaryColor, this.brushSize, false);
+                    this._drawPixelLine(ctx, x1, y1, x0, y1, this.primaryColor, this.brushSize, false);
+                    this._drawPixelLine(ctx, x0, y1, x0, y0, this.primaryColor, this.brushSize, false);
+                    break;
+                }
+                case 'ellipse':
+                case 'circle': {
+                    // Approximate ellipse/circle with points and connect with pixel lines
+                    const cx = (x0 + x1) / 2;
+                    const cy = (y0 + y1) / 2;
+                    const rx = tool === 'ellipse' ? Math.abs(x1 - x0) / 2 : Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) / 2;
+                    const ry = tool === 'ellipse' ? Math.abs(y1 - y0) / 2 : rx;
+                    let prev = null;
+                    for (let a = 0; a <= 360; a += 2) {
+                        const rad = a * Math.PI / 180;
+                        const px = Math.round(cx + rx * Math.cos(rad));
+                        const py = Math.round(cy + ry * Math.sin(rad));
+                        if (prev) {
+                            this._drawPixelLine(ctx, prev.x, prev.y, px, py, this.primaryColor, this.brushSize, false);
+                        }
+                        prev = { x: px, y: py };
+                    }
+                    break;
+                }
+            }
+        } else {
+            // Default: smooth vector shapes
+            switch (tool) {
+                case 'line':
+                    ctx.beginPath();
+                    ctx.moveTo(x0, y0);
+                    ctx.lineTo(x1, y1);
+                    ctx.stroke();
+                    break;
+                case 'rectangle':
+                    ctx.strokeRect(
+                        Math.min(x0, x1),
+                        Math.min(y0, y1),
+                        Math.abs(x1 - x0),
+                        Math.abs(y1 - y0)
+                    );
+                    break;
+                case 'ellipse':
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        (x0 + x1) / 2,
+                        (y0 + y1) / 2,
+                        Math.abs(x1 - x0) / 2,
+                        Math.abs(y1 - y0) / 2,
+                        0, 0, 2 * Math.PI
+                    );
+                    ctx.stroke();
+                    break;
+                case 'circle': {
+                    const r = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) / 2;
+                    ctx.beginPath();
+                    ctx.arc(
+                        (x0 + x1) / 2,
+                        (y0 + y1) / 2,
+                        r,
+                        0, 2 * Math.PI
+                    );
+                    ctx.stroke();
+                    break;
+                }
+            }
+        }
+    }
+
+    // --- Helper to draw a smooth curve through points (Catmull-Rom spline) ---
+    drawSmoothCurve(ctx, points) {
+        if (points.length < 2) return;
+
+        // If pixel perfect mode, draw the curve as a series of pixel lines
+        if (this.pixelDrawingMode && this.brushSize === 1) {
+            // Sample the Catmull-Rom spline and draw pixel lines between points
+            const getSplinePoint = (t, p0, p1, p2, p3) => {
+                // Catmull-Rom spline formula
+                const t2 = t * t, t3 = t2 * t;
+                return {
+                    x: 0.5 * ((2 * p1.x) +
+                        (-p0.x + p2.x) * t +
+                        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+                        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+                    y: 0.5 * ((2 * p1.y) +
+                        (-p0.y + p2.y) * t +
+                        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+                        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+                };
+            };
+
+            // Draw pixel lines along the spline, using a finer step for smoothness
+            let prev = points[0];
+            for (let i = 0; i < points.length - 1; i++) {
+                const p0 = points[i - 1] || points[i];
+                const p1 = points[i];
+                const p2 = points[i + 1] || points[i];
+                const p3 = points[i + 2] || p2;
+                for (let t = 0; t < 1; t += 0.02) {
+                    const pt = getSplinePoint(t, p0, p1, p2, p3);
+                    this._drawPixelLine(
+                        ctx,
+                        Math.round(prev.x), Math.round(prev.y),
+                        Math.round(pt.x), Math.round(pt.y),
+                        this.primaryColor, this.brushSize,
+                        this.pixelEdgeCorrection && this.brushSize > 1
+                    );
+                    prev = pt;
+                }
+            }
+            // Draw last segment
+            const last = points[points.length - 1];
+            this._drawPixelLine(
+                ctx,
+                Math.round(prev.x), Math.round(prev.y),
+                Math.round(last.x), Math.round(last.y),
+                this.primaryColor, this.brushSize,
+                this.pixelEdgeCorrection && this.brushSize > 1
+            );
+        } else {
+            // Default: smooth bezier curve
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 0; i < points.length - 1; i++) {
+                const p0 = points[i - 1] || points[i];
+                const p1 = points[i];
+                const p2 = points[i + 1] || points[i];
+                const p3 = points[i + 2] || p2;
+                const cp1x = p1.x + (p2.x - p0.x) / 6;
+                const cp1y = p1.y + (p2.y - p0.y) / 6;
+                const cp2x = p2.x - (p3.x - p1.x) / 6;
+                const cp2y = p2.y - (p3.y - p1.y) / 6;
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+            }
+            ctx.stroke();
         }
     }
 
@@ -2149,6 +2832,7 @@ class SpriteSpark {
         this.selectFrame(this.currentFrame);
         this.updateFramesList();
         this.renderCurrentFrameToMainCanvas();
+        this.triggerLivePreviewIfEnabled();
     }
 
     moveFrame(frameIndex, direction) {
@@ -2161,6 +2845,7 @@ class SpriteSpark {
             else if (this.currentFrame === frameIndex - 1) this.currentFrame++;
             this.updateFramesList();
             this.selectFrame(this.currentFrame);
+            this.triggerLivePreviewIfEnabled();
         } else if (direction === 'down' && frameIndex < this.frames.length - 1) {
             this.undoAdd();
             const temp = this.frames[frameIndex];
@@ -2170,7 +2855,165 @@ class SpriteSpark {
             else if (this.currentFrame === frameIndex + 1) this.currentFrame--;
             this.updateFramesList();
             this.selectFrame(this.currentFrame);
+            this.triggerLivePreviewIfEnabled();
         }
+    }
+
+    // --- Effects Implementation ---
+    flipFrame(direction) {
+        // Flip all visible layers in the current frame
+        const frame = this.frames[this.currentFrame];
+        if (!frame) return;
+        frame.layers.forEach(layer => {
+            if (!layer.isVisible) return;
+            const ctx = layer.canvas.getContext('2d');
+            const temp = document.createElement('canvas');
+            temp.width = layer.canvas.width;
+            temp.height = layer.canvas.height;
+            temp.getContext('2d').drawImage(layer.canvas, 0, 0);
+            ctx.save();
+            ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+            if (direction === 'horizontal') {
+                ctx.scale(-1, 1);
+                ctx.drawImage(temp, -layer.canvas.width, 0);
+            } else {
+                ctx.scale(1, -1);
+                ctx.drawImage(temp, 0, -layer.canvas.height);
+            }
+            ctx.restore();
+        });
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+    }
+
+    rotateFrame() {
+        // Rotate all visible layers in the current frame 90deg clockwise
+        const frame = this.frames[this.currentFrame];
+        if (!frame) return;
+        frame.layers.forEach(layer => {
+            if (!layer.isVisible) return;
+            const ctx = layer.canvas.getContext('2d');
+            const temp = document.createElement('canvas');
+            temp.width = layer.canvas.width;
+            temp.height = layer.canvas.height;
+            temp.getContext('2d').drawImage(layer.canvas, 0, 0);
+            ctx.save();
+            ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+            ctx.translate(layer.canvas.width / 2, layer.canvas.height / 2);
+            ctx.rotate(Math.PI / 2);
+            ctx.drawImage(temp, -layer.canvas.height / 2, -layer.canvas.width / 2, layer.canvas.height, layer.canvas.width);
+            ctx.restore();
+        });
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+    }
+
+    copyFrame() {
+        // Copy current frame data to memory
+        const frame = this.frames[this.currentFrame];
+        if (!frame) return;
+        this.copiedFrameData = JSON.stringify(frame, (key, value) => {
+            if (key === 'canvas') return value.toDataURL();
+            return value;
+        });
+    }
+
+    pasteFrame() {
+        // Paste copied frame data into current frame
+        if (!this.copiedFrameData) return;
+        const frameData = JSON.parse(this.copiedFrameData);
+        frameData.layers.forEach((l, i) => {
+            const layer = this.layers[i];
+            if (!layer) return;
+            const ctx = layer.canvas.getContext('2d');
+            ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+            if (l.canvas) {
+                const img = new window.Image();
+                img.src = l.canvas;
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0);
+                    this.renderCurrentFrameToMainCanvas();
+                    this.syncGlobalLayersToCurrentFrame();
+                };
+            }
+        });
+    }
+
+    clearFrame() {
+        // Clear all visible layers in the current frame
+        const frame = this.frames[this.currentFrame];
+        if (!frame) return;
+        frame.layers.forEach(layer => {
+            if (!layer.isVisible) return;
+            const ctx = layer.canvas.getContext('2d');
+            ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+        });
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+    }
+
+    applyBlurEffect(radius = 4) {
+        const frame = this.frames[this.currentFrame];
+        if (!frame) return;
+        frame.layers.forEach(layer => {
+            if (!layer.isVisible) return;
+            const ctx = layer.canvas.getContext('2d');
+            const temp = document.createElement('canvas');
+            temp.width = layer.canvas.width;
+            temp.height = layer.canvas.height;
+            temp.getContext('2d').drawImage(layer.canvas, 0, 0);
+            ctx.save();
+            ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+            ctx.filter = `blur(${radius}px)`;
+            ctx.drawImage(temp, 0, 0);
+            ctx.restore();
+        });
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+    }
+
+    applySharpenEffect(amount = 2) {
+        // Simple sharpen kernel
+        const frame = this.frames[this.currentFrame];
+        if (!frame) return;
+        frame.layers.forEach(layer => {
+            if (!layer.isVisible) return;
+            const ctx = layer.canvas.getContext('2d');
+            const w = layer.canvas.width, h = layer.canvas.height;
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+            // Sharpen kernel
+            const kernel = [
+                0, -1 * amount, 0,
+                -1 * amount, 4 * amount + 1, -1 * amount,
+                0, -1 * amount, 0
+            ];
+            const side = 3;
+            const half = Math.floor(side / 2);
+            const copy = new Uint8ClampedArray(data);
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    for (let c = 0; c < 3; c++) {
+                        let sum = 0;
+                        for (let ky = 0; ky < side; ky++) {
+                            for (let kx = 0; kx < side; kx++) {
+                                const px = x + kx - half;
+                                const py = y + ky - half;
+                                if (px >= 0 && px < w && py >= 0 && py < h) {
+                                    const idx = (py * w + px) * 4 + c;
+                                    sum += copy[idx] * kernel[ky * side + kx];
+                                }
+                            }
+                        }
+                        const idx = (y * w + x) * 4 + c;
+                        data[idx] = Math.min(255, Math.max(0, sum));
+                    }
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+        });
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
     }
 
     syncGlobalLayersToCurrentFrame() {
@@ -2192,6 +3035,19 @@ class SpriteSpark {
         });
     }
 
+    updateCanvasCursor() {
+        const canvasContainer = document.getElementById('canvasContainer');
+        if (canvasContainer) {
+            canvasContainer.setAttribute('data-tool', this.currentTool);
+            
+            if (this.isDraggingSelection) {
+                canvasContainer.classList.add('dragging-selection');
+            } else {
+                canvasContainer.classList.remove('dragging-selection');
+            }
+        }
+    }
+
     handleKeyboard(e) {
         // Example: Ctrl+Z for undo, Ctrl+Y for redo, Space for play/pause
         if (e.ctrlKey && e.key === 'z') {
@@ -2200,8 +3056,41 @@ class SpriteSpark {
         } else if (e.ctrlKey && e.key === 'y') {
             this.redo();
             e.preventDefault();
-        } else if (e.key === ' ') {
-            this.togglePlay();
+        } else if (e.ctrlKey && e.key === 'c') {
+            this.copySelection();
+            e.preventDefault();
+        } else if (e.ctrlKey && e.key === 'v') {
+            this.pasteSelection();
+            e.preventDefault();
+        } else if (e.ctrlKey && e.key === 'a') {
+            this.selectAll();
+            e.preventDefault();
+        } else if (e.key === 'Delete') {
+            this.deleteSelection();
+            e.preventDefault();
+        } else if (e.key === 'Escape') {
+            this.clearSelection();
+            e.preventDefault();
+        } else if (e.key === 'v' && !e.ctrlKey) {
+            // V key for pointer tool
+            this.currentTool = 'pointer';
+            document.querySelectorAll('.drawing-tool').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-tool') === 'pointer');
+            });
+            e.preventDefault();
+        } else if (e.key === 'm') {
+            // M key for rectangle select
+            this.currentTool = 'rectangle-select';
+            document.querySelectorAll('.drawing-tool').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-tool') === 'rectangle-select');
+            });
+            e.preventDefault();
+        } else if (e.key === 'l') {
+            // L key for lasso select
+            this.currentTool = 'lasso-select';
+            document.querySelectorAll('.drawing-tool').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-tool') === 'lasso-select');
+            });
             e.preventDefault();
         }
     }
@@ -2267,7 +3156,7 @@ class SpriteSpark {
     }
 
     getProjectData() {
-        // Serialize all frames, layers, and settings
+        // Serialize all frames, layers, settings, and undo/redo stacks
         return {
             canvasWidth: this.canvasWidth,
             canvasHeight: this.canvasHeight,
@@ -2290,18 +3179,56 @@ class SpriteSpark {
             })),
             currentFrame: this.currentFrame,
             activeLayerId: this.activeLayerId,
-            theme: this.currentTheme
+            theme: this.currentTheme,
+            // Drawing and layer settings
+            pixelPerfect: this.pixelPerfect,
+            pixelDrawingMode: this.pixelDrawingMode,
+            pixelEdgeCorrection: this.pixelEdgeCorrection,
+            brushSize: this.brushSize,
+            opacity: this.opacity,
+            showBrushGhost: this.showBrushGhost,
+            floodFillTolerance: this.floodFillTolerance,
+            floodFillDetectAllLayers: this.floodFillDetectAllLayers,
+            showOnionSkin: this.showOnionSkin,
+            onionSkinFrames: this.onionSkinFrames,
+            fps: this.fps,
+            loopAnimation: this.loopAnimation,
+            leftPanelWidth: this.leftPanelWidth,
+            rightPanelWidth: this.rightPanelWidth,
+            zoom: this.zoom,
+            layerGlowSettings: this.layerGlowSettings,
+            // Undo/redo stacks (serialize as plain objects, not canvas)
+            undoStack: this.undoStack.map(state => this._serializeState(state)),
+            redoStack: this.redoStack.map(state => this._serializeState(state)),
         };
     }
 
     loadProjectData(data) {
-        // Restore project from JSON
+        // Restore project from JSON, including settings and undo/redo
         this.canvasWidth = data.canvasWidth;
         this.canvasHeight = data.canvasHeight;
         this.currentFrame = data.currentFrame || 0;
         this.activeLayerId = data.activeLayerId || null;
         this.theme = data.theme || 'dark';
         this.applyTheme(this.theme);
+
+        // Restore settings
+        this.pixelPerfect = !!data.pixelPerfect;
+        this.pixelDrawingMode = !!data.pixelDrawingMode;
+        this.pixelEdgeCorrection = !!data.pixelEdgeCorrection;
+        this.brushSize = data.brushSize || 1;
+        this.opacity = data.opacity || 100;
+        this.showBrushGhost = !!data.showBrushGhost;
+        this.floodFillTolerance = data.floodFillTolerance || 0;
+        this.floodFillDetectAllLayers = !!data.floodFillDetectAllLayers;
+        this.showOnionSkin = !!data.showOnionSkin;
+        this.onionSkinFrames = data.onionSkinFrames || 1;
+        this.fps = data.fps || 12;
+        this.loopAnimation = !!data.loopAnimation;
+        this.leftPanelWidth = data.leftPanelWidth || 280;
+        this.rightPanelWidth = data.rightPanelWidth || 280;
+        this.zoom = data.zoom || 1;
+        this.layerGlowSettings = data.layerGlowSettings || {};
 
         // Restore layers and frames
         this.layers = data.layers.map(l => ({
@@ -2320,6 +3247,11 @@ class SpriteSpark {
                 return { ...l, canvas };
             })
         }));
+
+        // Restore undo/redo stacks
+        this.undoStack = (data.undoStack || []).map(s => this._restoreStateFromSerialized(s));
+        this.redoStack = (data.redoStack || []).map(s => this._restoreStateFromSerialized(s));
+
         setTimeout(() => {
             this.renderLayersList();
             this.updateFramesList();
@@ -2384,6 +3316,26 @@ class SpriteSpark {
         cancelBtn.onclick = () => {
             modal.classList.add('hidden');
         };
+    }
+
+    _drawPixelLine(ctx, x0, y0, x1, y1, color, size, preventCorners) {
+        let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+        let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+        let err = dx + dy, e2;
+        let prevX = x0, prevY = y0;
+
+        while (true) {
+            if (!preventCorners || (x0 === prevX || y0 === prevY)) {
+                ctx.fillStyle = color;
+                ctx.globalAlpha = this.opacity / 100;
+                ctx.fillRect(x0 - Math.floor(size / 2), y0 - Math.floor(size / 2), size, size);
+            }
+            if (x0 === x1 && y0 === y1) break;
+            prevX = x0; prevY = y0;
+            e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x0 += sx; }
+            if (e2 <= dx) { err += dx; y0 += sy; }
+        }
     }
 
     _doExportAnimation(name, format) {
@@ -2505,6 +3457,369 @@ class SpriteSpark {
         }
     }
 
+    triggerLivePreviewIfEnabled() {
+        const enablePreviewCheckbox = document.getElementById('enablePreview');
+        if (enablePreviewCheckbox && enablePreviewCheckbox.checked) {
+            // Pause and restart the animation to refresh preview
+            this.pauseAnimation();
+            this.playAnimation();
+        }
+    }
+
+    // Selection Methods
+    startSelection(x, y) {
+        this.isCreatingSelection = true;
+        this.clearSelection();
+        this.startSelectionAnimation();
+
+        if (this.currentTool === 'rectangle-select') {
+            this.selectionBounds = { x, y, width: 0, height: 0 };
+            // Store the original start position
+            this.selectionStartX = x;
+            this.selectionStartY = y;
+        } else if (this.currentTool === 'lasso-select') {
+            this.selectionPath = [{ x, y }];
+        }
+    }
+
+    updateSelection(x, y) {
+        if (!this.isCreatingSelection) return;
+
+        if (this.currentTool === 'rectangle-select') {
+            // Store the original start position - don't modify it
+            const startX = this.selectionStartX || this.selectionBounds.x;
+            const startY = this.selectionStartY || this.selectionBounds.y;
+            
+            // Calculate bounds properly for any direction
+            this.selectionBounds = {
+                x: Math.min(startX, x),
+                y: Math.min(startY, y),
+                width: Math.abs(x - startX),
+                height: Math.abs(y - startY)
+            };
+        } else if (this.currentTool === 'lasso-select') {
+            this.selectionPath.push({ x, y });
+        }
+
+        this.renderCurrentFrameToMainCanvas();
+        this.drawSelectionPreview();
+    }
+
+    finishSelection() {
+        if (!this.isCreatingSelection) return;
+
+        this.isCreatingSelection = false;
+
+        if (this.currentTool === 'rectangle-select') {
+            if (this.selectionBounds.width > 0 && this.selectionBounds.height > 0) {
+                this.undoAdd(); // Add undo state when creating selection
+                this.selectionActive = true;
+                this.extractSelectionData();
+            }
+        } else if (this.currentTool === 'lasso-select') {
+            if (this.selectionPath.length > 2) {
+                this.undoAdd(); // Add undo state when creating selection
+                this.selectionActive = true;
+                this.extractSelectionData();
+            }
+        }
+
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    clearSelection() {
+        if (this.selectionActive && this.selectionData) {
+            // Apply any pending selection changes
+            this.applySelectionToLayer();
+        }
+
+        this.selectionActive = false;
+        this.selectionBounds = { x: 0, y: 0, width: 0, height: 0 };
+        this.selectionPath = [];
+        this.selectionData = null;
+        this.isDraggingSelection = false;
+        this.selectionOffset = { x: 0, y: 0 };
+        this.selectionStartX = 0; // Add this line
+        this.selectionStartY = 0; // Add this line
+        this.stopSelectionAnimation();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    startSelectionAnimation() {
+        if (this.selectionAnimationInterval) {
+            clearInterval(this.selectionAnimationInterval);
+        }
+        
+        this.selectionAnimationInterval = setInterval(() => {
+            this.selectionAnimationPhase = (this.selectionAnimationPhase + 1) % 2;
+            if (this.selectionActive || this.isCreatingSelection) {
+                this.renderCurrentFrameToMainCanvas();
+            }
+        }, 500); // 0.5 seconds
+    }
+
+    stopSelectionAnimation() {
+        if (this.selectionAnimationInterval) {
+            clearInterval(this.selectionAnimationInterval);
+            this.selectionAnimationInterval = null;
+        }
+    }
+
+    drawSelectionPreview() {
+        if (this.currentTool === 'lasso-select' && this.selectionPath.length > 1) {
+            this.ctx.save();
+            
+            // Use same animated style as selection outline
+            const isDarkPhase = this.selectionAnimationPhase === 0;
+            this.ctx.strokeStyle = isDarkPhase ? '#000000' : '#ffffff';
+            this.ctx.lineWidth = 1;
+            this.ctx.setLineDash([4, 4]);
+            
+            this.ctx.beginPath();
+            this.ctx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
+            for (let i = 1; i < this.selectionPath.length; i++) {
+                this.ctx.lineTo(this.selectionPath[i].x, this.selectionPath[i].y);
+            }
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
+            this.ctx.restore();
+        }
+    }
+
+    drawSelectionOutline() {
+        this.ctx.save();
+        
+        // Animate between white and black dashes
+        const isDarkPhase = this.selectionAnimationPhase === 0;
+        this.ctx.strokeStyle = isDarkPhase ? '#000000' : '#ffffff';
+        this.ctx.lineWidth = 1;
+        this.ctx.setLineDash([4, 4]);
+        
+        if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
+            const bounds = this.getAdjustedSelectionBounds();
+            this.ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        } else if (this.selectionPath.length > 2) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
+            for (let i = 1; i < this.selectionPath.length; i++) {
+                this.ctx.lineTo(this.selectionPath[i].x, this.selectionPath[i].y);
+            }
+            this.ctx.closePath();
+            this.ctx.stroke();
+        }
+        
+        this.ctx.setLineDash([]);
+        this.ctx.restore();
+    }
+
+    isPointInSelection(x, y) {
+        if (!this.selectionActive) return false;
+
+        if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
+            const bounds = this.getAdjustedSelectionBounds();
+            return x >= bounds.x && x <= bounds.x + bounds.width &&
+                y >= bounds.y && y <= bounds.y + bounds.height;
+        } else if (this.selectionPath.length > 0) {
+            return this.isPointInPolygon(x, y, this.selectionPath);
+        }
+
+        return false;
+    }
+
+    isPointInPolygon(x, y, polygon) {
+        let inside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            if (((polygon[i].y > y) !== (polygon[j].y > y)) &&
+                (x < (polygon[j].x - polygon[i].x) * (y - polygon[i].y) / (polygon[j].y - polygon[i].y) + polygon[i].x)) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    startDraggingSelection(x, y) {
+        // Add undo state before starting to drag
+        this.undoAdd();
+        
+        this.isDraggingSelection = true;
+        const bounds = this.getAdjustedSelectionBounds();
+        this.selectionOffset = {
+            x: x - bounds.x,
+            y: y - bounds.y
+        };
+    }
+
+    updateSelectionDrag(x, y) {
+        if (!this.isDraggingSelection) return;
+
+        const newX = x - this.selectionOffset.x;
+        const newY = y - this.selectionOffset.y;
+
+        if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
+            this.selectionBounds.x = newX;
+            this.selectionBounds.y = newY;
+        } else if (this.selectionPath.length > 0) {
+            // Move entire path
+            const dx = newX - this.selectionPath[0].x;
+            const dy = newY - this.selectionPath[0].y;
+            this.selectionPath = this.selectionPath.map(p => ({
+                x: p.x + dx,
+                y: p.y + dy
+            }));
+        }
+
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    stopDraggingSelection() {
+        this.isDraggingSelection = false;
+    }
+
+    getAdjustedSelectionBounds() {
+        if (this.selectionBounds.width > 0) {
+            return this.selectionBounds;
+        } else if (this.selectionPath.length > 0) {
+            // Calculate bounding box of lasso selection
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const point of this.selectionPath) {
+                minX = Math.min(minX, point.x);
+                minY = Math.min(minY, point.y);
+                maxX = Math.max(maxX, point.x);
+                maxY = Math.max(maxY, point.y);
+            }
+            return {
+                x: minX,
+                y: minY,
+                width: maxX - minX,
+                height: maxY - minY
+            };
+        }
+        return this.selectionBounds;
+    }
+
+    extractSelectionData() {
+        const layer = this.layers.find(l => l.id === this.activeLayerId);
+        if (!layer) return;
+
+        const bounds = this.getAdjustedSelectionBounds();
+        const canvas = document.createElement('canvas');
+        canvas.width = bounds.width;
+        canvas.height = bounds.height;
+        const ctx = canvas.getContext('2d');
+
+        // Create a mask for the selection
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = this.canvasWidth;
+        maskCanvas.height = this.canvasHeight;
+        const maskCtx = maskCanvas.getContext('2d');
+
+        if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
+            maskCtx.fillStyle = 'white';
+            maskCtx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        } else if (this.selectionPath.length > 0) {
+            maskCtx.fillStyle = 'white';
+            maskCtx.beginPath();
+            maskCtx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
+            for (let i = 1; i < this.selectionPath.length; i++) {
+                maskCtx.lineTo(this.selectionPath[i].x, this.selectionPath[i].y);
+            }
+            maskCtx.closePath();
+            maskCtx.fill();
+        }
+
+        // Extract the selected area from the layer
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.canvasWidth;
+        tempCanvas.height = this.canvasHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // Draw the layer
+        tempCtx.drawImage(layer.canvas, 0, 0);
+
+        // Apply mask
+        tempCtx.globalCompositeOperation = 'destination-in';
+        tempCtx.drawImage(maskCanvas, 0, 0);
+
+        // Copy to selection canvas
+        ctx.drawImage(tempCanvas, bounds.x, bounds.y, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height);
+
+        this.selectionData = ctx.getImageData(0, 0, bounds.width, bounds.height);
+
+        // Clear the selected area from the original layer
+        const layerCtx = layer.canvas.getContext('2d');
+        layerCtx.globalCompositeOperation = 'destination-out';
+        layerCtx.drawImage(maskCanvas, 0, 0);
+        layerCtx.globalCompositeOperation = 'source-over';
+    }
+
+    applySelectionToLayer() {
+        if (!this.selectionData || !this.selectionActive) return;
+
+        const layer = this.layers.find(l => l.id === this.activeLayerId);
+        if (!layer) return;
+
+        const bounds = this.getAdjustedSelectionBounds();
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = bounds.width;
+        tempCanvas.height = bounds.height;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        tempCtx.putImageData(this.selectionData, 0, 0);
+
+        const layerCtx = layer.canvas.getContext('2d');
+        layerCtx.drawImage(tempCanvas, bounds.x, bounds.y);
+    }
+
+    copySelection() {
+        if (!this.selectionActive || !this.selectionData) return;
+
+        const bounds = this.getAdjustedSelectionBounds();
+        this.copiedSelection = {
+            data: new ImageData(
+                new Uint8ClampedArray(this.selectionData.data),
+                this.selectionData.width,
+                this.selectionData.height
+            ),
+            width: bounds.width,
+            height: bounds.height
+        };
+    }
+
+    pasteSelection() {
+        if (!this.copiedSelection) return;
+
+        this.clearSelection();
+
+        // Create new selection at center of canvas
+        const centerX = Math.floor((this.canvasWidth - this.copiedSelection.width) / 2);
+        const centerY = Math.floor((this.canvasHeight - this.copiedSelection.height) / 2);
+
+        this.selectionBounds = {
+            x: centerX,
+            y: centerY,
+            width: this.copiedSelection.width,
+            height: this.copiedSelection.height
+        };
+
+        this.selectionData = new ImageData(
+            new Uint8ClampedArray(this.copiedSelection.data.data),
+            this.copiedSelection.data.width,
+            this.copiedSelection.data.height
+        );
+
+        this.selectionActive = true;
+        this.currentTool = 'rectangle-select';
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    deleteSelection() {
+        if (!this.selectionActive) return;
+
+        this.undoAdd();
+        this.clearSelection();
+        this.syncGlobalLayersToCurrentFrame();
+    }
+
     // UNDO/REDO functionality
     undoAdd() {
         const state = {
@@ -2609,6 +3924,54 @@ class SpriteSpark {
         this.renderLayersList();
         this.updateFramesList();
         this.renderCurrentFrameToMainCanvas();
+    }
+
+    _serializeState(state) {
+        // Helper to serialize a state object (undo/redo)
+        return {
+            frames: state.frames.map(frame => ({
+                layers: frame.layers.map(layer => ({
+                    ...layer,
+                    canvas: layer.canvas.toDataURL()
+                }))
+            })),
+            layers: state.layers.map(layer => ({
+                ...layer,
+                canvas: layer.canvas.toDataURL()
+            })),
+            currentFrame: state.currentFrame,
+            activeLayerId: state.activeLayerId
+        };
+    }
+
+    _restoreStateFromSerialized(state) {
+        // Helper to restore a state object (undo/redo) from serialized data
+        return {
+            frames: state.frames.map(frame => ({
+                layers: frame.layers.map(layer => {
+                    const canvas = this.createLayerCanvas();
+                    const ctx = canvas.getContext('2d');
+                    if (layer.canvas) {
+                        const img = new window.Image();
+                        img.src = layer.canvas;
+                        img.onload = () => ctx.drawImage(img, 0, 0);
+                    }
+                    return { ...layer, canvas };
+                })
+            })),
+            layers: state.layers.map(layer => {
+                const canvas = this.createLayerCanvas();
+                const ctx = canvas.getContext('2d');
+                if (layer.canvas) {
+                    const img = new window.Image();
+                    img.src = layer.canvas;
+                    img.onload = () => ctx.drawImage(img, 0, 0);
+                }
+                return { ...layer, canvas };
+            }),
+            currentFrame: state.currentFrame,
+            activeLayerId: state.activeLayerId
+        };
     }
 }
 
@@ -2915,7 +4278,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isTouchPanning = false;
     let touchPanStart = { x: 0, y: 0 };
     let touchScrollStart = { left: 0, top: 0 };
-    let isMultiTouch = false; 
+    let isMultiTouch = false;
 
     // Helper: get distance between two touches
     function getTouchDist(touches) {
@@ -2957,7 +4320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     clientX: touch.clientX,
                     clientY: touch.clientY,
                     ctrlKey: false,
-                    preventDefault: () => {},
+                    preventDefault: () => { },
                     pointerType: touch.touchType || 'touch',
                     pressure: touch.force || 0.5 // fallback for browsers without force
                 };
@@ -3004,7 +4367,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     clientX: touch.clientX,
                     clientY: touch.clientY,
                     ctrlKey: false,
-                    preventDefault: () => {},
+                    preventDefault: () => { },
                     pointerType: touch.touchType || 'touch',
                     pressure: touch.force || 0.5
                 };
@@ -3090,6 +4453,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
+    // Toolbar buttons
+    document.querySelectorAll('.toolbar .tool-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            const action = btn.getAttribute('data-action');
+            if (action) {
+                // Simulate menu click for consistency
+                app.handleMenuClick({ target: btn, preventDefault: () => { } });
+            }
+        });
+    });
 
     // Force desktop mode always
     document.body.classList.add('desktop-mode');

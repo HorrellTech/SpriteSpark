@@ -1,0 +1,4 @@
+- Layer glow
+- Sprite Objects for images and puppet animation
+- Filled shapes
+- Get effects menubar to work
