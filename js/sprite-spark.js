@@ -74,10 +74,11 @@ class SpriteSpark {
         this.selectionOffset = { x: 0, y: 0 };
         this.copiedSelection = null; // For copy/paste
         this.isCreatingSelection = false;
-        this.selectionAnimationPhase = 0; 
+        this.selectionAnimationPhase = 0;
         this.selectionStartX = 0;
         this.selectionStartY = 0;
-        
+        this.selectionRotation = 0;
+
         // UI properties
         this.theme = 'dark';
         this.currentTheme = 'dark';
@@ -100,6 +101,11 @@ class SpriteSpark {
 
         this.objects = [];
         this.selectedObjectId = null;
+
+        // Mirroring properties
+        this.mirrorMode = 'none';
+        this.mirrorAnimationPhase = 0;
+        this.mirrorAnimationInterval = null;
 
         // Canvas resizing
         this.currentPlacement = 'center';
@@ -226,6 +232,20 @@ class SpriteSpark {
         const zoomInput = document.getElementById('zoomInput');
         if (zoomInput) {
             zoomInput.addEventListener('input', this.updateZoomLevel.bind(this));
+        }
+
+        // Mirroring controls
+        const mirrorModeSelect = document.getElementById('mirrorMode');
+        if (mirrorModeSelect) {
+            mirrorModeSelect.addEventListener('change', (e) => {
+                this.mirrorMode = e.target.value;
+                if (this.mirrorMode !== 'none') {
+                    this.startMirrorAnimation();
+                } else {
+                    this.stopMirrorAnimation();
+                }
+                this.renderCurrentFrameToMainCanvas();
+            });
         }
 
         const onionSkinCheckbox = document.getElementById('onionSkinCheckbox');
@@ -1740,6 +1760,11 @@ class SpriteSpark {
             }
         }
 
+        // Draw mirror lines
+        if (this.mirrorMode !== 'none') {
+            this.drawMirrorLines();
+        }
+
         // Draw selection overlay
         if (this.selectionActive && this.selectionData) {
             const bounds = this.getAdjustedSelectionBounds();
@@ -1883,6 +1908,9 @@ class SpriteSpark {
             case 'copy':
                 this.copySelection();
                 break;
+            case 'cut':
+                this.cutSelection();
+                break;
             case 'paste':
                 this.pasteSelection();
                 break;
@@ -1978,6 +2006,16 @@ class SpriteSpark {
     }
 
     handleCanvasMouseDown(e) {
+        // Handle middle mouse button for selection rotation
+        if (e.button === 1 && this.selectionActive && this.isPointInSelection(
+            Math.floor((e.clientX - this.mainCanvas.getBoundingClientRect().left) / this.zoom),
+            Math.floor((e.clientY - this.mainCanvas.getBoundingClientRect().top) / this.zoom)
+        )) {
+            this.rotateSelection(90);
+            e.preventDefault();
+            return;
+        }
+
         if (this.currentTool !== 'object-tool') return;
         const rect = this.mainCanvas.getBoundingClientRect();
         const x = (e.clientX - rect.left) / this.zoom;
@@ -2092,6 +2130,15 @@ class SpriteSpark {
         const x = Math.floor((e.clientX - rect.left) / this.zoom);
         const y = Math.floor((e.clientY - rect.top) / this.zoom);
 
+        // Check if clicking on selection rotate button
+        if (this.selectionActive && this.selectionRotateButton) {
+            const btn = this.selectionRotateButton;
+            if (x >= btn.x && x <= btn.x + btn.size && y >= btn.y && y <= btn.y + btn.size) {
+                this.rotateSelection(90);
+                return;
+            }
+        }
+
         // Handle selection tools and pointer tool
         if (this.currentTool === 'rectangle-select' || this.currentTool === 'lasso-select' || this.currentTool === 'pointer') {
             // Check if clicking on existing selection first
@@ -2099,12 +2146,12 @@ class SpriteSpark {
                 this.startDraggingSelection(x, y);
                 return;
             }
-            
+
             // Clear selection if clicking outside
             if (this.selectionActive && !this.isPointInSelection(x, y)) {
                 this.clearSelection();
             }
-            
+
             // Only start new selection if not pointer tool
             if (this.currentTool !== 'pointer') {
                 this.startSelection(x, y);
@@ -2210,52 +2257,13 @@ class SpriteSpark {
         const layer = this.layers.find(l => l.id === this.activeLayerId);
         if (!layer) return;
         const ctx = layer.canvas.getContext('2d');
-        ctx.globalAlpha = this.opacity / 100;
-        ctx.strokeStyle = this.primaryColor;
-        ctx.lineWidth = this.brushSize;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
 
-        if (this.pixelDrawingMode && this.currentTool !== 'eraser' && this.brushSize === 1) {
-            // Use Bresenham's line algorithm for pixel-perfect lines
-            function drawPixelLine(ctx, x0, y0, x1, y1, color, size, preventCorners) {
-                let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-                let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-                let err = dx + dy, e2;
-                let prevX = x0, prevY = y0;
+        // Draw main stroke
+        this.drawStroke(ctx, this.lastX, this.lastY, x, y);
 
-                while (true) {
-                    if (!preventCorners || (x0 === prevX || y0 === prevY)) {
-                        ctx.fillStyle = color;
-                        ctx.globalAlpha = this.opacity / 100;
-                        ctx.fillRect(x0 - Math.floor(size / 2), y0 - Math.floor(size / 2), size, size);
-                    }
-                    if (x0 === x1 && y0 === y1) break;
-                    prevX = x0; prevY = y0;
-                    e2 = 2 * err;
-                    if (e2 >= dy) { err += dy; x0 += sx; }
-                    if (e2 <= dx) { err += dx; y0 += sy; }
-                }
-            }
-
-            drawPixelLine.call(
-                this,
-                ctx,
-                this.lastX,
-                this.lastY,
-                x,
-                y,
-                this.primaryColor,
-                this.brushSize,
-                this.pixelEdgeCorrection && this.brushSize > 1
-            );
-        } else if (this.currentTool === 'pen') {
-            ctx.beginPath();
-            ctx.moveTo(this.lastX, this.lastY);
-            ctx.lineTo(x, y);
-            ctx.stroke();
-        } else if (this.currentTool === 'eraser') {
-            ctx.clearRect(x - this.brushSize / 2, y - this.brushSize / 2, this.brushSize, this.brushSize);
+        // Draw mirrored strokes
+        if (this.mirrorMode !== 'none') {
+            this.drawMirroredStrokes(ctx, this.lastX, this.lastY, x, y);
         }
 
         this.lastX = x;
@@ -2263,6 +2271,154 @@ class SpriteSpark {
         this.renderCurrentFrameToMainCanvas();
         this.syncGlobalLayersToCurrentFrame();
         this.triggerLivePreviewIfEnabled();
+    }
+
+    drawStroke(ctx, x0, y0, x1, y1) {
+        ctx.globalAlpha = this.opacity / 100;
+        ctx.strokeStyle = this.primaryColor;
+        ctx.lineWidth = this.brushSize;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        if (this.pixelDrawingMode && this.currentTool !== 'eraser' && this.brushSize === 1) {
+            this._drawPixelLine(ctx, x0, y0, x1, y1, this.primaryColor, this.brushSize, this.pixelEdgeCorrection && this.brushSize > 1);
+        } else if (this.currentTool === 'pen') {
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+        } else if (this.currentTool === 'eraser') {
+            ctx.clearRect(x1 - this.brushSize / 2, y1 - this.brushSize / 2, this.brushSize, this.brushSize);
+        }
+    }
+
+    drawMirroredStrokes(ctx, x0, y0, x1, y1) {
+        const centerX = this.canvasWidth / 2;
+        const centerY = this.canvasHeight / 2;
+
+        const mirrorPoints = this.getMirrorPoints(x0, y0, x1, y1);
+
+        for (const points of mirrorPoints) {
+            if (points.x0 >= 0 && points.x0 < this.canvasWidth &&
+                points.y0 >= 0 && points.y0 < this.canvasHeight &&
+                points.x1 >= 0 && points.x1 < this.canvasWidth &&
+                points.y1 >= 0 && points.y1 < this.canvasHeight) {
+                this.drawStroke(ctx, points.x0, points.y0, points.x1, points.y1);
+            }
+        }
+    }
+
+    getMirrorPoints(x0, y0, x1, y1) {
+        const centerX = this.canvasWidth / 2;
+        const centerY = this.canvasHeight / 2;
+        const points = [];
+
+        switch (this.mirrorMode) {
+            case 'horizontal':
+                points.push({
+                    x0: x0,
+                    y0: this.canvasHeight - y0,
+                    x1: x1,
+                    y1: this.canvasHeight - y1
+                });
+                break;
+
+            case 'vertical':
+                points.push({
+                    x0: this.canvasWidth - x0,
+                    y0: y0,
+                    x1: this.canvasWidth - x1,
+                    y1: y1
+                });
+                break;
+
+            case 'diagonal-tb':
+                // Mirror across diagonal line from top-left to bottom-right
+                points.push({
+                    x0: y0,
+                    y0: x0,
+                    x1: y1,
+                    y1: x1
+                });
+                break;
+
+            case 'diagonal-bt':
+                // Mirror across diagonal line from bottom-left to top-right
+                points.push({
+                    x0: this.canvasWidth - y0,
+                    y0: this.canvasHeight - x0,
+                    x1: this.canvasWidth - y1,
+                    y1: this.canvasHeight - x1
+                });
+                break;
+
+            case 'horizontal-vertical':
+                // Horizontal mirror
+                points.push({
+                    x0: x0,
+                    y0: this.canvasHeight - y0,
+                    x1: x1,
+                    y1: this.canvasHeight - y1
+                });
+                // Vertical mirror
+                points.push({
+                    x0: this.canvasWidth - x0,
+                    y0: y0,
+                    x1: this.canvasWidth - x1,
+                    y1: y1
+                });
+                // Both mirrors (4-way symmetry)
+                points.push({
+                    x0: this.canvasWidth - x0,
+                    y0: this.canvasHeight - y0,
+                    x1: this.canvasWidth - x1,
+                    y1: this.canvasHeight - y1
+                });
+                break;
+
+            case 'both-diagonals':
+                // Diagonal top-bottom
+                points.push({
+                    x0: y0,
+                    y0: x0,
+                    x1: y1,
+                    y1: x1
+                });
+                // Diagonal bottom-top
+                points.push({
+                    x0: this.canvasWidth - y0,
+                    y0: this.canvasHeight - x0,
+                    x1: this.canvasWidth - y1,
+                    y1: this.canvasHeight - x1
+                });
+                // Combined diagonal effect
+                points.push({
+                    x0: this.canvasHeight - y0,
+                    y0: this.canvasWidth - x0,
+                    x1: this.canvasHeight - y1,
+                    y1: this.canvasWidth - x1
+                });
+                break;
+
+            case 'all':
+                // All possible mirrors for 8-way kaleidoscope effect
+                // Horizontal
+                points.push({ x0: x0, y0: this.canvasHeight - y0, x1: x1, y1: this.canvasHeight - y1 });
+                // Vertical
+                points.push({ x0: this.canvasWidth - x0, y0: y0, x1: this.canvasWidth - x1, y1: y1 });
+                // Both
+                points.push({ x0: this.canvasWidth - x0, y0: this.canvasHeight - y0, x1: this.canvasWidth - x1, y1: this.canvasHeight - y1 });
+                // Diagonal TB
+                points.push({ x0: y0, y0: x0, x1: y1, y1: x1 });
+                // Diagonal BT
+                points.push({ x0: this.canvasWidth - y0, y0: this.canvasHeight - x0, x1: this.canvasWidth - y1, y1: this.canvasHeight - x1 });
+                // Combined diagonals
+                points.push({ x0: this.canvasHeight - y0, y0: this.canvasWidth - x0, x1: this.canvasHeight - y1, y1: this.canvasWidth - x1 });
+                points.push({ x0: this.canvasWidth - y0, y0: x0, x1: this.canvasWidth - y1, y1: x1 });
+                break;
+        }
+
+        return points;
     }
 
     floodFill(ctx, x, y, fillColor, tolerance = 0, detectAllLayers = false) {
@@ -2582,6 +2738,124 @@ class SpriteSpark {
             }
             ctx.stroke();
         }
+    }
+
+    startMirrorAnimation() {
+        if (this.mirrorAnimationInterval) {
+            clearInterval(this.mirrorAnimationInterval);
+        }
+
+        this.mirrorAnimationInterval = setInterval(() => {
+            this.mirrorAnimationPhase = (this.mirrorAnimationPhase + 1) % 2;
+            this.renderCurrentFrameToMainCanvas();
+        }, 400); // Flash every 0.4 seconds
+    }
+
+    stopMirrorAnimation() {
+        if (this.mirrorAnimationInterval) {
+            clearInterval(this.mirrorAnimationInterval);
+            this.mirrorAnimationInterval = null;
+        }
+    }
+
+    drawMirrorLines() {
+        if (this.mirrorMode === 'none') return;
+
+        this.ctx.save();
+
+        // Animate between cyan and magenta for visibility
+        const isFirstPhase = this.mirrorAnimationPhase === 0;
+        this.ctx.strokeStyle = isFirstPhase ? '#00FFFF' : '#FF00FF';
+        this.ctx.lineWidth = 2;
+        this.ctx.setLineDash([8, 8]);
+        this.ctx.globalAlpha = 0.8;
+
+        const centerX = this.canvasWidth / 2;
+        const centerY = this.canvasHeight / 2;
+
+        // Draw mirror lines based on mode
+        switch (this.mirrorMode) {
+            case 'horizontal':
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, centerY);
+                this.ctx.lineTo(this.canvasWidth, centerY);
+                this.ctx.stroke();
+                break;
+
+            case 'vertical':
+                this.ctx.beginPath();
+                this.ctx.moveTo(centerX, 0);
+                this.ctx.lineTo(centerX, this.canvasHeight);
+                this.ctx.stroke();
+                break;
+
+            case 'diagonal-tb':
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, 0);
+                this.ctx.lineTo(this.canvasWidth, this.canvasHeight);
+                this.ctx.stroke();
+                break;
+
+            case 'diagonal-bt':
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, this.canvasHeight);
+                this.ctx.lineTo(this.canvasWidth, 0);
+                this.ctx.stroke();
+                break;
+
+            case 'horizontal-vertical':
+                // Horizontal line
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, centerY);
+                this.ctx.lineTo(this.canvasWidth, centerY);
+                this.ctx.stroke();
+                // Vertical line
+                this.ctx.beginPath();
+                this.ctx.moveTo(centerX, 0);
+                this.ctx.lineTo(centerX, this.canvasHeight);
+                this.ctx.stroke();
+                break;
+
+            case 'both-diagonals':
+                // Diagonal top-bottom
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, 0);
+                this.ctx.lineTo(this.canvasWidth, this.canvasHeight);
+                this.ctx.stroke();
+                // Diagonal bottom-top
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, this.canvasHeight);
+                this.ctx.lineTo(this.canvasWidth, 0);
+                this.ctx.stroke();
+                break;
+
+            case 'all':
+                // All four lines
+                // Horizontal
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, centerY);
+                this.ctx.lineTo(this.canvasWidth, centerY);
+                this.ctx.stroke();
+                // Vertical
+                this.ctx.beginPath();
+                this.ctx.moveTo(centerX, 0);
+                this.ctx.lineTo(centerX, this.canvasHeight);
+                this.ctx.stroke();
+                // Diagonal top-bottom
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, 0);
+                this.ctx.lineTo(this.canvasWidth, this.canvasHeight);
+                this.ctx.stroke();
+                // Diagonal bottom-top
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, this.canvasHeight);
+                this.ctx.lineTo(this.canvasWidth, 0);
+                this.ctx.stroke();
+                break;
+        }
+
+        this.ctx.setLineDash([]);
+        this.ctx.restore();
     }
 
     addObject() {
@@ -3039,7 +3313,7 @@ class SpriteSpark {
         const canvasContainer = document.getElementById('canvasContainer');
         if (canvasContainer) {
             canvasContainer.setAttribute('data-tool', this.currentTool);
-            
+
             if (this.isDraggingSelection) {
                 canvasContainer.classList.add('dragging-selection');
             } else {
@@ -3091,6 +3365,12 @@ class SpriteSpark {
             document.querySelectorAll('.drawing-tool').forEach(btn => {
                 btn.classList.toggle('active', btn.getAttribute('data-tool') === 'lasso-select');
             });
+            e.preventDefault();
+        } else if (e.key === 'ArrowLeft') {
+            this.rotateSelection(-90);
+            e.preventDefault();
+        } else if (e.key === 'ArrowRight') {
+            this.rotateSelection(90);
             e.preventDefault();
         }
     }
@@ -3489,7 +3769,7 @@ class SpriteSpark {
             // Store the original start position - don't modify it
             const startX = this.selectionStartX || this.selectionBounds.x;
             const startY = this.selectionStartY || this.selectionBounds.y;
-            
+
             // Calculate bounds properly for any direction
             this.selectionBounds = {
                 x: Math.min(startX, x),
@@ -3539,8 +3819,10 @@ class SpriteSpark {
         this.selectionData = null;
         this.isDraggingSelection = false;
         this.selectionOffset = { x: 0, y: 0 };
-        this.selectionStartX = 0; // Add this line
-        this.selectionStartY = 0; // Add this line
+        this.selectionStartX = 0;
+        this.selectionStartY = 0;
+        this.selectionRotation = 0;
+        this.selectionRotateButton = null; // Reset rotate button
         this.stopSelectionAnimation();
         this.renderCurrentFrameToMainCanvas();
     }
@@ -3549,7 +3831,7 @@ class SpriteSpark {
         if (this.selectionAnimationInterval) {
             clearInterval(this.selectionAnimationInterval);
         }
-        
+
         this.selectionAnimationInterval = setInterval(() => {
             this.selectionAnimationPhase = (this.selectionAnimationPhase + 1) % 2;
             if (this.selectionActive || this.isCreatingSelection) {
@@ -3568,13 +3850,13 @@ class SpriteSpark {
     drawSelectionPreview() {
         if (this.currentTool === 'lasso-select' && this.selectionPath.length > 1) {
             this.ctx.save();
-            
+
             // Use same animated style as selection outline
             const isDarkPhase = this.selectionAnimationPhase === 0;
             this.ctx.strokeStyle = isDarkPhase ? '#000000' : '#ffffff';
             this.ctx.lineWidth = 1;
             this.ctx.setLineDash([4, 4]);
-            
+
             this.ctx.beginPath();
             this.ctx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
             for (let i = 1; i < this.selectionPath.length; i++) {
@@ -3588,16 +3870,19 @@ class SpriteSpark {
 
     drawSelectionOutline() {
         this.ctx.save();
-        
+
         // Animate between white and black dashes
         const isDarkPhase = this.selectionAnimationPhase === 0;
         this.ctx.strokeStyle = isDarkPhase ? '#000000' : '#ffffff';
         this.ctx.lineWidth = 1;
         this.ctx.setLineDash([4, 4]);
-        
+
         if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
             const bounds = this.getAdjustedSelectionBounds();
             this.ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+            // Draw rotate button at top-right corner
+            this.drawSelectionRotateButton(bounds);
         } else if (this.selectionPath.length > 2) {
             this.ctx.beginPath();
             this.ctx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
@@ -3606,9 +3891,64 @@ class SpriteSpark {
             }
             this.ctx.closePath();
             this.ctx.stroke();
+
+            // Draw rotate button for lasso selection too
+            const bounds = this.getAdjustedSelectionBounds();
+            this.drawSelectionRotateButton(bounds);
         }
-        
+
         this.ctx.setLineDash([]);
+        this.ctx.restore();
+    }
+
+    drawSelectionRotateButton(bounds) {
+        const buttonSize = 16;
+        const buttonX = bounds.x + bounds.width + 4;
+        const buttonY = bounds.y - 4;
+
+        // Store button position for click detection
+        this.selectionRotateButton = {
+            x: buttonX,
+            y: buttonY,
+            size: buttonSize
+        };
+
+        this.ctx.save();
+        this.ctx.setLineDash([]);
+
+        // Button background
+        this.ctx.fillStyle = '#4CAF50';
+        this.ctx.globalAlpha = 0.9;
+        this.ctx.fillRect(buttonX, buttonY, buttonSize, buttonSize);
+
+        // Button border
+        this.ctx.strokeStyle = '#333';
+        this.ctx.lineWidth = 1;
+        this.ctx.globalAlpha = 1;
+        this.ctx.strokeRect(buttonX, buttonY, buttonSize, buttonSize);
+
+        // Rotation arrow icon
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 2;
+        this.ctx.lineCap = 'round';
+
+        const centerX = buttonX + buttonSize / 2;
+        const centerY = buttonY + buttonSize / 2;
+        const radius = 5;
+
+        // Draw circular arrow
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, radius, -Math.PI / 2, Math.PI, false);
+        this.ctx.stroke();
+
+        // Arrow head
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX - radius, centerY);
+        this.ctx.lineTo(centerX - radius - 3, centerY - 2);
+        this.ctx.moveTo(centerX - radius, centerY);
+        this.ctx.lineTo(centerX - radius - 3, centerY + 2);
+        this.ctx.stroke();
+
         this.ctx.restore();
     }
 
@@ -3640,7 +3980,7 @@ class SpriteSpark {
     startDraggingSelection(x, y) {
         // Add undo state before starting to drag
         this.undoAdd();
-        
+
         this.isDraggingSelection = true;
         const bounds = this.getAdjustedSelectionBounds();
         this.selectionOffset = {
@@ -3785,6 +4125,16 @@ class SpriteSpark {
         };
     }
 
+    cutSelection() {
+        if (!this.selectionActive || !this.selectionData) return;
+
+        // Copy selection to clipboard
+        this.copySelection();
+
+        // Delete the selection from the canvas
+        this.deleteSelection();
+    }
+
     pasteSelection() {
         if (!this.copiedSelection) return;
 
@@ -3809,6 +4159,25 @@ class SpriteSpark {
 
         this.selectionActive = true;
         this.currentTool = 'rectangle-select';
+
+        // Start the selection animation for pasted selection
+        this.startSelectionAnimation();
+
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    selectAll() {
+        this.clearSelection();
+        this.selectionBounds = {
+            x: 0,
+            y: 0,
+            width: this.canvasWidth,
+            height: this.canvasHeight
+        };
+        this.selectionActive = true;
+        this.currentTool = 'rectangle-select';
+        this.extractSelectionData();
+        this.startSelectionAnimation();
         this.renderCurrentFrameToMainCanvas();
     }
 
@@ -3818,6 +4187,58 @@ class SpriteSpark {
         this.undoAdd();
         this.clearSelection();
         this.syncGlobalLayersToCurrentFrame();
+    }
+
+    rotateSelection(degrees) {
+        if (!this.selectionActive || !this.selectionData) return;
+
+        this.undoAdd();
+        this.selectionRotation = (this.selectionRotation + degrees) % 360;
+
+        // Create a canvas for the rotation
+        const originalCanvas = document.createElement('canvas');
+        originalCanvas.width = this.selectionData.width;
+        originalCanvas.height = this.selectionData.height;
+        const originalCtx = originalCanvas.getContext('2d');
+        originalCtx.putImageData(this.selectionData, 0, 0);
+
+        // Calculate new dimensions after rotation
+        const radians = Math.abs(degrees * Math.PI / 180);
+        const sin = Math.sin(radians);
+        const cos = Math.cos(radians);
+        const newWidth = Math.ceil(originalCanvas.width * cos + originalCanvas.height * sin);
+        const newHeight = Math.ceil(originalCanvas.width * sin + originalCanvas.height * cos);
+
+        // Create rotated canvas
+        const rotatedCanvas = document.createElement('canvas');
+        rotatedCanvas.width = newWidth;
+        rotatedCanvas.height = newHeight;
+        const rotatedCtx = rotatedCanvas.getContext('2d');
+
+        // Set up rotation
+        rotatedCtx.translate(newWidth / 2, newHeight / 2);
+        rotatedCtx.rotate(degrees * Math.PI / 180);
+        rotatedCtx.translate(-originalCanvas.width / 2, -originalCanvas.height / 2);
+
+        // Draw the original image
+        rotatedCtx.drawImage(originalCanvas, 0, 0);
+
+        // Update selection data and bounds
+        this.selectionData = rotatedCtx.getImageData(0, 0, newWidth, newHeight);
+
+        // Adjust bounds to keep selection centered
+        const bounds = this.getAdjustedSelectionBounds();
+        const centerX = bounds.x + bounds.width / 2;
+        const centerY = bounds.y + bounds.height / 2;
+
+        this.selectionBounds = {
+            x: centerX - newWidth / 2,
+            y: centerY - newHeight / 2,
+            width: newWidth,
+            height: newHeight
+        };
+
+        this.renderCurrentFrameToMainCanvas();
     }
 
     // UNDO/REDO functionality
@@ -4453,6 +4874,48 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
+    // Make menu-item fully clickable for dropdowns - UPDATED VERSION
+    document.querySelectorAll('.menubar .menu-item').forEach(item => {
+        item.addEventListener('click', function (e) {
+            // Check if we clicked on a dropdown item (has data-action)
+            const clickedElement = e.target.closest('[data-action]');
+            if (clickedElement && clickedElement.closest('.dropdown')) {
+                // This is a dropdown item click, let it handle normally
+                // Don't prevent the event - let it bubble to handleMenuClick
+                return;
+            }
+            
+            // Check if we clicked inside an open dropdown but not on an action item
+            if (e.target.closest('.dropdown')) {
+                // Clicking inside dropdown but not on an action - do nothing
+                return;
+            }
+            
+            // This is a menu item click (the actual menu header) - toggle dropdown
+            e.stopPropagation();
+            
+            // Close all other dropdowns first
+            document.querySelectorAll('.menubar .dropdown').forEach(d => {
+                if (d !== this.querySelector('.dropdown')) {
+                    d.classList.remove('open');
+                }
+            });
+            
+            // Toggle this dropdown
+            const dropdown = this.querySelector('.dropdown');
+            if (dropdown) {
+                //dropdown.classList.toggle('open');
+            }
+        });
+    });
+
+    // Close dropdowns when clicking outside menubar
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.menubar')) {
+            document.querySelectorAll('.menubar .dropdown').forEach(d => d.classList.remove('open'));
+        }
+    });
 
     // Toolbar buttons
     document.querySelectorAll('.toolbar .tool-btn').forEach(btn => {
