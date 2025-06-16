@@ -189,6 +189,9 @@ class SpriteSpark {
 
         const pixelPerfectCheckbox = document.getElementById('pixelPerfectCheckbox');
         if (pixelPerfectCheckbox) {
+            pixelPerfectCheckbox.checked = true; // Ensure checked by default
+            this.pixelPerfect = true;
+            document.body.classList.toggle('pixel-perfect', true); // <-- Add this line
             pixelPerfectCheckbox.addEventListener('change', (e) => {
                 this.pixelPerfect = e.target.checked;
                 document.body.classList.toggle('pixel-perfect', this.pixelPerfect);
