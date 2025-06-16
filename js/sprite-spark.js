@@ -32,8 +32,8 @@ class SpriteSpark {
         this.onionSkinFrames = 1; // Number of frames before/after to show
 
         // Options properties
-        this.pixelPerfect = false;
-        this.pixelDrawingMode = false;
+        this.pixelPerfect = true;
+        this.pixelDrawingMode = true;
         this.pixelEdgeCorrection = false;
 
         // Canvas properties
@@ -2538,6 +2538,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isTouchPanning = false;
     let touchPanStart = { x: 0, y: 0 };
     let touchScrollStart = { left: 0, top: 0 };
+    let isMultiTouch = false; 
 
     // Helper: get distance between two touches
     function getTouchDist(touches) {
@@ -2559,8 +2560,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Touch start
     if (canvasContainer) {
         canvasContainer.addEventListener('touchstart', function (e) {
-            if (e.touches.length === 1) {
-                // Single finger: drawing
+            if (e.touches.length === 2) {
+                // Two finger: pan/zoom
+                isTouchPanning = true;
+                isMultiTouch = true;
+                lastTouchDist = getTouchDist(e.touches);
+                lastTouchZoom = parseFloat(zoomInput.value);
+                const mid = getTouchMid(e.touches);
+                touchPanStart.x = mid.x;
+                touchPanStart.y = mid.y;
+                touchScrollStart.left = canvasContainer.scrollLeft;
+                touchScrollStart.top = canvasContainer.scrollTop;
+            } else if (e.touches.length === 1 && !isMultiTouch) {
+                // Single finger: drawing (only if not multitouch)
                 const touch = e.touches[0];
                 // Simulate mouse event for drawing
                 const fakeEvent = {
@@ -2573,54 +2585,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     pressure: touch.force || 0.5 // fallback for browsers without force
                 };
                 // If stylus and pressure enabled, set brush size
-                if (stylusPressureEnabled && (touch.touchType === 'stylus' || touch.pointerType === 'pen') && fakeEvent.pressure) {
+                if (
+                    stylusPressureEnabled &&
+                    (touch.touchType === 'stylus' || fakeEvent.pointerType === 'pen' || fakeEvent.pointerType === 'stylus')
+                ) {
                     const min = 1, max = 50;
-                    app.brushSize = Math.max(min, Math.round(fakeEvent.pressure * max));
+                    app.brushSize = Math.max(min, Math.round((fakeEvent.pressure || 0.5) * max));
                     const brushSizeInput = document.getElementById('brushSize');
                     if (brushSizeInput) brushSizeInput.value = app.brushSize;
                     const brushSizeValue = document.getElementById('brushSizeValue');
                     if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
                 }
                 app.startDrawing(fakeEvent);
-            } else if (e.touches.length === 2) {
-                // Two finger: pan/zoom
-                isTouchPanning = true;
-                lastTouchDist = getTouchDist(e.touches);
-                lastTouchZoom = parseFloat(zoomInput.value);
-                const mid = getTouchMid(e.touches);
-                touchPanStart.x = mid.x;
-                touchPanStart.y = mid.y;
-                touchScrollStart.left = canvasContainer.scrollLeft;
-                touchScrollStart.top = canvasContainer.scrollTop;
             }
         }, { passive: false });
 
         // Touch move
         canvasContainer.addEventListener('touchmove', function (e) {
-            if (e.touches.length === 1 && app.isDrawing) {
-                // Drawing
-                const touch = e.touches[0];
-                const fakeEvent = {
-                    button: 0,
-                    clientX: touch.clientX,
-                    clientY: touch.clientY,
-                    ctrlKey: false,
-                    preventDefault: () => {},
-                    pointerType: touch.touchType || 'touch',
-                    pressure: touch.force || 0.5
-                };
-                // Stylus pressure
-                if (stylusPressureEnabled && (touch.touchType === 'stylus' || touch.pointerType === 'pen') && fakeEvent.pressure) {
-                    const min = 1, max = 50;
-                    app.brushSize = Math.max(min, Math.round(fakeEvent.pressure * max));
-                    const brushSizeInput = document.getElementById('brushSize');
-                    if (brushSizeInput) brushSizeInput.value = app.brushSize;
-                    const brushSizeValue = document.getElementById('brushSizeValue');
-                    if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
-                }
-                app.draw(fakeEvent);
-                e.preventDefault();
-            } else if (e.touches.length === 2 && isTouchPanning) {
+            if (e.touches.length === 2 && isTouchPanning) {
                 // Pan and zoom
                 const mid = getTouchMid(e.touches);
                 // Pan
@@ -2637,6 +2619,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     app.updateZoomLevel();
                 }
                 e.preventDefault();
+            } else if (e.touches.length === 1 && app.isDrawing && !isMultiTouch) {
+                // Drawing (only if not multitouch)
+                const touch = e.touches[0];
+                const fakeEvent = {
+                    button: 0,
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    ctrlKey: false,
+                    preventDefault: () => {},
+                    pointerType: touch.touchType || 'touch',
+                    pressure: touch.force || 0.5
+                };
+                // Stylus pressure
+                if (
+                    stylusPressureEnabled &&
+                    (touch.touchType === 'stylus' || fakeEvent.pointerType === 'pen' || fakeEvent.pointerType === 'stylus')
+                ) {
+                    const min = 1, max = 50;
+                    app.brushSize = Math.max(min, Math.round((fakeEvent.pressure || 0.5) * max));
+                    const brushSizeInput = document.getElementById('brushSize');
+                    if (brushSizeInput) brushSizeInput.value = app.brushSize;
+                    const brushSizeValue = document.getElementById('brushSizeValue');
+                    if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
+                }
+                app.draw(fakeEvent);
+                e.preventDefault();
             }
         }, { passive: false });
 
@@ -2647,6 +2655,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (e.touches.length < 2) {
                 isTouchPanning = false;
+                isMultiTouch = false;
                 lastTouchDist = null;
             }
         });
@@ -2654,32 +2663,16 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasContainer.addEventListener('touchcancel', function (e) {
             if (app.isDrawing) app.stopDrawing({ button: 0 });
             isTouchPanning = false;
+            isMultiTouch = false;
             lastTouchDist = null;
         });
 
         // --- Stylus support via Pointer Events ---
         if (window.PointerEvent) {
             canvasContainer.addEventListener('pointerdown', function (e) {
-                if (e.pointerType === 'pen' || e.pointerType === 'touch') {
-                    // Only draw with pen if not two-finger touch
-                    if (e.pointerType === 'pen' || (e.pointerType === 'touch' && e.isPrimary)) {
-                        // Stylus pressure
-                        if (stylusPressureEnabled && e.pointerType === 'pen' && e.pressure) {
-                            const min = 1, max = 50;
-                            app.brushSize = Math.max(min, Math.round(e.pressure * max));
-                            const brushSizeInput = document.getElementById('brushSize');
-                            if (brushSizeInput) brushSizeInput.value = app.brushSize;
-                            const brushSizeValue = document.getElementById('brushSizeValue');
-                            if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
-                        }
-                        app.startDrawing(e);
-                    }
-                }
-            });
-            canvasContainer.addEventListener('pointermove', function (e) {
-                if ((e.pointerType === 'pen' || e.pointerType === 'touch') && app.isDrawing) {
+                if (e.pointerType === 'pen') {
                     // Stylus pressure
-                    if (stylusPressureEnabled && e.pointerType === 'pen' && e.pressure) {
+                    if (stylusPressureEnabled && e.pressure) {
                         const min = 1, max = 50;
                         app.brushSize = Math.max(min, Math.round(e.pressure * max));
                         const brushSizeInput = document.getElementById('brushSize');
@@ -2687,6 +2680,24 @@ document.addEventListener('DOMContentLoaded', () => {
                         const brushSizeValue = document.getElementById('brushSizeValue');
                         if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
                     }
+                    app.startDrawing(e);
+                } else if (e.pointerType === 'touch' && e.isPrimary && !isMultiTouch) {
+                    app.startDrawing(e);
+                }
+            });
+            canvasContainer.addEventListener('pointermove', function (e) {
+                if (e.pointerType === 'pen' && app.isDrawing) {
+                    // Stylus pressure
+                    if (stylusPressureEnabled && e.pressure) {
+                        const min = 1, max = 50;
+                        app.brushSize = Math.max(min, Math.round(e.pressure * max));
+                        const brushSizeInput = document.getElementById('brushSize');
+                        if (brushSizeInput) brushSizeInput.value = app.brushSize;
+                        const brushSizeValue = document.getElementById('brushSizeValue');
+                        if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
+                    }
+                    app.draw(e);
+                } else if (e.pointerType === 'touch' && app.isDrawing && !isMultiTouch) {
                     app.draw(e);
                 }
             });
@@ -2706,6 +2717,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Force desktop mode always
     document.body.classList.add('desktop-mode');
     document.body.classList.remove('mobile-mode');
+
+    // --- Set pixel perfect to true by default ---
+    SpriteSpark.prototype.pixelPerfect = true;
 
     //adjustMainContentHeight();
 
