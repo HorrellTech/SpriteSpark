@@ -74,6 +74,9 @@ class SpriteSpark {
         // Copy/paste
         this.copiedFrameData = null;
 
+        this.objects = [];
+        this.selectedObjectId = null;
+
         // Canvas resizing
         this.currentPlacement = 'center';
     }
@@ -125,6 +128,27 @@ class SpriteSpark {
         document.addEventListener('click', this.handleMenuClick.bind(this));
         document.addEventListener('change', this.handleInputChange.bind(this));
 
+        // Object properties panel events
+        const nameInput = document.getElementById('objectName');
+        const xInput = document.getElementById('objectX');
+        const yInput = document.getElementById('objectY');
+        const scaleInput = document.getElementById('objectScale');
+        const angleInput = document.getElementById('objectAngle');
+        const tweenInput = document.getElementById('objectTween');
+        const imageInput = document.getElementById('objectImageInput');
+        const setKeyframeBtn = document.getElementById('objectSetKeyframe');
+        const removeKeyframeBtn = document.getElementById('objectRemoveKeyframe');
+        
+        const objectCenterBtn = document.getElementById('objectCenterBtn');
+        const objectVisibleCheckbox = document.getElementById('objectVisibleCheckbox');
+        const objectAlpha = document.getElementById('objectAlpha');
+        const objectHue = document.getElementById('objectHue');
+        const objectLayer = document.getElementById('objectLayer');
+
+        
+        // Object list
+        this.renderObjectsList();
+
         // Canvas events
         if (this.mainCanvas) {
             this.mainCanvas.addEventListener('mousedown', this.startDrawing.bind(this));
@@ -141,6 +165,10 @@ class SpriteSpark {
             this.mainCanvas.addEventListener('mousemove', this.updateGhostCursor.bind(this));
             this.mainCanvas.addEventListener('mouseenter', this.showGhostCursor.bind(this));
             this.mainCanvas.addEventListener('mouseleave', this.hideGhostCursor.bind(this));
+
+            this.mainCanvas.addEventListener('mousedown', this.handleCanvasMouseDown.bind(this));
+            this.mainCanvas.addEventListener('mousemove', this.handleCanvasMouseMove.bind(this));
+            this.mainCanvas.addEventListener('mouseup', this.handleCanvasMouseUp.bind(this));
         }
 
         // Panel resizing
@@ -220,6 +248,119 @@ class SpriteSpark {
         if (bottomResize && bottomPanel) {
             // Position the resize bar just above the bottom panel
             bottomResize.style.bottom = (parseInt(bottomPanel.style.height) || 140) + 'px';
+        }
+
+        // SPRITE PROPERTIES PANEL
+        [nameInput, xInput, yInput, scaleInput, angleInput, tweenInput].forEach(input => {
+            if (input) {
+                input.addEventListener('input', () => {
+                    const obj = this.objects.find(o => o.id === this.selectedObjectId);
+                    if (!obj) return;
+                    const frame = this.currentFrame;
+                    const transform = obj.getTransformAt(frame);
+                    obj.name = nameInput.value;
+                    obj.setKeyframe(frame, {
+                        ...transform,
+                        x: parseFloat(xInput.value),
+                        y: parseFloat(yInput.value),
+                        scale: parseFloat(scaleInput.value),
+                        angle: parseFloat(angleInput.value),
+                        image: transform.image
+                    });
+                    obj.tween = tweenInput.checked;
+                    this.renderCurrentFrameToMainCanvas();
+                });
+            }
+        });
+
+        if (imageInput) {
+            imageInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const img = new window.Image();
+                    img.onload = () => {
+                        const obj = this.objects.find(o => o.id === this.selectedObjectId);
+                        if (!obj) return;
+                        const frame = this.currentFrame;
+                        const transform = obj.getTransformAt(frame);
+                        obj.setKeyframe(frame, {
+                            ...transform,
+                            image: img
+                        });
+                        this.renderCurrentFrameToMainCanvas();
+                    };
+                    img.src = evt.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Sprite object extra controls
+        if (objectCenterBtn) {
+            objectCenterBtn.onclick = () => {
+                const obj = this.objects.find(o => o.id === this.selectedObjectId);
+                if (!obj) return;
+                const transform = obj.getTransformAt(this.currentFrame);
+                obj.setKeyframe(this.currentFrame, {
+                    ...transform,
+                    x: this.canvasWidth / 2,
+                    y: this.canvasHeight / 2
+                });
+                this.renderCurrentFrameToMainCanvas();
+                this.showObjectPropertiesPanel(obj, obj.getTransformAt(this.currentFrame));
+            };
+        }
+        if (objectVisibleCheckbox) {
+            objectVisibleCheckbox.onchange = () => {
+                const obj = this.objects.find(o => o.id === this.selectedObjectId);
+                if (!obj) return;
+                obj.visible = objectVisibleCheckbox.checked;
+                this.renderCurrentFrameToMainCanvas();
+            };
+        }
+        if (objectAlpha) {
+            objectAlpha.oninput = () => {
+                const obj = this.objects.find(o => o.id === this.selectedObjectId);
+                if (!obj) return;
+                obj.alpha = parseFloat(objectAlpha.value);
+                this.renderCurrentFrameToMainCanvas();
+            };
+        }
+        if (objectHue) {
+            objectHue.oninput = () => {
+                const obj = this.objects.find(o => o.id === this.selectedObjectId);
+                if (!obj) return;
+                obj.hue = parseInt(objectHue.value, 10) || 0;
+                this.renderCurrentFrameToMainCanvas();
+            };
+        }
+        if (objectLayer) {
+            objectLayer.onchange = () => {
+                const obj = this.objects.find(o => o.id === this.selectedObjectId);
+                if (!obj) return;
+                obj.layerId = objectLayer.value;
+                this.renderCurrentFrameToMainCanvas();
+            };
+        }
+
+        if (setKeyframeBtn) {
+            setKeyframeBtn.addEventListener('click', () => {
+                const obj = this.objects.find(o => o.id === this.selectedObjectId);
+                if (!obj) return;
+                const frame = this.currentFrame;
+                const transform = obj.getTransformAt(frame);
+                obj.setKeyframe(frame, { ...transform });
+            });
+        }
+        if (removeKeyframeBtn) {
+            removeKeyframeBtn.addEventListener('click', () => {
+                const obj = this.objects.find(o => o.id === this.selectedObjectId);
+                if (!obj) return;
+                obj.removeKeyframe(this.currentFrame);
+                this.renderCurrentFrameToMainCanvas();
+            });
         }
 
         // Tool properties
@@ -1231,6 +1372,51 @@ class SpriteSpark {
             }
         }
 
+        // Sprite objects: draw all objects at current frame
+        // Draw sprite objects (respect visibility, alpha, hue, layer)
+        for (const obj of this.objects) {
+            if (obj.visible === false) continue;
+            const transform = obj.getTransformAt(this.currentFrame);
+            // Only draw if on the active layer or all layers (optional: filter by obj.layerId)
+            // If you want to filter by layer, uncomment:
+            // if (obj.layerId && obj.layerId !== this.activeLayerId) continue;
+
+            this.ctx.save();
+            this.ctx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+            if (obj.hue && obj.hue !== 0) {
+                this.ctx.filter = `hue-rotate(${obj.hue}deg)`;
+            } else {
+                this.ctx.filter = 'none';
+            }
+            this.ctx.translate(transform.x, transform.y);
+            this.ctx.rotate(transform.angle * Math.PI / 180);
+            this.ctx.scale(transform.scale, transform.scale);
+
+            if (transform.image) {
+                this.ctx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+            } else {
+                // Draw default placeholder (circle with name)
+                this.ctx.fillStyle = '#888';
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, 24, 0, 2 * Math.PI);
+                this.ctx.fill();
+                this.ctx.strokeStyle = '#333';
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+                this.ctx.fillStyle = '#fff';
+                this.ctx.font = 'bold 12px sans-serif';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(obj.name[0] || '?', 0, 2);
+            }
+            this.ctx.restore();
+
+            // Draw transform controls if selected
+            if (this.selectedObjectId === obj.id && this.currentTool === 'object-tool') {
+                this.drawObjectTransformControls(transform, transform.image);
+            }
+        }
+
         // Draw current frame layers
         for (let i = 0; i < this.layers.length; i++) {
             const layer = this.layers[i];
@@ -1243,6 +1429,77 @@ class SpriteSpark {
         }
         this.ctx.globalAlpha = 1.0;
         this.ctx.globalCompositeOperation = 'source-over';
+    }
+
+    drawObjectTransformControls(transform, image) {
+        if (!image) return;
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.translate(transform.x, transform.y);
+        ctx.rotate(transform.angle * Math.PI / 180);
+        ctx.scale(transform.scale, transform.scale);
+
+        // Bounding box
+        ctx.strokeStyle = 'var(--accent-color)';
+        ctx.lineWidth = 1.5 / transform.scale;
+        ctx.setLineDash([4 / transform.scale, 2 / transform.scale]);
+        ctx.strokeRect(-image.width / 2, -image.height / 2, image.width, image.height);
+
+        // Corner handles (for scaling)
+        const handleSize = 8 / transform.scale;
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'var(--accent-color)';
+        // Top-left
+        ctx.fillRect(-image.width / 2 - handleSize / 2, -image.height / 2 - handleSize / 2, handleSize, handleSize);
+        // Top-right
+        ctx.fillRect(image.width / 2 - handleSize / 2, -image.height / 2 - handleSize / 2, handleSize, handleSize);
+        // Bottom-left
+        ctx.fillRect(-image.width / 2 - handleSize / 2, image.height / 2 - handleSize / 2, handleSize, handleSize);
+        // Bottom-right
+        ctx.fillRect(image.width / 2 - handleSize / 2, image.height / 2 - handleSize / 2, handleSize, handleSize);
+
+        // Rotation handle (above top-center)
+        ctx.beginPath();
+        ctx.arc(0, -image.height / 2 - 20 / transform.scale, handleSize / 2, 0, 2 * Math.PI);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    showObjectPropertiesPanel(obj, transform) {
+        const section = document.getElementById('objectPropertiesSection');
+        if (!section) return;
+        if (!obj) {
+            section.style.display = 'none';
+            return;
+        }
+        section.style.display = '';
+
+        document.getElementById('objectName').value = obj.name;
+        document.getElementById('objectX').value = transform.x;
+        document.getElementById('objectY').value = transform.y;
+        document.getElementById('objectScale').value = transform.scale;
+        document.getElementById('objectAngle').value = transform.angle;
+        document.getElementById('objectTween').checked = !!obj.tween;
+
+        // New: visibility, alpha, hue, layer
+        const visibleCheckbox = document.getElementById('objectVisibleCheckbox');
+        if (visibleCheckbox) visibleCheckbox.checked = obj.visible !== false;
+        const alphaInput = document.getElementById('objectAlpha');
+        if (alphaInput) alphaInput.value = obj.alpha !== undefined ? obj.alpha : 1;
+        const hueInput = document.getElementById('objectHue');
+        if (hueInput) hueInput.value = obj.hue !== undefined ? obj.hue : 0;
+        const layerSelect = document.getElementById('objectLayer');
+        if (layerSelect) {
+            layerSelect.innerHTML = '';
+            this.layers.forEach(layer => {
+                const opt = document.createElement('option');
+                opt.value = layer.id;
+                opt.textContent = layer.name;
+                if (obj.layerId === layer.id) opt.selected = true;
+                layerSelect.appendChild(opt);
+            });
+        }
     }
 
     // Include all the existing methods from the original script...
@@ -1272,6 +1529,9 @@ class SpriteSpark {
                 break;
             case 'export-animation':
                 this.exportAnimation();
+                break;
+            case 'add-object':
+                this.addObject();
                 break;
             case 'toggle-grid':
                 this.showGrid = !this.showGrid;
@@ -1332,6 +1592,70 @@ class SpriteSpark {
             const layerId = e.target.closest('.layer-item').getAttribute('data-layer-id');
             if (layerId) this.setActiveLayer(layerId);
         }
+    }
+
+    handleCanvasMouseDown(e) {
+        if (this.currentTool !== 'object-tool') return;
+        const rect = this.mainCanvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / this.zoom;
+        const y = (e.clientY - rect.top) / this.zoom;
+
+        // Check if clicking on an object
+        for (const obj of this.objects.slice().reverse()) {
+            const transform = obj.getTransformAt(this.currentFrame);
+            if (!transform.image) continue;
+            // Transform mouse point into object local space
+            const dx = x - transform.x;
+            const dy = y - transform.y;
+            const angle = -transform.angle * Math.PI / 180;
+            const cos = Math.cos(angle), sin = Math.sin(angle);
+            const lx = (dx * cos - dy * sin) / transform.scale;
+            const ly = (dx * sin + dy * cos) / transform.scale;
+            if (
+                lx >= -transform.image.width / 2 && lx <= transform.image.width / 2 &&
+                ly >= -transform.image.height / 2 && ly <= transform.image.height / 2
+            ) {
+                this.selectedObjectId = obj.id;
+                this.objectDragOffset = { lx, ly };
+                this.isDraggingObject = true;
+                this.renderCurrentFrameToMainCanvas();
+                this.showObjectPropertiesPanel(obj, transform);
+                return;
+            }
+        }
+        // Clicked empty space: deselect
+        this.selectedObjectId = null;
+        this.isDraggingObject = false;
+        this.renderCurrentFrameToMainCanvas();
+        this.showObjectPropertiesPanel(null);
+    }
+
+    handleCanvasMouseMove(e) {
+        if (this.currentTool !== 'object-tool' || !this.isDraggingObject || !this.selectedObjectId) return;
+        const obj = this.objects.find(o => o.id === this.selectedObjectId);
+        if (!obj) return;
+        const rect = this.mainCanvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / this.zoom;
+        const y = (e.clientY - rect.top) / this.zoom;
+        const transform = obj.getTransformAt(this.currentFrame);
+        const angle = transform.angle * Math.PI / 180;
+        const cos = Math.cos(angle), sin = Math.sin(angle);
+        // Move object so that the drag offset stays under the mouse
+        const lx = this.objectDragOffset.lx, ly = this.objectDragOffset.ly;
+        const nx = x - (lx * cos - ly * sin) * transform.scale;
+        const ny = y - (lx * sin + ly * cos) * transform.scale;
+        obj.setKeyframe(this.currentFrame, {
+            ...transform,
+            x: nx,
+            y: ny
+        });
+        this.renderCurrentFrameToMainCanvas();
+        this.showObjectPropertiesPanel(obj, obj.getTransformAt(this.currentFrame));
+    }
+
+    handleCanvasMouseUp(e) {
+        if (this.currentTool !== 'object-tool') return;
+        this.isDraggingObject = false;
     }
 
     handleInputChange(e) {
@@ -1575,6 +1899,56 @@ class SpriteSpark {
             this.isDrawing = false;
             this.syncGlobalLayersToCurrentFrame();
         }
+    }
+
+    addObject() {
+        const centerX = this.canvasWidth / 2;
+        const centerY = this.canvasHeight / 2;
+        const obj = new SpriteObject({
+            name: 'Object ' + (this.objects.length + 1),
+            x: centerX,
+            y: centerY,
+            scale: 1,
+            angle: 0,
+            image: null,
+            visible: true,
+            alpha: 1,
+            hue: 0,
+            layerId: this.activeLayerId || (this.layers[0] && this.layers[0].id)
+        });
+        obj.visible = true;
+        obj.alpha = 1;
+        obj.hue = 0;
+        obj.layerId = this.activeLayerId || (this.layers[0] && this.layers[0].id);
+        this.objects.push(obj);
+        this.selectedObjectId = obj.id;
+        this.renderObjectsList();
+        this.renderCurrentFrameToMainCanvas();
+        this.showObjectPropertiesPanel(obj, obj.getTransformAt(this.currentFrame));
+    }
+
+    renderObjectsList() {
+        const list = document.getElementById('objectsList');
+        if (!list) return;
+        list.innerHTML = '';
+        if (this.objects.length === 0) {
+            list.style.display = 'none';
+            return;
+        }
+        list.style.display = '';
+        this.objects.forEach(obj => {
+            const item = document.createElement('div');
+            item.className = 'object-list-item' + (obj.id === this.selectedObjectId ? ' selected' : '');
+            item.textContent = obj.name;
+            item.title = obj.name;
+            item.onclick = () => {
+                this.selectedObjectId = obj.id;
+                this.renderCurrentFrameToMainCanvas();
+                this.showObjectPropertiesPanel(obj, obj.getTransformAt(this.currentFrame));
+                this.renderObjectsList();
+            };
+            list.appendChild(item);
+        });
     }
 
     updateGhostCursor(e) {

@@ -1348,3 +1348,11 @@ select:focus {
     border-color: none;/*var(--border-color);*/
 }
 
+#objectPropertiesSection .property-group label {
+    color: var(--text-secondary);
+}
+.tool-btn[data-action="object-tool"].active {
+    background: var(--accent-color);
+    color: var(--text-accent);
+    border-color: var(--accent-color);
+}
