@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>SpriteSpark - Pixel Animation Studio</title>
+    <title>SpriteSpark - Animation Studio</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <link rel="icon" href="favicon.ico" type="image/x-icon">
@@ -145,21 +145,156 @@
                 0 0 0 2px rgba(0,0,0,0.08);
         }
 
-        /* Animation GIF glow only */
-        .animation-gif {
-            max-width: 100%;
-            height: auto;
-            box-shadow: 0 0 32px 12px #000;
+        /* GIF Gallery under logo */
+        /* GIF Gallery Carousel */
+        .gif-gallery {
+            width: 60%; /* Match logo width */
+            margin: 0 auto 1.5em auto;
+            position: relative;
+            height: 120px;
+            perspective: 600px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .carousel-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gallery-gif {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
             border-radius: 12px;
             cursor: pointer;
             transition: 
-                box-shadow 0.18s cubic-bezier(.4,2,.6,1),
-                transform 0.18s cubic-bezier(.4,2,.6,1);
+                transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1),
+                box-shadow 0.3s ease,
+                filter 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            transform-style: preserve-3d;
+            backface-visibility: hidden;
+            left: 50%;
+            top: 50%;
+            margin-left: -50px; /* Half of width to center */
+            margin-top: -50px;  /* Half of height to center */
         }
-        .animation-gif:hover, .animation-gif:focus {
-            box-shadow: 0 0 12px 4px #000;
-            transform: scale(1.06);
-            outline: none;
+
+        .gallery-gif.active {
+            transform: translateZ(40px) scale(1.1);
+            box-shadow: 0 8px 30px rgba(0,122,204,0.4);
+            filter: brightness(1.1);
+            z-index: 10;
+        }
+
+        .gallery-gif.left {
+            transform: translateX(-80px) translateZ(-20px) rotateY(-25deg) scale(0.8);
+            filter: brightness(0.7);
+            opacity: 0.8;
+        }
+
+        .gallery-gif.right {
+            transform: translateX(80px) translateZ(-20px) rotateY(25deg) scale(0.8);
+            filter: brightness(0.7);
+            opacity: 0.8;
+        }
+
+        .gallery-gif.far-left {
+            transform: translateX(-120px) translateZ(-40px) rotateY(-45deg) scale(0.6);
+            filter: brightness(0.5);
+            opacity: 0.6;
+        }
+
+        .gallery-gif.far-right {
+            transform: translateX(120px) translateZ(-40px) rotateY(45deg) scale(0.6);
+            filter: brightness(0.5);
+            opacity: 0.6;
+        }
+
+        .gallery-gif:hover:not(.transitioning) {
+            filter: brightness(1.2) !important;
+            box-shadow: 0 6px 25px rgba(0,122,204,0.6) !important;
+        }
+
+        /* Carousel Navigation */
+        .carousel-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--bg-elevated);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text);
+            font-size: 1.2rem;
+            font-weight: bold;
+            z-index: 20;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .carousel-nav:hover {
+            background: var(--accent);
+            color: #fff;
+            transform: translateY(-50%) scale(1.1);
+            box-shadow: 0 4px 12px rgba(0,122,204,0.4);
+        }
+
+        .carousel-nav.prev {
+            left: -20px;
+        }
+
+        .carousel-nav.next {
+            right: -20px;
+        }
+
+        .carousel-nav:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* Mobile adjustments */
+        @media (max-width: 700px) {
+            .gif-gallery {
+                width: 90%;
+                height: 100px;
+            }
+            
+            .gallery-gif {
+                width: 80px;
+                height: 80px;
+                margin-left: -40px; /* Half of mobile width */
+                margin-top: -40px;  /* Half of mobile height */
+            }
+            
+            .gallery-gif.left {
+                transform: translateX(-60px) translateZ(-15px) rotateY(-20deg) scale(0.75);
+            }
+            
+            .gallery-gif.right {
+                transform: translateX(60px) translateZ(-15px) rotateY(20deg) scale(0.75);
+            }
+            
+            .carousel-nav {
+                width: 32px;
+                height: 32px;
+                font-size: 1rem;
+            }
         }
 
         /* Fullscreen GIF modal */
@@ -235,14 +370,41 @@
             opacity: 1;
             outline: none;
         }
+
+        /* Logo styling */
+        .logo-img {
+            display: block;
+            margin: 0 auto 1.5em auto;
+            max-width: 240px;
+            width: 60%;
+            height: auto;
+            border-radius: 24px;
+            box-shadow:
+                0 0 0 8px rgba(0,0,0,0.12),
+                0 0 32px 12px #0c011f,
+                0 0 0 2px rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
+        }
+
+        .logo-img:hover {
+            transform: scale(1.1);
+            box-shadow:
+                0 0 0 8px rgba(0,0,0,0.18),
+                0 0 48px 16px #0c011f,
+                0 0 0 2px rgba(0,0,0,0.12);
+            animation: logoWiggle 2s ease-in-out infinite;
+        }
+
+        @keyframes logoWiggle {
+            0% { transform: scale(1.1) rotate(0deg); }
+            25% { transform: scale(1.2) rotate(10deg); }
+            75% { transform: scale(1.2) rotate(-10deg); }
+            100% { transform: scale(1.1) rotate(0deg); }
+        }
     </style>
 </head>
 <body>
-    <!-- Animated GIF at the very top, outside all main containers -->
-    <div style="width:100%;text-align:center;margin-bottom:8px;">
-        <img src="animation.gif" alt="Animation Preview" class="animation-gif" id="mainAnimationGif" tabindex="0">
-    </div>
-
      <!-- GIF Fullscreen Modal -->
     <div class="gif-modal-overlay" id="gifModalOverlay" tabindex="-1" aria-modal="true" role="dialog">
         <div class="gif-modal-content" id="gifModalContent">
@@ -253,6 +415,27 @@
 
     <div class="container">
         <img src="logo.png" alt="SpriteSpark Logo" class="logo-img">
+        
+        <!-- GIF Gallery under logo -->
+        <!-- GIF Gallery Carousel -->
+        <div class="gif-gallery">
+            <div class="carousel-container" id="carouselContainer">
+                <img src="animation.gif" alt="Animation Preview 1" class="gallery-gif active" data-index="0" tabindex="0">
+                <img src="animation.gif" alt="Animation Preview 2" class="gallery-gif left" data-index="1" tabindex="0">
+                <img src="animation.gif" alt="Animation Preview 3" class="gallery-gif right" data-index="2" tabindex="0">
+                <!-- Add more GIFs here -->
+            </div>
+            
+            <button class="carousel-nav prev" id="prevBtn" title="Previous">‹</button>
+            <button class="carousel-nav next" id="nextBtn" title="Next">›</button>
+            
+            <div class="carousel-indicators" id="indicators">
+                <div class="indicator active" data-index="0"></div>
+                <div class="indicator" data-index="1"></div>
+                <div class="indicator" data-index="2"></div>
+            </div>
+        </div>
+        
         <!--h1>SpriteSpark</h1-->
         <p>
             Create pixel-perfect animated sprites in your browser.<br>
@@ -328,6 +511,149 @@
             gifModalContent.addEventListener('click', (e) => {
                 e.stopPropagation();
             });
+            window.addEventListener('keydown', (e) => {
+                if (gifModal.classList.contains('active') && (e.key === 'Escape' || e.key === 'Esc')) {
+                    closeGifModal();
+                }
+            });
+        }
+
+        // 3D Carousel logic
+        const carousel = {
+            container: document.getElementById('carouselContainer'),
+            prevBtn: document.getElementById('prevBtn'),
+            nextBtn: document.getElementById('nextBtn'),
+            indicators: document.getElementById('indicators'),
+            currentIndex: 0,
+            gifs: [],
+            isTransitioning: false,
+
+            init() {
+                this.gifs = Array.from(document.querySelectorAll('.gallery-gif'));
+                this.bindEvents();
+                this.updateCarousel();
+            },
+
+            bindEvents() {
+                this.prevBtn.addEventListener('click', () => this.prev());
+                this.nextBtn.addEventListener('click', () => this.next());
+                
+                // Indicator clicks
+                this.indicators.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('indicator')) {
+                        const index = parseInt(e.target.dataset.index);
+                        this.goTo(index);
+                    }
+                });
+
+                // GIF clicks for fullscreen
+                this.gifs.forEach(gif => {
+                    gif.addEventListener('click', (e) => {
+                        if (!this.isTransitioning) {
+                            const index = parseInt(e.target.dataset.index);
+                            if (index === this.currentIndex) {
+                                this.openGifModal(gif.src);
+                            } else {
+                                this.goTo(index);
+                            }
+                        }
+                    });
+
+                    gif.addEventListener('keydown', (e) => {
+                        if ((e.key === 'Enter' || e.key === ' ') && !this.isTransitioning) {
+                            const index = parseInt(e.target.dataset.index);
+                            if (index === this.currentIndex) {
+                                this.openGifModal(gif.src);
+                            } else {
+                                this.goTo(index);
+                            }
+                        }
+                    });
+                });
+
+                // Keyboard navigation
+                document.addEventListener('keydown', (e) => {
+                    if (!gifModal.classList.contains('active') && !modal.classList.contains('active')) {
+                        if (e.key === 'ArrowLeft') this.prev();
+                        if (e.key === 'ArrowRight') this.next();
+                    }
+                });
+            },
+
+            prev() {
+                if (this.isTransitioning) return;
+                this.currentIndex = (this.currentIndex - 1 + this.gifs.length) % this.gifs.length;
+                this.updateCarousel();
+            },
+
+            next() {
+                if (this.isTransitioning) return;
+                this.currentIndex = (this.currentIndex + 1) % this.gifs.length;
+                this.updateCarousel();
+            },
+
+            goTo(index) {
+                if (this.isTransitioning || index === this.currentIndex) return;
+                this.currentIndex = index;
+                this.updateCarousel();
+            },
+
+            updateCarousel() {
+                this.isTransitioning = true;
+                
+                this.gifs.forEach((gif, index) => {
+                    gif.classList.add('transitioning');
+                    gif.classList.remove('active', 'left', 'right', 'far-left', 'far-right');
+                    
+                    const relativeIndex = (index - this.currentIndex + this.gifs.length) % this.gifs.length;
+                    
+                    if (relativeIndex === 0) {
+                        gif.classList.add('active');
+                    } else if (relativeIndex === 1 || (relativeIndex === this.gifs.length - 1 && this.gifs.length === 2)) {
+                        gif.classList.add('right');
+                    } else if (relativeIndex === this.gifs.length - 1) {
+                        gif.classList.add('left');
+                    } else if (relativeIndex === 2 || relativeIndex === this.gifs.length - 2) {
+                        gif.classList.add(relativeIndex === 2 ? 'far-right' : 'far-left');
+                    }
+                });
+
+                // Update indicators
+                document.querySelectorAll('.indicator').forEach((indicator, index) => {
+                    indicator.classList.toggle('active', index === this.currentIndex);
+                });
+
+                // Reset transitioning state
+                setTimeout(() => {
+                    this.gifs.forEach(gif => gif.classList.remove('transitioning'));
+                    this.isTransitioning = false;
+                }, 600);
+            },
+
+            openGifModal(src) {
+                const gifModalImg = document.querySelector('.gif-modal-img');
+                if (gifModalImg) gifModalImg.src = src;
+                gifModal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+                gifModalClose.focus();
+            }
+        };
+
+        // Initialize carousel when page loads
+        carousel.init();
+
+        // Update existing GIF modal logic to work with carousel
+        if (gifModal && gifModalClose) {
+            function closeGifModal() {
+                gifModal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+
+            gifModalClose.addEventListener('click', closeGifModal);
+            gifModal.addEventListener('click', (e) => {
+                if (e.target === gifModal) closeGifModal();
+            });
+            
             window.addEventListener('keydown', (e) => {
                 if (gifModal.classList.contains('active') && (e.key === 'Escape' || e.key === 'Esc')) {
                     closeGifModal();
