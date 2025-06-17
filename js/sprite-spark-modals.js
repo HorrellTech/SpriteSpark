@@ -215,132 +215,229 @@ window.SpriteSparkModals = {
         modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
     },
 
-    // Outline effect
-    applyOutlineEffect(color = '#000000', thickness = 2) {
-        this.undoAdd();
-        
-        const frame = this.frames[this.currentFrame];
-        if (!frame || !this.activeLayerId) return;
-        
-        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
-        if (layerIndex === -1) return;
-        
-        const layer = frame.layers[layerIndex];
-        if (!layer || !layer.isVisible) return;
-        
-        const ctx = layer.canvas.getContext('2d');
-        const original = document.createElement('canvas');
-        original.width = layer.canvas.width;
-        original.height = layer.canvas.height;
-        original.getContext('2d').drawImage(layer.canvas, 0, 0);
-        
-        // Create outline by drawing the shape multiple times in different positions
-        ctx.globalCompositeOperation = 'destination-over';
-        ctx.fillStyle = color;
-        
-        for (let dx = -thickness; dx <= thickness; dx++) {
-            for (let dy = -thickness; dy <= thickness; dy++) {
-                if (dx === 0 && dy === 0) continue;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist <= thickness) {
-                    ctx.globalAlpha = 1 - (dist / thickness) * 0.5; // Fade edges
-                    ctx.drawImage(original, dx, dy);
-                }
-            }
-        }
-        
-        // Draw original on top
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(original, 0, 0);
-        
-        this.syncGlobalLayersToCurrentFrame();
-        this.renderCurrentFrameToMainCanvas();
-    }
+    showNeonModal(app) {
+        let modal = document.getElementById('effectNeonModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'effectNeonModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="min-width:320px;">
+                <h2>Neon Effect</h2>
+                <label>
+                    Neon Color:
+                    <input type="color" id="neonColor" value="#00ffff" style="width:60px;">
+                </label>
+                <label>
+                    Intensity:
+                    <input type="range" id="neonIntensity" min="1" max="16" value="8" style="width:120px;">
+                    <span id="neonIntensityValue">8</span> px
+                </label>
+                <label>
+                    Brightness:
+                    <input type="range" id="neonBrightness" min="100" max="300" value="120" style="width:120px;">
+                    <span id="neonBrightnessValue">1.2</span>
+                </label>
+                <div class="modal-actions" style="margin-top:16px;">
+                    <button id="neonApplyBtn" class="modal-btn accent">Apply</button>
+                    <button id="neonCancelBtn" class="modal-btn">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
 
-    // Drop shadow effect
-    applyDropShadowEffect(color = '#000000', offsetX = 4, offsetY = 4, blur = 4, opacity = 0.5) {
-        this.undoAdd();
-        
-        const frame = this.frames[this.currentFrame];
-        if (!frame || !this.activeLayerId) return;
-        
-        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
-        if (layerIndex === -1) return;
-        
-        const layer = frame.layers[layerIndex];
-        if (!layer || !layer.isVisible) return;
-        
-        const ctx = layer.canvas.getContext('2d');
-        const original = document.createElement('canvas');
-        original.width = layer.canvas.width;
-        original.height = layer.canvas.height;
-        original.getContext('2d').drawImage(layer.canvas, 0, 0);
-        
-        // Create shadow
-        const shadow = document.createElement('canvas');
-        shadow.width = layer.canvas.width;
-        shadow.height = layer.canvas.height;
-        const shadowCtx = shadow.getContext('2d');
-        
-        shadowCtx.drawImage(layer.canvas, 0, 0);
-        shadowCtx.globalCompositeOperation = 'source-in';
-        shadowCtx.fillStyle = color;
-        shadowCtx.fillRect(0, 0, shadow.width, shadow.height);
-        
-        if (blur > 0) {
-            shadowCtx.filter = `blur(${blur}px)`;
-            shadowCtx.drawImage(shadow, 0, 0);
-        }
-        
-        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-        
-        // Draw shadow first
-        ctx.globalAlpha = opacity;
-        ctx.drawImage(shadow, offsetX, offsetY);
-        
-        // Draw original on top
-        ctx.globalAlpha = 1;
-        ctx.drawImage(original, 0, 0);
-        
-        this.syncGlobalLayersToCurrentFrame();
-        this.renderCurrentFrameToMainCanvas();
-    }
+        modal.querySelector('#neonIntensity').addEventListener('input', function () {
+            modal.querySelector('#neonIntensityValue').textContent = this.value;
+        });
+        modal.querySelector('#neonBrightness').addEventListener('input', function () {
+            modal.querySelector('#neonBrightnessValue').textContent = (this.value / 100).toFixed(1);
+        });
 
-    // Pixelate effect
-    applyPixelateEffect(pixelSize = 8) {
-        this.undoAdd();
-        
-        const frame = this.frames[this.currentFrame];
-        if (!frame || !this.activeLayerId) return;
-        
-        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
-        if (layerIndex === -1) return;
-        
-        const layer = frame.layers[layerIndex];
-        if (!layer || !layer.isVisible) return;
-        
-        const ctx = layer.canvas.getContext('2d');
-        const w = layer.canvas.width, h = layer.canvas.height;
-        
-        // Turn off image smoothing for pixelated look
-        ctx.imageSmoothingEnabled = false;
-        
-        // Scale down then scale back up
-        const tempCanvas = document.createElement('canvas');
-        const newW = Math.max(1, Math.floor(w / pixelSize));
-        const newH = Math.max(1, Math.floor(h / pixelSize));
-        tempCanvas.width = newW;
-        tempCanvas.height = newH;
-        
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.imageSmoothingEnabled = false;
-        tempCtx.drawImage(layer.canvas, 0, 0, w, h, 0, 0, newW, newH);
-        
-        ctx.clearRect(0, 0, w, h);
-        ctx.drawImage(tempCanvas, 0, 0, newW, newH, 0, 0, w, h);
-        
-        this.syncGlobalLayersToCurrentFrame();
-        this.renderCurrentFrameToMainCanvas();
+        modal.querySelector('#neonApplyBtn').onclick = () => {
+            const color = modal.querySelector('#neonColor').value;
+            const intensity = parseInt(modal.querySelector('#neonIntensity').value, 10);
+            const brightness = parseInt(modal.querySelector('#neonBrightness').value, 10) / 100;
+            app.applyNeonEffect(color, intensity, brightness);
+            modal.remove();
+        };
+        modal.querySelector('#neonCancelBtn').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    },
+
+    showOutlineModal(app) {
+        let modal = document.getElementById('effectOutlineModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'effectOutlineModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="min-width:320px;">
+                <h2>Outline Effect</h2>
+                <label>
+                    Outline Color:
+                    <input type="color" id="outlineColor" value="#000000" style="width:60px;">
+                </label>
+                <label>
+                    Thickness:
+                    <input type="range" id="outlineThickness" min="1" max="8" value="2" style="width:120px;">
+                    <span id="outlineThicknessValue">2</span> px
+                </label>
+                <div class="modal-actions" style="margin-top:16px;">
+                    <button id="outlineApplyBtn" class="modal-btn accent">Apply</button>
+                    <button id="outlineCancelBtn" class="modal-btn">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('#outlineThickness').addEventListener('input', function () {
+            modal.querySelector('#outlineThicknessValue').textContent = this.value;
+        });
+
+        modal.querySelector('#outlineApplyBtn').onclick = () => {
+            const color = modal.querySelector('#outlineColor').value;
+            const thickness = parseInt(modal.querySelector('#outlineThickness').value, 10);
+            app.applyOutlineEffect(color, thickness);
+            modal.remove();
+        };
+        modal.querySelector('#outlineCancelBtn').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    },
+
+    showDropShadowModal(app) {
+        let modal = document.getElementById('effectDropShadowModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'effectDropShadowModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="min-width:320px;">
+                <h2>Drop Shadow Effect</h2>
+                <label>
+                    Shadow Color:
+                    <input type="color" id="shadowColor" value="#000000" style="width:60px;">
+                </label>
+                <label>
+                    Offset X:
+                    <input type="range" id="shadowOffsetX" min="-16" max="16" value="4" style="width:120px;">
+                    <span id="shadowOffsetXValue">4</span> px
+                </label>
+                <label>
+                    Offset Y:
+                    <input type="range" id="shadowOffsetY" min="-16" max="16" value="4" style="width:120px;">
+                    <span id="shadowOffsetYValue">4</span> px
+                </label>
+                <label>
+                    Blur:
+                    <input type="range" id="shadowBlur" min="0" max="16" value="4" style="width:120px;">
+                    <span id="shadowBlurValue">4</span> px
+                </label>
+                <label>
+                    Opacity:
+                    <input type="range" id="shadowOpacity" min="0" max="100" value="50" style="width:120px;">
+                    <span id="shadowOpacityValue">50</span>%
+                </label>
+                <div class="modal-actions" style="margin-top:16px;">
+                    <button id="shadowApplyBtn" class="modal-btn accent">Apply</button>
+                    <button id="shadowCancelBtn" class="modal-btn">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('#shadowOffsetX').addEventListener('input', function () {
+            modal.querySelector('#shadowOffsetXValue').textContent = this.value;
+        });
+        modal.querySelector('#shadowOffsetY').addEventListener('input', function () {
+            modal.querySelector('#shadowOffsetYValue').textContent = this.value;
+        });
+        modal.querySelector('#shadowBlur').addEventListener('input', function () {
+            modal.querySelector('#shadowBlurValue').textContent = this.value;
+        });
+        modal.querySelector('#shadowOpacity').addEventListener('input', function () {
+            modal.querySelector('#shadowOpacityValue').textContent = this.value;
+        });
+
+        modal.querySelector('#shadowApplyBtn').onclick = () => {
+            const color = modal.querySelector('#shadowColor').value;
+            const offsetX = parseInt(modal.querySelector('#shadowOffsetX').value, 10);
+            const offsetY = parseInt(modal.querySelector('#shadowOffsetY').value, 10);
+            const blur = parseInt(modal.querySelector('#shadowBlur').value, 10);
+            const opacity = parseInt(modal.querySelector('#shadowOpacity').value, 10) / 100;
+            app.applyDropShadowEffect(color, offsetX, offsetY, blur, opacity);
+            modal.remove();
+        };
+        modal.querySelector('#shadowCancelBtn').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    },
+
+    showEmbossModal(app) {
+        let modal = document.getElementById('effectEmbossModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'effectEmbossModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="min-width:320px;">
+                <h2>Emboss Effect</h2>
+                <label>
+                    Strength:
+                    <input type="range" id="embossStrength" min="1" max="5" value="2" style="width:120px;">
+                    <span id="embossStrengthValue">2</span>
+                </label>
+                <div class="modal-actions" style="margin-top:16px;">
+                    <button id="embossApplyBtn" class="modal-btn accent">Apply</button>
+                    <button id="embossCancelBtn" class="modal-btn">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('#embossStrength').addEventListener('input', function () {
+            modal.querySelector('#embossStrengthValue').textContent = this.value;
+        });
+
+        modal.querySelector('#embossApplyBtn').onclick = () => {
+            const strength = parseInt(modal.querySelector('#embossStrength').value, 10);
+            app.applyEmbossEffect(strength);
+            modal.remove();
+        };
+        modal.querySelector('#embossCancelBtn').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    },
+
+    showPixelateModal(app) {
+        let modal = document.getElementById('effectPixelateModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'effectPixelateModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="min-width:320px;">
+                <h2>Pixelate Effect</h2>
+                <label>
+                    Pixel Size:
+                    <input type="range" id="pixelateSize" min="2" max="32" value="8" style="width:120px;">
+                    <span id="pixelateSizeValue">8</span> px
+                </label>
+                <div class="modal-actions" style="margin-top:16px;">
+                    <button id="pixelateApplyBtn" class="modal-btn accent">Apply</button>
+                    <button id="pixelateCancelBtn" class="modal-btn">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('#pixelateSize').addEventListener('input', function () {
+            modal.querySelector('#pixelateSizeValue').textContent = this.value;
+        });
+
+        modal.querySelector('#pixelateApplyBtn').onclick = () => {
+            const pixelSize = parseInt(modal.querySelector('#pixelateSize').value, 10);
+            app.applyPixelateEffect(pixelSize);
+            modal.remove();
+        };
+        modal.querySelector('#pixelateCancelBtn').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
     }
 };

@@ -1452,7 +1452,7 @@ class SpriteSpark {
         const canvas = document.createElement('canvas');
         canvas.width = this.canvasWidth;
         canvas.height = this.canvasHeight;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         ctx.imageSmoothingEnabled = false;
         return canvas;
     }
@@ -2985,7 +2985,7 @@ class SpriteSpark {
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = width;
             tempCanvas.height = height;
-            const tempCtx = tempCanvas.getContext('2d');
+            const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true }); // Add optimization flag
             for (let i = 0; i < this.layers.length; i++) {
                 const layer = this.layers[i];
                 if (layer.isVisible && layer.canvas) {
@@ -3021,7 +3021,7 @@ class SpriteSpark {
         tctx.fillRect(0, 0, 1, 1);
         const fillRGBA = tctx.getImageData(0, 0, 1, 1).data;
 
-        // For writing, always write to the target ctx
+        // For writing, always write to the target ctx - add optimization flag
         const targetImageData = ctx.getImageData(0, 0, width, height);
         const targetData = targetImageData.data;
 
@@ -4092,108 +4092,144 @@ class SpriteSpark {
     }
 
     getProjectData() {
-        // Serialize all frames, layers, settings, and undo/redo stacks
+        // Ensure all frame data is synced before saving
+        this.syncGlobalLayersToCurrentFrame();
+        
         return {
             canvasWidth: this.canvasWidth,
             canvasHeight: this.canvasHeight,
-            frames: this.frames.map(frame => ({
-                layers: frame.layers.map(layer => ({
+            frames: this.frames.map((frame, frameIndex) => ({
+                layers: frame.layers.map((layer, layerIndex) => ({
                     id: layer.id,
                     name: layer.name,
-                    isVisible: layer.isVisible,
-                    opacity: layer.opacity,
-                    blendMode: layer.blendMode,
-                    image: layer.canvas.toDataURL()
+                    isVisible: layer.isVisible !== undefined ? layer.isVisible : true,
+                    opacity: layer.opacity !== undefined ? layer.opacity : 100,
+                    blendMode: layer.blendMode || 'source-over',
+                    image: layer.canvas && layer.canvas.width > 0 && layer.canvas.height > 0 
+                        ? layer.canvas.toDataURL('image/png') 
+                        : null // Don't save empty canvases
                 }))
             })),
-            layers: this.layers.map(layer => ({
+            layers: this.layers.map((layer, layerIndex) => ({
                 id: layer.id,
                 name: layer.name,
-                isVisible: layer.isVisible,
-                opacity: layer.opacity,
-                blendMode: layer.blendMode
+                isVisible: layer.isVisible !== undefined ? layer.isVisible : true,
+                opacity: layer.opacity !== undefined ? layer.opacity : 100,
+                blendMode: layer.blendMode || 'source-over'
             })),
             currentFrame: this.currentFrame,
             activeLayerId: this.activeLayerId,
-            theme: this.currentTheme,
-            // Drawing and layer settings
-            pixelPerfect: this.pixelPerfect,
-            pixelDrawingMode: this.pixelDrawingMode,
-            pixelEdgeCorrection: this.pixelEdgeCorrection,
-            brushSize: this.brushSize,
-            opacity: this.opacity,
-            showBrushGhost: this.showBrushGhost,
-            floodFillTolerance: this.floodFillTolerance,
-            floodFillDetectAllLayers: this.floodFillDetectAllLayers,
-            showOnionSkin: this.showOnionSkin,
-            onionSkinFrames: this.onionSkinFrames,
-            fps: this.fps,
-            loopAnimation: this.loopAnimation,
-            leftPanelWidth: this.leftPanelWidth,
-            rightPanelWidth: this.rightPanelWidth,
-            zoom: this.zoom,
-            layerGlowSettings: this.layerGlowSettings,
-            // Undo/redo stacks (serialize as plain objects, not canvas)
-            undoStack: this.undoStack.map(state => this._serializeState(state)),
-            redoStack: this.redoStack.map(state => this._serializeState(state)),
+            fps: this.fps
         };
     }
 
     loadProjectData(data) {
-        // Restore project from JSON, including settings and undo/redo
-        this.canvasWidth = data.canvasWidth;
-        this.canvasHeight = data.canvasHeight;
+        // Restore essential project data only
+        this.canvasWidth = data.canvasWidth || 320;
+        this.canvasHeight = data.canvasHeight || 240;
         this.currentFrame = data.currentFrame || 0;
         this.activeLayerId = data.activeLayerId || null;
-        this.theme = data.theme || 'dark';
-        this.applyTheme(this.theme);
-
-        // Restore settings
-        this.pixelPerfect = !!data.pixelPerfect;
-        this.pixelDrawingMode = !!data.pixelDrawingMode;
-        this.pixelEdgeCorrection = !!data.pixelEdgeCorrection;
-        this.brushSize = data.brushSize || 1;
-        this.opacity = data.opacity || 100;
-        this.showBrushGhost = !!data.showBrushGhost;
-        this.floodFillTolerance = data.floodFillTolerance || 0;
-        this.floodFillDetectAllLayers = !!data.floodFillDetectAllLayers;
-        this.showOnionSkin = !!data.showOnionSkin;
-        this.onionSkinFrames = data.onionSkinFrames || 1;
         this.fps = data.fps || 12;
-        this.loopAnimation = !!data.loopAnimation;
-        this.leftPanelWidth = data.leftPanelWidth || 280;
-        this.rightPanelWidth = data.rightPanelWidth || 280;
-        this.zoom = data.zoom || 1;
-        this.layerGlowSettings = data.layerGlowSettings || {};
 
-        // Restore layers and frames
+        // Restore layers structure first
         this.layers = data.layers.map(l => ({
             ...l,
             canvas: this.createLayerCanvas()
         }));
-        this.frames = data.frames.map(frame => ({
-            layers: frame.layers.map(l => {
+
+        // Keep track of loading progress
+        let totalImages = 0;
+        let loadedImages = 0;
+        
+        // Count total images that need to be loaded
+        data.frames.forEach(frame => {
+            frame.layers.forEach(layerData => {
+                if (layerData.image) totalImages++;
+            });
+        });
+
+        const checkComplete = () => {
+            if (loadedImages >= totalImages) {
+                // All images loaded, now update UI
+                setTimeout(() => {
+                    this.selectFrame(this.currentFrame);
+                    this.renderLayersList();
+                    this.updateFramesList();
+                    
+                    // Update UI inputs
+                    const canvasWidthInput = document.getElementById('canvasWidth');
+                    const canvasHeightInput = document.getElementById('canvasHeight');
+                    const fpsInput = document.getElementById('fpsInput');
+                    
+                    if (canvasWidthInput) canvasWidthInput.value = this.canvasWidth;
+                    if (canvasHeightInput) canvasHeightInput.value = this.canvasHeight;
+                    if (fpsInput) fpsInput.value = this.fps;
+                    
+                    // Force a final render
+                    this.renderCurrentFrameToMainCanvas();
+                }, 100);
+            }
+        };
+
+        // Restore frames with proper layer distribution
+        this.frames = data.frames.map((frameData, frameIndex) => ({
+            layers: frameData.layers.map((layerData, layerIndex) => {
                 const canvas = this.createLayerCanvas();
                 const ctx = canvas.getContext('2d');
-                if (l.image) {
+                
+                // Load image data for this specific layer
+                if (layerData.image) {
                     const img = new window.Image();
-                    img.src = l.image;
-                    img.onload = () => ctx.drawImage(img, 0, 0);
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0);
+                        loadedImages++;
+                        
+                        // If this is the current frame, also update the global layer
+                        if (frameIndex === this.currentFrame && this.layers[layerIndex]) {
+                            const globalCtx = this.layers[layerIndex].canvas.getContext('2d');
+                            globalCtx.clearRect(0, 0, this.layers[layerIndex].canvas.width, this.layers[layerIndex].canvas.height);
+                            globalCtx.drawImage(canvas, 0, 0);
+                            // Trigger a render update for current frame
+                            if (frameIndex === this.currentFrame) {
+                                this.renderCurrentFrameToMainCanvas();
+                            }
+                        }
+                        
+                        checkComplete();
+                    };
+                    img.onerror = () => {
+                        console.error(`Failed to load image for frame ${frameIndex}, layer ${layerIndex}`);
+                        loadedImages++;
+                        checkComplete();
+                    };
+                    img.src = layerData.image;
+                } else {
+                    // No image to load for this layer
+                    if (totalImages === 0) {
+                        // No images at all, proceed immediately
+                        setTimeout(checkComplete, 50);
+                    }
                 }
-                return { ...l, canvas };
+                
+                return { 
+                    id: layerData.id,
+                    name: layerData.name,
+                    isVisible: layerData.isVisible !== undefined ? layerData.isVisible : true,
+                    opacity: layerData.opacity !== undefined ? layerData.opacity : 100,
+                    blendMode: layerData.blendMode || 'source-over',
+                    canvas 
+                };
             })
         }));
 
-        // Restore undo/redo stacks
-        this.undoStack = (data.undoStack || []).map(s => this._restoreStateFromSerialized(s));
-        this.redoStack = (data.redoStack || []).map(s => this._restoreStateFromSerialized(s));
+        // Clear undo/redo stacks since we're not saving them
+        this.undoStack = [];
+        this.redoStack = [];
 
-        setTimeout(() => {
-            this.renderLayersList();
-            this.updateFramesList();
-            // Always select the current frame (usually the last one loaded)
-            this.selectFrame(this.currentFrame);
-        }, 100);
+        // If no images to load, proceed immediately
+        if (totalImages === 0) {
+            checkComplete();
+        }
     }
 
     exportCurrentFrame() {
@@ -4865,48 +4901,94 @@ class SpriteSpark {
         this.undoAdd();
         this.selectionRotation = (this.selectionRotation + degrees) % 360;
 
-        // Create a canvas for the rotation
+        // Create a canvas for the original data
         const originalCanvas = document.createElement('canvas');
         originalCanvas.width = this.selectionData.width;
         originalCanvas.height = this.selectionData.height;
         const originalCtx = originalCanvas.getContext('2d');
         originalCtx.putImageData(this.selectionData, 0, 0);
 
-        // Calculate new dimensions after rotation
-        const radians = Math.abs(degrees * Math.PI / 180);
-        const sin = Math.sin(radians);
-        const cos = Math.cos(radians);
-        const newWidth = Math.ceil(originalCanvas.width * cos + originalCanvas.height * sin);
-        const newHeight = Math.ceil(originalCanvas.width * sin + originalCanvas.height * cos);
+        // For 90-degree rotations, we can do pixel-perfect rotation
+        if (Math.abs(degrees) === 90) {
+            let newWidth, newHeight;
+            
+            // For 90-degree rotations, swap dimensions
+            if (degrees === 90 || degrees === -270) {
+                // 90 degrees clockwise
+                newWidth = originalCanvas.height;
+                newHeight = originalCanvas.width;
+            } else if (degrees === -90 || degrees === 270) {
+                // 90 degrees counter-clockwise
+                newWidth = originalCanvas.height;
+                newHeight = originalCanvas.width;
+            } else if (Math.abs(degrees) === 180) {
+                // 180 degrees
+                newWidth = originalCanvas.width;
+                newHeight = originalCanvas.height;
+            }
 
-        // Create rotated canvas
-        const rotatedCanvas = document.createElement('canvas');
-        rotatedCanvas.width = newWidth;
-        rotatedCanvas.height = newHeight;
-        const rotatedCtx = rotatedCanvas.getContext('2d');
+            // Create rotated canvas
+            const rotatedCanvas = document.createElement('canvas');
+            rotatedCanvas.width = newWidth;
+            rotatedCanvas.height = newHeight;
+            const rotatedCtx = rotatedCanvas.getContext('2d');
+            
+            // Disable image smoothing for pixel-perfect rotation
+            rotatedCtx.imageSmoothingEnabled = false;
 
-        // Set up rotation
-        rotatedCtx.translate(newWidth / 2, newHeight / 2);
-        rotatedCtx.rotate(degrees * Math.PI / 180);
-        rotatedCtx.translate(-originalCanvas.width / 2, -originalCanvas.height / 2);
+            // Apply the rotation transformation
+            rotatedCtx.translate(newWidth / 2, newHeight / 2);
+            rotatedCtx.rotate(degrees * Math.PI / 180);
+            rotatedCtx.translate(-originalCanvas.width / 2, -originalCanvas.height / 2);
 
-        // Draw the original image
-        rotatedCtx.drawImage(originalCanvas, 0, 0);
+            // Draw the original image
+            rotatedCtx.drawImage(originalCanvas, 0, 0);
 
-        // Update selection data and bounds
-        this.selectionData = rotatedCtx.getImageData(0, 0, newWidth, newHeight);
+            // Update selection data and bounds
+            this.selectionData = rotatedCtx.getImageData(0, 0, newWidth, newHeight);
 
-        // Adjust bounds to keep selection centered
-        const bounds = this.getAdjustedSelectionBounds();
-        const centerX = bounds.x + bounds.width / 2;
-        const centerY = bounds.y + bounds.height / 2;
+            // Adjust bounds to keep selection centered
+            const bounds = this.getAdjustedSelectionBounds();
+            const centerX = bounds.x + bounds.width / 2;
+            const centerY = bounds.y + bounds.height / 2;
 
-        this.selectionBounds = {
-            x: centerX - newWidth / 2,
-            y: centerY - newHeight / 2,
-            width: newWidth,
-            height: newHeight
-        };
+            this.selectionBounds = {
+                x: Math.floor(centerX - newWidth / 2),
+                y: Math.floor(centerY - newHeight / 2),
+                width: newWidth,
+                height: newHeight
+            };
+        } else {
+            // For non-90-degree rotations, use the original method (with potential blur)
+            const radians = Math.abs(degrees * Math.PI / 180);
+            const sin = Math.sin(radians);
+            const cos = Math.cos(radians);
+            const newWidth = Math.ceil(originalCanvas.width * cos + originalCanvas.height * sin);
+            const newHeight = Math.ceil(originalCanvas.width * sin + originalCanvas.height * cos);
+
+            const rotatedCanvas = document.createElement('canvas');
+            rotatedCanvas.width = newWidth;
+            rotatedCanvas.height = newHeight;
+            const rotatedCtx = rotatedCanvas.getContext('2d');
+
+            rotatedCtx.translate(newWidth / 2, newHeight / 2);
+            rotatedCtx.rotate(degrees * Math.PI / 180);
+            rotatedCtx.translate(-originalCanvas.width / 2, -originalCanvas.height / 2);
+            rotatedCtx.drawImage(originalCanvas, 0, 0);
+
+            this.selectionData = rotatedCtx.getImageData(0, 0, newWidth, newHeight);
+
+            const bounds = this.getAdjustedSelectionBounds();
+            const centerX = bounds.x + bounds.width / 2;
+            const centerY = bounds.y + bounds.height / 2;
+
+            this.selectionBounds = {
+                x: Math.floor(centerX - newWidth / 2),
+                y: Math.floor(centerY - newHeight / 2),
+                width: newWidth,
+                height: newHeight
+            };
+        }
 
         this.renderCurrentFrameToMainCanvas();
     }
