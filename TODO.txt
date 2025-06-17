@@ -1,10 +1,7 @@
-- Layer glow
 - Sprite Objects for images and puppet animation
 - Filled shapes
-- Get effects menubar to work
 - Add programmable animating, so you will be able to write a script in the app to add frames, draw an image at a position, line,
     object etc, all assigned to the frame or frames you wish, use mathematical equations to move the drawing to another position    
     on the canvas. This will allow people to be more specific with out having something to draw with. It will read the script 
     and produce it to the animation studio as an animation.
-- Optimize saving the project
-- Add live animate button under the FPS group, so we can draw while the animation plays.
+- Fix resizing of canvas 
