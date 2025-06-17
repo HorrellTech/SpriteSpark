@@ -62,7 +62,13 @@
                 <li><span data-action="blur">Blur</span></li>
                 <li><span data-action="sharpen">Sharpen</span></li>
                 <li><span data-action="hsl">HSL Adjust</span></li>
-                <li><span data-action="recolor">Recolor</span></li>
+                <!--li><span data-action="recolor">Recolor</span></li-->
+                <li><span data-action="glow">Glow</span></li>
+                <li><span data-action="neon">Neon</span></li>
+                <li><span data-action="outline">Outline</span></li>
+                <li><span data-action="drop-shadow">Drop Shadow</span></li>
+                <li><span data-action="emboss">Emboss</span></li>
+                <li><span data-action="pixelate">Pixelate</span></li>
             </ul>
         </div>
         <div class="menu-item">
@@ -318,6 +324,10 @@
                     <label>FPS: <input type="number" id="fpsInput" value="12" min="1" max="60"></label>
                     <label>
                         <input type="checkbox" id="loopAnimation" checked> Loop
+                    </label>
+                    <label>
+                        <input type="checkbox" id="animateCanvasFrames">
+                        Animate Canvas Frames
                     </label>
                 </div>
             </div>

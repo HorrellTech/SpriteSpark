@@ -28,7 +28,6 @@ class SpriteSpark {
         this.loopAnimation = true;
 
         // layer glow
-
         this.layerGlowSettings = {};
 
         // Onion skin properties
@@ -39,6 +38,10 @@ class SpriteSpark {
         this.pixelPerfect = true;
         this.pixelDrawingMode = true;
         this.pixelEdgeCorrection = false;
+
+        // Frame Canvas Animation
+        this.animateCanvasFrames = false;
+        this.animateCanvasFramesInterval = null;
 
         // Canvas properties
         this.canvasWidth = 320;
@@ -447,6 +450,12 @@ class SpriteSpark {
                 if (this.isPlaying) {
                     this.playAnimation();
                 }
+
+                // Restart canvas frame animation if enabled
+                const animateCanvasFramesCheckbox = document.getElementById('animateCanvasFrames');
+                if (animateCanvasFramesCheckbox && animateCanvasFramesCheckbox.checked) {
+                    this.startAnimateCanvasFrames();
+                }
             });
         }
 
@@ -455,6 +464,27 @@ class SpriteSpark {
         if (loopCheckbox) {
             loopCheckbox.addEventListener('change', (e) => {
                 this.loopAnimation = e.target.checked;
+                // If preview is enabled and loop is checked, restart animation
+                if (this.loopAnimation) {
+                    const enablePreviewCheckbox = document.getElementById('enablePreview');
+                    if (enablePreviewCheckbox && enablePreviewCheckbox.checked) {
+                        this.isPlaying = true;
+                        this.playAnimation();
+                    }
+                }
+            });
+        }
+
+        // Animate Canvas Frames Checkbox
+        const animateCanvasFramesCheckbox = document.getElementById('animateCanvasFrames');
+        if (animateCanvasFramesCheckbox) {
+            animateCanvasFramesCheckbox.addEventListener('change', () => {
+                this.animateCanvasFrames = animateCanvasFramesCheckbox.checked;
+                if (this.animateCanvasFrames) {
+                    this.startAnimateCanvasFrames();
+                } else {
+                    this.stopAnimateCanvasFrames();
+                }
             });
         }
     }
@@ -765,6 +795,24 @@ class SpriteSpark {
                 primaryColorEl.classList.add('active');
                 secondaryColorEl.classList.remove('active');
             }
+        }
+    }
+
+    startAnimateCanvasFrames() {
+        this.stopAnimateCanvasFrames();
+        if (!this.frames || this.frames.length < 2) return;
+        const frameDuration = 1000 / this.fps;
+        this.animateCanvasFramesInterval = setInterval(() => {
+            let nextFrame = this.currentFrame + 1;
+            if (nextFrame >= this.frames.length) nextFrame = 0;
+            this.selectFrame(nextFrame);
+        }, frameDuration);
+    }
+
+    stopAnimateCanvasFrames() {
+        if (this.animateCanvasFramesInterval) {
+            clearInterval(this.animateCanvasFramesInterval);
+            this.animateCanvasFramesInterval = null;
         }
     }
 
@@ -1651,91 +1699,449 @@ class SpriteSpark {
     }
 
     applyHSLEffect(hue = 0, saturation = 0, lightness = 0) {
+        // Add undo state first
+        this.undoAdd();
+
+        // Only adjust HSL for the active layer in the current frame
         const frame = this.frames[this.currentFrame];
-        if (!frame) return;
-        frame.layers.forEach(layer => {
-            if (!layer.isVisible) return;
-            const ctx = layer.canvas.getContext('2d');
-            const w = layer.canvas.width, h = layer.canvas.height;
-            const imgData = ctx.getImageData(0, 0, w, h);
-            const data = imgData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                // Convert RGB to HSL
-                let r = data[i] / 255, g = data[i + 1] / 255, b = data[i + 2] / 255;
-                let max = Math.max(r, g, b), min = Math.min(r, g, b);
-                let h, s, l = (max + min) / 2;
-                if (max === min) {
-                    h = s = 0;
-                } else {
-                    let d = max - min;
-                    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-                    switch (max) {
-                        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-                        case g: h = (b - r) / d + 2; break;
-                        case b: h = (r - g) / d + 4; break;
-                    }
-                    h /= 6;
+        if (!frame || !this.activeLayerId) return;
+
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+
+        const ctx = layer.canvas.getContext('2d');
+        const w = layer.canvas.width, h = layer.canvas.height;
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+            // Convert RGB to HSL
+            let r = data[i] / 255, g = data[i + 1] / 255, b = data[i + 2] / 255;
+            let max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+
+            if (max === min) {
+                h = s = 0;
+            } else {
+                let d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
                 }
-                // Adjust HSL
-                h = (h * 360 + hue + 360) % 360 / 360;
-                s = Math.min(1, Math.max(0, s + saturation / 100));
-                l = Math.min(1, Math.max(0, l + lightness / 100));
-                // Convert back to RGB
-                let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-                let p = 2 * l - q;
-                function hue2rgb(p, q, t) {
-                    if (t < 0) t += 1;
-                    if (t > 1) t -= 1;
-                    if (t < 1 / 6) return p + (q - p) * 6 * t;
-                    if (t < 1 / 2) return q;
-                    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-                    return p;
-                }
-                r = hue2rgb(p, q, h);
-                g = hue2rgb(p, q, h + 1 / 3);
-                b = hue2rgb(p, q, h - 1 / 3);
-                data[i] = Math.round(r * 255);
-                data[i + 1] = Math.round(g * 255);
-                data[i + 2] = Math.round(b * 255);
+                h /= 6;
             }
-            ctx.putImageData(imgData, 0, 0);
-        });
+
+            // Adjust HSL
+            h = (h * 360 + hue + 360) % 360 / 360;
+            s = Math.min(1, Math.max(0, s + saturation / 100));
+            l = Math.min(1, Math.max(0, l + lightness / 100));
+
+            // Convert back to RGB
+            let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            let p = 2 * l - q;
+            function hue2rgb(p, q, t) {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1 / 6) return p + (q - p) * 6 * t;
+                if (t < 1 / 2) return q;
+                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                return p;
+            }
+            r = hue2rgb(p, q, h);
+            g = hue2rgb(p, q, h + 1 / 3);
+            b = hue2rgb(p, q, h - 1 / 3);
+
+            data[i] = Math.round(r * 255);
+            data[i + 1] = Math.round(g * 255);
+            data[i + 2] = Math.round(b * 255);
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+
+        // Also apply to the corresponding global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+            globalCtx.drawImage(layer.canvas, 0, 0);
+        }
+
         this.renderCurrentFrameToMainCanvas();
-        this.syncGlobalLayersToCurrentFrame();
     }
 
     applyRecolorEffect(fromColor, toColor, tolerance = 0) {
+        // Add undo state first
+        this.undoAdd();
+
         function hexToRgbArr(hex) {
             hex = hex.replace(/^#/, '');
             if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
             const num = parseInt(hex, 16);
             return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
         }
+
         const fromRgb = hexToRgbArr(fromColor);
         const toRgb = hexToRgbArr(toColor);
 
+        // Only recolor the active layer in the current frame
         const frame = this.frames[this.currentFrame];
-        if (!frame) return;
-        frame.layers.forEach(layer => {
-            if (!layer.isVisible) return;
-            const ctx = layer.canvas.getContext('2d');
-            const w = layer.canvas.width, h = layer.canvas.height;
-            const imgData = ctx.getImageData(0, 0, w, h);
-            const data = imgData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                const dr = Math.abs(data[i] - fromRgb[0]);
-                const dg = Math.abs(data[i + 1] - fromRgb[1]);
-                const db = Math.abs(data[i + 2] - fromRgb[2]);
-                if (dr <= tolerance && dg <= tolerance && db <= tolerance) {
-                    data[i] = toRgb[0];
-                    data[i + 1] = toRgb[1];
-                    data[i + 2] = toRgb[2];
+        if (!frame || !this.activeLayerId) return;
+
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+
+        const ctx = layer.canvas.getContext('2d');
+        const w = layer.canvas.width, h = layer.canvas.height;
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+            const dr = Math.abs(data[i] - fromRgb[0]);
+            const dg = Math.abs(data[i + 1] - fromRgb[1]);
+            const db = Math.abs(data[i + 2] - fromRgb[2]);
+            if (dr <= tolerance && dg <= tolerance && db <= tolerance) {
+                data[i] = toRgb[0];
+                data[i + 1] = toRgb[1];
+                data[i + 2] = toRgb[2];
+            }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+
+        // Also apply to the corresponding global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+            globalCtx.drawImage(layer.canvas, 0, 0);
+        }
+
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    applyGlowEffect(color = '#ffffff', thickness = 8, opacity = 0.8) {
+        // Add undo state first
+        this.undoAdd();
+        
+        // Only apply glow to the active layer in the current frame
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+        
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+        
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+        
+        const ctx = layer.canvas.getContext('2d');
+        
+        // Create a copy of the original content
+        const original = document.createElement('canvas');
+        original.width = layer.canvas.width;
+        original.height = layer.canvas.height;
+        const originalCtx = original.getContext('2d');
+        originalCtx.drawImage(layer.canvas, 0, 0);
+        
+        // Create multiple glow layers for intensity
+        const glowLayers = [];
+        const iterations = Math.max(1, Math.floor(thickness / 4)); // More iterations for thicker glows
+        
+        for (let i = 0; i < iterations; i++) {
+            // Create glow mask
+            const glowMask = document.createElement('canvas');
+            glowMask.width = layer.canvas.width;
+            glowMask.height = layer.canvas.height;
+            const glowCtx = glowMask.getContext('2d');
+            
+            glowCtx.drawImage(layer.canvas, 0, 0);
+            glowCtx.globalCompositeOperation = 'source-in';
+            glowCtx.fillStyle = color;
+            glowCtx.fillRect(0, 0, glowMask.width, glowMask.height);
+            
+            // Apply varying blur amounts for layered effect
+            const blurAmount = (i + 1) * (thickness / iterations);
+            glowCtx.filter = `blur(${blurAmount}px)`;
+            glowCtx.drawImage(glowMask, 0, 0);
+            
+            glowLayers.push(glowMask);
+        }
+        
+        // Clear the layer and redraw with glow effect
+        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+        
+        // Draw all glow layers with decreasing opacity for softer edges
+        for (let i = 0; i < glowLayers.length; i++) {
+            const layerOpacity = opacity * (1 - (i * 0.2)); // Each layer slightly less opaque
+            ctx.globalAlpha = Math.max(0.1, layerOpacity);
+            ctx.globalCompositeOperation = 'screen'; // Screen blend for more intense glow
+            ctx.drawImage(glowLayers[i], 0, 0);
+        }
+        
+        // Draw the original content on top
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(original, 0, 0);
+        
+        // Also apply to the corresponding global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+            globalCtx.drawImage(layer.canvas, 0, 0);
+        }
+        
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    // Neon effect - like glow but more colorful and intense
+    applyNeonEffect(color = '#00ffff', intensity = 8, brightness = 1.2) {
+        this.undoAdd();
+        
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+        
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+        
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+        
+        const ctx = layer.canvas.getContext('2d');
+        const original = document.createElement('canvas');
+        original.width = layer.canvas.width;
+        original.height = layer.canvas.height;
+        original.getContext('2d').drawImage(layer.canvas, 0, 0);
+        
+        // Create inner glow (bright)
+        const innerGlow = document.createElement('canvas');
+        innerGlow.width = layer.canvas.width;
+        innerGlow.height = layer.canvas.height;
+        const innerCtx = innerGlow.getContext('2d');
+        innerCtx.drawImage(layer.canvas, 0, 0);
+        innerCtx.globalCompositeOperation = 'source-in';
+        innerCtx.fillStyle = color;
+        innerCtx.fillRect(0, 0, innerGlow.width, innerGlow.height);
+        innerCtx.filter = `blur(2px) brightness(${brightness})`;
+        innerCtx.drawImage(innerGlow, 0, 0);
+        
+        // Create outer glow (softer)
+        const outerGlow = document.createElement('canvas');
+        outerGlow.width = layer.canvas.width;
+        outerGlow.height = layer.canvas.height;
+        const outerCtx = outerGlow.getContext('2d');
+        outerCtx.drawImage(layer.canvas, 0, 0);
+        outerCtx.globalCompositeOperation = 'source-in';
+        outerCtx.fillStyle = color;
+        outerCtx.fillRect(0, 0, outerGlow.width, outerGlow.height);
+        outerCtx.filter = `blur(${intensity}px)`;
+        outerCtx.drawImage(outerGlow, 0, 0);
+        
+        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+        
+        // Draw outer glow
+        ctx.globalAlpha = 0.8;
+        ctx.globalCompositeOperation = 'screen';
+        ctx.drawImage(outerGlow, 0, 0);
+        
+        // Draw inner glow
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'screen';
+        ctx.drawImage(innerGlow, 0, 0);
+        
+        // Draw original on top
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(original, 0, 0);
+        
+        this.syncGlobalLayersToCurrentFrame();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    // Emboss effect
+    applyEmbossEffect(strength = 2) {
+        this.undoAdd();
+        
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+        
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+        
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+        
+        const ctx = layer.canvas.getContext('2d');
+        const w = layer.canvas.width, h = layer.canvas.height;
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+        
+        // Emboss kernel
+        const kernel = [
+            -2 * strength, -1 * strength, 0,
+            -1 * strength, 1, 1 * strength,
+            0, 1 * strength, 2 * strength
+        ];
+        
+        const copy = new Uint8ClampedArray(data);
+        
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                for (let c = 0; c < 3; c++) {
+                    let sum = 0;
+                    for (let ky = 0; ky < 3; ky++) {
+                        for (let kx = 0; kx < 3; kx++) {
+                            const px = x + kx - 1;
+                            const py = y + ky - 1;
+                            const idx = (py * w + px) * 4 + c;
+                            sum += copy[idx] * kernel[ky * 3 + kx];
+                        }
+                    }
+                    const idx = (y * w + x) * 4 + c;
+                    data[idx] = Math.min(255, Math.max(0, sum + 128)); // Add 128 for neutral gray
                 }
             }
-            ctx.putImageData(imgData, 0, 0);
-        });
-        this.renderCurrentFrameToMainCanvas();
+        }
+        
+        ctx.putImageData(imgData, 0, 0);
         this.syncGlobalLayersToCurrentFrame();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    // Outline effect
+    applyOutlineEffect(color = '#000000', thickness = 2) {
+        this.undoAdd();
+        
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+        
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+        
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+        
+        const ctx = layer.canvas.getContext('2d');
+        const original = document.createElement('canvas');
+        original.width = layer.canvas.width;
+        original.height = layer.canvas.height;
+        original.getContext('2d').drawImage(layer.canvas, 0, 0);
+        
+        // Create outline by drawing the shape multiple times in different positions
+        ctx.globalCompositeOperation = 'destination-over';
+        ctx.fillStyle = color;
+        
+        for (let dx = -thickness; dx <= thickness; dx++) {
+            for (let dy = -thickness; dy <= thickness; dy++) {
+                if (dx === 0 && dy === 0) continue;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist <= thickness) {
+                    ctx.globalAlpha = 1 - (dist / thickness) * 0.5; // Fade edges
+                    ctx.drawImage(original, dx, dy);
+                }
+            }
+        }
+        
+        // Draw original on top
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(original, 0, 0);
+        
+        this.syncGlobalLayersToCurrentFrame();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    // Drop shadow effect
+    applyDropShadowEffect(color = '#000000', offsetX = 4, offsetY = 4, blur = 4, opacity = 0.5) {
+        this.undoAdd();
+        
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+        
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+        
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+        
+        const ctx = layer.canvas.getContext('2d');
+        const original = document.createElement('canvas');
+        original.width = layer.canvas.width;
+        original.height = layer.canvas.height;
+        original.getContext('2d').drawImage(layer.canvas, 0, 0);
+        
+        // Create shadow
+        const shadow = document.createElement('canvas');
+        shadow.width = layer.canvas.width;
+        shadow.height = layer.canvas.height;
+        const shadowCtx = shadow.getContext('2d');
+        
+        shadowCtx.drawImage(layer.canvas, 0, 0);
+        shadowCtx.globalCompositeOperation = 'source-in';
+        shadowCtx.fillStyle = color;
+        shadowCtx.fillRect(0, 0, shadow.width, shadow.height);
+        
+        if (blur > 0) {
+            shadowCtx.filter = `blur(${blur}px)`;
+            shadowCtx.drawImage(shadow, 0, 0);
+        }
+        
+        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+        
+        // Draw shadow first
+        ctx.globalAlpha = opacity;
+        ctx.drawImage(shadow, offsetX, offsetY);
+        
+        // Draw original on top
+        ctx.globalAlpha = 1;
+        ctx.drawImage(original, 0, 0);
+        
+        this.syncGlobalLayersToCurrentFrame();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    // Pixelate effect
+    applyPixelateEffect(pixelSize = 8) {
+        this.undoAdd();
+        
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+        
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+        
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+        
+        const ctx = layer.canvas.getContext('2d');
+        const w = layer.canvas.width, h = layer.canvas.height;
+        
+        // Turn off image smoothing for pixelated look
+        ctx.imageSmoothingEnabled = false;
+        
+        // Scale down then scale back up
+        const tempCanvas = document.createElement('canvas');
+        const newW = Math.max(1, Math.floor(w / pixelSize));
+        const newH = Math.max(1, Math.floor(h / pixelSize));
+        tempCanvas.width = newW;
+        tempCanvas.height = newH;
+        
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.imageSmoothingEnabled = false;
+        tempCtx.drawImage(layer.canvas, 0, 0, w, h, 0, 0, newW, newH);
+        
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(tempCanvas, 0, 0, newW, newH, 0, 0, w, h);
+        
+        this.syncGlobalLayersToCurrentFrame();
+        this.renderCurrentFrameToMainCanvas();
     }
 
     renderCurrentFrameToMainCanvas() {
@@ -2120,6 +2526,24 @@ class SpriteSpark {
                 break;
             case 'recolor':
                 window.SpriteSparkModals && window.SpriteSparkModals.showRecolorModal(this);
+                break;
+            case 'glow':
+            window.SpriteSparkModals && window.SpriteSparkModals.showGlowModal(this);
+            break;
+            case 'neon':
+                window.SpriteSparkModals && window.SpriteSparkModals.showNeonModal(this);
+                break;
+            case 'outline':
+                window.SpriteSparkModals && window.SpriteSparkModals.showOutlineModal(this);
+                break;
+            case 'drop-shadow':
+                window.SpriteSparkModals && window.SpriteSparkModals.showDropShadowModal(this);
+                break;
+            case 'emboss':
+                window.SpriteSparkModals && window.SpriteSparkModals.showEmbossModal(this);
+                break;
+            case 'pixelate':
+                window.SpriteSparkModals && window.SpriteSparkModals.showPixelateModal(this);
                 break;
 
             // Add other actions as needed...
@@ -3262,51 +3686,83 @@ class SpriteSpark {
 
     // --- Effects Implementation ---
     flipFrame(direction) {
-        // Flip all visible layers in the current frame
+        // Add undo state first
+        this.undoAdd();
+
+        // Only flip the active layer in the current frame
         const frame = this.frames[this.currentFrame];
-        if (!frame) return;
-        frame.layers.forEach(layer => {
-            if (!layer.isVisible) return;
-            const ctx = layer.canvas.getContext('2d');
-            const temp = document.createElement('canvas');
-            temp.width = layer.canvas.width;
-            temp.height = layer.canvas.height;
-            temp.getContext('2d').drawImage(layer.canvas, 0, 0);
-            ctx.save();
-            ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-            if (direction === 'horizontal') {
-                ctx.scale(-1, 1);
-                ctx.drawImage(temp, -layer.canvas.width, 0);
-            } else {
-                ctx.scale(1, -1);
-                ctx.drawImage(temp, 0, -layer.canvas.height);
-            }
-            ctx.restore();
-        });
+        if (!frame || !this.activeLayerId) return;
+
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+
+        const ctx = layer.canvas.getContext('2d');
+        const temp = document.createElement('canvas');
+        temp.width = layer.canvas.width;
+        temp.height = layer.canvas.height;
+        temp.getContext('2d').drawImage(layer.canvas, 0, 0);
+
+        ctx.save();
+        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+        if (direction === 'horizontal') {
+            ctx.scale(-1, 1);
+            ctx.drawImage(temp, -layer.canvas.width, 0);
+        } else {
+            ctx.scale(1, -1);
+            ctx.drawImage(temp, 0, -layer.canvas.height);
+        }
+        ctx.restore();
+
+        // Also apply to the corresponding global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+            globalCtx.drawImage(layer.canvas, 0, 0);
+        }
+
         this.renderCurrentFrameToMainCanvas();
-        this.syncGlobalLayersToCurrentFrame();
     }
 
     rotateFrame() {
-        // Rotate all visible layers in the current frame 90deg clockwise
+        // Add undo state first
+        this.undoAdd();
+
+        // Only rotate the active layer in the current frame 90deg clockwise
         const frame = this.frames[this.currentFrame];
-        if (!frame) return;
-        frame.layers.forEach(layer => {
-            if (!layer.isVisible) return;
-            const ctx = layer.canvas.getContext('2d');
-            const temp = document.createElement('canvas');
-            temp.width = layer.canvas.width;
-            temp.height = layer.canvas.height;
-            temp.getContext('2d').drawImage(layer.canvas, 0, 0);
-            ctx.save();
-            ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-            ctx.translate(layer.canvas.width / 2, layer.canvas.height / 2);
-            ctx.rotate(Math.PI / 2);
-            ctx.drawImage(temp, -layer.canvas.height / 2, -layer.canvas.width / 2, layer.canvas.height, layer.canvas.width);
-            ctx.restore();
-        });
+        if (!frame || !this.activeLayerId) return;
+
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+
+        const ctx = layer.canvas.getContext('2d');
+        const temp = document.createElement('canvas');
+        temp.width = layer.canvas.width;
+        temp.height = layer.canvas.height;
+        temp.getContext('2d').drawImage(layer.canvas, 0, 0);
+
+        ctx.save();
+        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+        ctx.translate(layer.canvas.width / 2, layer.canvas.height / 2);
+        ctx.rotate(Math.PI / 2);
+        ctx.drawImage(temp, -layer.canvas.height / 2, -layer.canvas.width / 2, layer.canvas.height, layer.canvas.width);
+        ctx.restore();
+
+        // Also apply to the corresponding global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+            globalCtx.drawImage(layer.canvas, 0, 0);
+        }
+
         this.renderCurrentFrameToMainCanvas();
-        this.syncGlobalLayersToCurrentFrame();
     }
 
     copyFrame() {
@@ -3341,80 +3797,129 @@ class SpriteSpark {
     }
 
     clearFrame() {
-        // Clear all visible layers in the current frame
+        // Add undo state first
+        this.undoAdd();
+
+        // Only clear the active layer in the current frame
         const frame = this.frames[this.currentFrame];
-        if (!frame) return;
-        frame.layers.forEach(layer => {
-            if (!layer.isVisible) return;
-            const ctx = layer.canvas.getContext('2d');
-            ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-        });
+        if (!frame || !this.activeLayerId) return;
+
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+
+        const ctx = layer.canvas.getContext('2d');
+        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+
+        // Also clear the corresponding global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+        }
+
         this.renderCurrentFrameToMainCanvas();
-        this.syncGlobalLayersToCurrentFrame();
     }
 
     applyBlurEffect(radius = 4) {
+        // Add undo state first
+        this.undoAdd();
+
+        // Only blur the active layer in the current frame
         const frame = this.frames[this.currentFrame];
-        if (!frame) return;
-        frame.layers.forEach(layer => {
-            if (!layer.isVisible) return;
-            const ctx = layer.canvas.getContext('2d');
-            const temp = document.createElement('canvas');
-            temp.width = layer.canvas.width;
-            temp.height = layer.canvas.height;
-            temp.getContext('2d').drawImage(layer.canvas, 0, 0);
-            ctx.save();
-            ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-            ctx.filter = `blur(${radius}px)`;
-            ctx.drawImage(temp, 0, 0);
-            ctx.restore();
-        });
+        if (!frame || !this.activeLayerId) return;
+
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+
+        const ctx = layer.canvas.getContext('2d');
+        const temp = document.createElement('canvas');
+        temp.width = layer.canvas.width;
+        temp.height = layer.canvas.height;
+        temp.getContext('2d').drawImage(layer.canvas, 0, 0);
+
+        ctx.save();
+        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+        ctx.filter = `blur(${radius}px)`;
+        ctx.drawImage(temp, 0, 0);
+        ctx.restore();
+
+        // Also apply to the corresponding global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+            globalCtx.drawImage(layer.canvas, 0, 0);
+        }
+
         this.renderCurrentFrameToMainCanvas();
-        this.syncGlobalLayersToCurrentFrame();
     }
 
     applySharpenEffect(amount = 2) {
-        // Simple sharpen kernel
+        // Add undo state first
+        this.undoAdd();
+
+        // Only sharpen the active layer in the current frame
         const frame = this.frames[this.currentFrame];
-        if (!frame) return;
-        frame.layers.forEach(layer => {
-            if (!layer.isVisible) return;
-            const ctx = layer.canvas.getContext('2d');
-            const w = layer.canvas.width, h = layer.canvas.height;
-            const imgData = ctx.getImageData(0, 0, w, h);
-            const data = imgData.data;
-            // Sharpen kernel
-            const kernel = [
-                0, -1 * amount, 0,
-                -1 * amount, 4 * amount + 1, -1 * amount,
-                0, -1 * amount, 0
-            ];
-            const side = 3;
-            const half = Math.floor(side / 2);
-            const copy = new Uint8ClampedArray(data);
-            for (let y = 0; y < h; y++) {
-                for (let x = 0; x < w; x++) {
-                    for (let c = 0; c < 3; c++) {
-                        let sum = 0;
-                        for (let ky = 0; ky < side; ky++) {
-                            for (let kx = 0; kx < side; kx++) {
-                                const px = x + kx - half;
-                                const py = y + ky - half;
-                                if (px >= 0 && px < w && py >= 0 && py < h) {
-                                    const idx = (py * w + px) * 4 + c;
-                                    sum += copy[idx] * kernel[ky * side + kx];
-                                }
+        if (!frame || !this.activeLayerId) return;
+
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+
+        const ctx = layer.canvas.getContext('2d');
+        const w = layer.canvas.width, h = layer.canvas.height;
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+
+        // Sharpen kernel
+        const kernel = [
+            0, -1 * amount, 0,
+            -1 * amount, 4 * amount + 1, -1 * amount,
+            0, -1 * amount, 0
+        ];
+        const side = 3;
+        const half = Math.floor(side / 2);
+        const copy = new Uint8ClampedArray(data);
+
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                for (let c = 0; c < 3; c++) {
+                    let sum = 0;
+                    for (let ky = 0; ky < side; ky++) {
+                        for (let kx = 0; kx < side; kx++) {
+                            const px = x + kx - half;
+                            const py = y + ky - half;
+                            if (px >= 0 && px < w && py >= 0 && py < h) {
+                                const idx = (py * w + px) * 4 + c;
+                                sum += copy[idx] * kernel[ky * side + kx];
                             }
                         }
-                        const idx = (y * w + x) * 4 + c;
-                        data[idx] = Math.min(255, Math.max(0, sum));
                     }
+                    const idx = (y * w + x) * 4 + c;
+                    data[idx] = Math.min(255, Math.max(0, sum));
                 }
             }
-            ctx.putImageData(imgData, 0, 0);
-        });
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+
+        // Also apply to the corresponding global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+            globalCtx.drawImage(layer.canvas, 0, 0);
+        }
+
         this.renderCurrentFrameToMainCanvas();
-        this.syncGlobalLayersToCurrentFrame();
     }
 
     syncGlobalLayersToCurrentFrame() {
@@ -3497,7 +4002,7 @@ class SpriteSpark {
                 btn.classList.toggle('active', btn.getAttribute('data-tool') === 'lasso-select');
             });
             e.preventDefault();
-        }  else if (e.key === 'ArrowLeft') {
+        } else if (e.key === 'ArrowLeft') {
             if (!this.selectionActive) {
                 // Move to previous frame, loop to last if at first
                 if (this.frames.length > 1) {
@@ -3854,7 +4359,7 @@ class SpriteSpark {
                 name: name
             });
 
-            let frameIdx = 0; 
+            let frameIdx = 0;
             const totalFrames = this.frames.length;
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = this.canvasWidth;
@@ -4682,7 +5187,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, { passive: false });
     }
-    
+
     document.addEventListener('click', () => {
         document.querySelectorAll('.menubar .dropdown').forEach(d => d.classList.remove('open'));
     });
@@ -5038,23 +5543,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Don't prevent the event - let it bubble to handleMenuClick
                 return;
             }
-            
+
             // Check if we clicked inside an open dropdown but not on an action item
             if (e.target.closest('.dropdown')) {
                 // Clicking inside dropdown but not on an action - do nothing
                 return;
             }
-            
+
             // This is a menu item click (the actual menu header) - toggle dropdown
             e.stopPropagation();
-            
+
             // Close all other dropdowns first
             document.querySelectorAll('.menubar .dropdown').forEach(d => {
                 if (d !== this.querySelector('.dropdown')) {
                     d.classList.remove('open');
                 }
             });
-            
+
             // Toggle this dropdown
             const dropdown = this.querySelector('.dropdown');
             if (dropdown) {

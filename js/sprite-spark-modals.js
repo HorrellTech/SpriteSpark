@@ -164,5 +164,183 @@ window.SpriteSparkModals = {
         };
         modal.querySelector('#recolorCancelBtn').onclick = () => modal.remove();
         modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    },
+    showGlowModal(app) {
+        let modal = document.getElementById('effectGlowModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'effectGlowModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="min-width:320px;">
+                <h2>Glow Effect</h2>
+                <label>
+                    Glow Color:
+                    <input type="color" id="glowColor" value="#ffffff" style="width:60px;">
+                </label>
+                <label>
+                    Thickness:
+                    <input type="range" id="glowThickness" min="1" max="32" value="8" style="width:120px;">
+                    <span id="glowThicknessValue">8</span> px
+                </label>
+                <label>
+                    Opacity:
+                    <input type="range" id="glowOpacity" min="0" max="100" value="80" style="width:120px;">
+                    <span id="glowOpacityValue">80</span>%
+                </label>
+                <div class="modal-actions" style="margin-top:16px;">
+                    <button id="glowApplyBtn" class="modal-btn accent">Apply</button>
+                    <button id="glowCancelBtn" class="modal-btn">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Update value labels
+        modal.querySelector('#glowThickness').addEventListener('input', function () {
+            modal.querySelector('#glowThicknessValue').textContent = this.value;
+        });
+        modal.querySelector('#glowOpacity').addEventListener('input', function () {
+            modal.querySelector('#glowOpacityValue').textContent = this.value;
+        });
+
+        modal.querySelector('#glowApplyBtn').onclick = () => {
+            const color = modal.querySelector('#glowColor').value;
+            const thickness = parseInt(modal.querySelector('#glowThickness').value, 10);
+            const opacity = parseInt(modal.querySelector('#glowOpacity').value, 10) / 100;
+            app.applyGlowEffect(color, thickness, opacity);
+            modal.remove();
+        };
+        modal.querySelector('#glowCancelBtn').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    },
+
+    // Outline effect
+    applyOutlineEffect(color = '#000000', thickness = 2) {
+        this.undoAdd();
+        
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+        
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+        
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+        
+        const ctx = layer.canvas.getContext('2d');
+        const original = document.createElement('canvas');
+        original.width = layer.canvas.width;
+        original.height = layer.canvas.height;
+        original.getContext('2d').drawImage(layer.canvas, 0, 0);
+        
+        // Create outline by drawing the shape multiple times in different positions
+        ctx.globalCompositeOperation = 'destination-over';
+        ctx.fillStyle = color;
+        
+        for (let dx = -thickness; dx <= thickness; dx++) {
+            for (let dy = -thickness; dy <= thickness; dy++) {
+                if (dx === 0 && dy === 0) continue;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist <= thickness) {
+                    ctx.globalAlpha = 1 - (dist / thickness) * 0.5; // Fade edges
+                    ctx.drawImage(original, dx, dy);
+                }
+            }
+        }
+        
+        // Draw original on top
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(original, 0, 0);
+        
+        this.syncGlobalLayersToCurrentFrame();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    // Drop shadow effect
+    applyDropShadowEffect(color = '#000000', offsetX = 4, offsetY = 4, blur = 4, opacity = 0.5) {
+        this.undoAdd();
+        
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+        
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+        
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+        
+        const ctx = layer.canvas.getContext('2d');
+        const original = document.createElement('canvas');
+        original.width = layer.canvas.width;
+        original.height = layer.canvas.height;
+        original.getContext('2d').drawImage(layer.canvas, 0, 0);
+        
+        // Create shadow
+        const shadow = document.createElement('canvas');
+        shadow.width = layer.canvas.width;
+        shadow.height = layer.canvas.height;
+        const shadowCtx = shadow.getContext('2d');
+        
+        shadowCtx.drawImage(layer.canvas, 0, 0);
+        shadowCtx.globalCompositeOperation = 'source-in';
+        shadowCtx.fillStyle = color;
+        shadowCtx.fillRect(0, 0, shadow.width, shadow.height);
+        
+        if (blur > 0) {
+            shadowCtx.filter = `blur(${blur}px)`;
+            shadowCtx.drawImage(shadow, 0, 0);
+        }
+        
+        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+        
+        // Draw shadow first
+        ctx.globalAlpha = opacity;
+        ctx.drawImage(shadow, offsetX, offsetY);
+        
+        // Draw original on top
+        ctx.globalAlpha = 1;
+        ctx.drawImage(original, 0, 0);
+        
+        this.syncGlobalLayersToCurrentFrame();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    // Pixelate effect
+    applyPixelateEffect(pixelSize = 8) {
+        this.undoAdd();
+        
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+        
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+        
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+        
+        const ctx = layer.canvas.getContext('2d');
+        const w = layer.canvas.width, h = layer.canvas.height;
+        
+        // Turn off image smoothing for pixelated look
+        ctx.imageSmoothingEnabled = false;
+        
+        // Scale down then scale back up
+        const tempCanvas = document.createElement('canvas');
+        const newW = Math.max(1, Math.floor(w / pixelSize));
+        const newH = Math.max(1, Math.floor(h / pixelSize));
+        tempCanvas.width = newW;
+        tempCanvas.height = newH;
+        
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.imageSmoothingEnabled = false;
+        tempCtx.drawImage(layer.canvas, 0, 0, w, h, 0, 0, newW, newH);
+        
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(tempCanvas, 0, 0, newW, newH, 0, 0, w, h);
+        
+        this.syncGlobalLayersToCurrentFrame();
+        this.renderCurrentFrameToMainCanvas();
     }
 };
