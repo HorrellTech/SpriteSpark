@@ -1830,137 +1830,112 @@ class SpriteSpark {
     applyGlowEffect(color = '#ffffff', thickness = 8, opacity = 0.8) {
         // Add undo state first
         this.undoAdd();
-        
+
         // Only apply glow to the active layer in the current frame
         const frame = this.frames[this.currentFrame];
         if (!frame || !this.activeLayerId) return;
-        
+
         const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
         if (layerIndex === -1) return;
-        
+
         const layer = frame.layers[layerIndex];
         if (!layer || !layer.isVisible) return;
-        
+
         const ctx = layer.canvas.getContext('2d');
-        
+
         // Create a copy of the original content
         const original = document.createElement('canvas');
         original.width = layer.canvas.width;
         original.height = layer.canvas.height;
         const originalCtx = original.getContext('2d');
         originalCtx.drawImage(layer.canvas, 0, 0);
-        
-        // Create multiple glow layers for intensity
-        const glowLayers = [];
-        const iterations = Math.max(1, Math.floor(thickness / 4)); // More iterations for thicker glows
-        
-        for (let i = 0; i < iterations; i++) {
-            // Create glow mask
-            const glowMask = document.createElement('canvas');
-            glowMask.width = layer.canvas.width;
-            glowMask.height = layer.canvas.height;
-            const glowCtx = glowMask.getContext('2d');
-            
-            glowCtx.drawImage(layer.canvas, 0, 0);
-            glowCtx.globalCompositeOperation = 'source-in';
-            glowCtx.fillStyle = color;
-            glowCtx.fillRect(0, 0, glowMask.width, glowMask.height);
-            
-            // Apply varying blur amounts for layered effect
-            const blurAmount = (i + 1) * (thickness / iterations);
-            glowCtx.filter = `blur(${blurAmount}px)`;
-            glowCtx.drawImage(glowMask, 0, 0);
-            
-            glowLayers.push(glowMask);
+
+        // Create glow effect using multiple shadow layers
+        const glowCanvas = document.createElement('canvas');
+        glowCanvas.width = layer.canvas.width;
+        glowCanvas.height = layer.canvas.height;
+        const glowCtx = glowCanvas.getContext('2d');
+
+        // Draw multiple glow layers for better effect
+        for (let i = 1; i <= thickness; i++) {
+            const alpha = opacity * (1 - (i - 1) / thickness) * 0.3;
+            glowCtx.save();
+            glowCtx.globalAlpha = alpha;
+            glowCtx.shadowColor = color;
+            glowCtx.shadowBlur = i * 2;
+            glowCtx.shadowOffsetX = 0;
+            glowCtx.shadowOffsetY = 0;
+            glowCtx.drawImage(original, 0, 0);
+            glowCtx.restore();
         }
-        
-        // Clear the layer and redraw with glow effect
+
+        // Clear the layer and draw glow + original
         ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-        
-        // Draw all glow layers with decreasing opacity for softer edges
-        for (let i = 0; i < glowLayers.length; i++) {
-            const layerOpacity = opacity * (1 - (i * 0.2)); // Each layer slightly less opaque
-            ctx.globalAlpha = Math.max(0.1, layerOpacity);
-            ctx.globalCompositeOperation = 'screen'; // Screen blend for more intense glow
-            ctx.drawImage(glowLayers[i], 0, 0);
-        }
-        
-        // Draw the original content on top
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(glowCanvas, 0, 0);
         ctx.drawImage(original, 0, 0);
-        
-        // Also apply to the corresponding global layer
-        const globalLayer = this.layers[layerIndex];
-        if (globalLayer) {
-            const globalCtx = globalLayer.canvas.getContext('2d');
-            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
-            globalCtx.drawImage(layer.canvas, 0, 0);
-        }
-        
+
+        // Sync to global layer
+        this.syncGlobalLayersToCurrentFrame();
         this.renderCurrentFrameToMainCanvas();
     }
 
     // Neon effect - like glow but more colorful and intense
     applyNeonEffect(color = '#00ffff', intensity = 8, brightness = 1.2) {
         this.undoAdd();
-        
+
         const frame = this.frames[this.currentFrame];
         if (!frame || !this.activeLayerId) return;
-        
+
         const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
         if (layerIndex === -1) return;
-        
+
         const layer = frame.layers[layerIndex];
         if (!layer || !layer.isVisible) return;
-        
+
         const ctx = layer.canvas.getContext('2d');
         const original = document.createElement('canvas');
         original.width = layer.canvas.width;
         original.height = layer.canvas.height;
         original.getContext('2d').drawImage(layer.canvas, 0, 0);
-        
-        // Create inner glow (bright)
-        const innerGlow = document.createElement('canvas');
-        innerGlow.width = layer.canvas.width;
-        innerGlow.height = layer.canvas.height;
-        const innerCtx = innerGlow.getContext('2d');
-        innerCtx.drawImage(layer.canvas, 0, 0);
-        innerCtx.globalCompositeOperation = 'source-in';
-        innerCtx.fillStyle = color;
-        innerCtx.fillRect(0, 0, innerGlow.width, innerGlow.height);
-        innerCtx.filter = `blur(2px) brightness(${brightness})`;
-        innerCtx.drawImage(innerGlow, 0, 0);
-        
-        // Create outer glow (softer)
-        const outerGlow = document.createElement('canvas');
-        outerGlow.width = layer.canvas.width;
-        outerGlow.height = layer.canvas.height;
-        const outerCtx = outerGlow.getContext('2d');
-        outerCtx.drawImage(layer.canvas, 0, 0);
-        outerCtx.globalCompositeOperation = 'source-in';
-        outerCtx.fillStyle = color;
-        outerCtx.fillRect(0, 0, outerGlow.width, outerGlow.height);
-        outerCtx.filter = `blur(${intensity}px)`;
-        outerCtx.drawImage(outerGlow, 0, 0);
-        
+
+        // Create neon effect with bright inner glow and softer outer glow
+        const neonCanvas = document.createElement('canvas');
+        neonCanvas.width = layer.canvas.width;
+        neonCanvas.height = layer.canvas.height;
+        const neonCtx = neonCanvas.getContext('2d');
+
+        // Outer glow
+        neonCtx.save();
+        neonCtx.globalAlpha = 0.6;
+        neonCtx.shadowColor = color;
+        neonCtx.shadowBlur = intensity;
+        neonCtx.shadowOffsetX = 0;
+        neonCtx.shadowOffsetY = 0;
+        neonCtx.drawImage(original, 0, 0);
+        neonCtx.restore();
+
+        // Inner bright glow
+        neonCtx.save();
+        neonCtx.globalAlpha = 0.8;
+        neonCtx.shadowColor = color;
+        neonCtx.shadowBlur = intensity / 2;
+        neonCtx.shadowOffsetX = 0;
+        neonCtx.shadowOffsetY = 0;
+        neonCtx.drawImage(original, 0, 0);
+        neonCtx.restore();
+
+        // Apply brightness filter to original
+        const brightCanvas = document.createElement('canvas');
+        brightCanvas.width = layer.canvas.width;
+        brightCanvas.height = layer.canvas.height;
+        const brightCtx = brightCanvas.getContext('2d');
+        brightCtx.filter = `brightness(${brightness})`;
+        brightCtx.drawImage(original, 0, 0);
+
         ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-        
-        // Draw outer glow
-        ctx.globalAlpha = 0.8;
-        ctx.globalCompositeOperation = 'screen';
-        ctx.drawImage(outerGlow, 0, 0);
-        
-        // Draw inner glow
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = 'screen';
-        ctx.drawImage(innerGlow, 0, 0);
-        
-        // Draw original on top
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(original, 0, 0);
-        
+        ctx.drawImage(neonCanvas, 0, 0);
+        ctx.drawImage(brightCanvas, 0, 0);
+
         this.syncGlobalLayersToCurrentFrame();
         this.renderCurrentFrameToMainCanvas();
     }
@@ -1968,30 +1943,30 @@ class SpriteSpark {
     // Emboss effect
     applyEmbossEffect(strength = 2) {
         this.undoAdd();
-        
+
         const frame = this.frames[this.currentFrame];
         if (!frame || !this.activeLayerId) return;
-        
+
         const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
         if (layerIndex === -1) return;
-        
+
         const layer = frame.layers[layerIndex];
         if (!layer || !layer.isVisible) return;
-        
+
         const ctx = layer.canvas.getContext('2d');
         const w = layer.canvas.width, h = layer.canvas.height;
         const imgData = ctx.getImageData(0, 0, w, h);
         const data = imgData.data;
-        
+
         // Emboss kernel
         const kernel = [
             -2 * strength, -1 * strength, 0,
             -1 * strength, 1, 1 * strength,
             0, 1 * strength, 2 * strength
         ];
-        
+
         const copy = new Uint8ClampedArray(data);
-        
+
         for (let y = 1; y < h - 1; y++) {
             for (let x = 1; x < w - 1; x++) {
                 for (let c = 0; c < 3; c++) {
@@ -2009,8 +1984,9 @@ class SpriteSpark {
                 }
             }
         }
-        
+
         ctx.putImageData(imgData, 0, 0);
+
         this.syncGlobalLayersToCurrentFrame();
         this.renderCurrentFrameToMainCanvas();
     }
@@ -2018,42 +1994,53 @@ class SpriteSpark {
     // Outline effect
     applyOutlineEffect(color = '#000000', thickness = 2) {
         this.undoAdd();
-        
+
         const frame = this.frames[this.currentFrame];
         if (!frame || !this.activeLayerId) return;
-        
+
         const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
         if (layerIndex === -1) return;
-        
+
         const layer = frame.layers[layerIndex];
         if (!layer || !layer.isVisible) return;
-        
+
         const ctx = layer.canvas.getContext('2d');
         const original = document.createElement('canvas');
         original.width = layer.canvas.width;
         original.height = layer.canvas.height;
         original.getContext('2d').drawImage(layer.canvas, 0, 0);
-        
-        // Create outline by drawing the shape multiple times in different positions
-        ctx.globalCompositeOperation = 'destination-over';
-        ctx.fillStyle = color;
-        
+
+        // Create outline by drawing the shape multiple times with offset
+        const outlineCanvas = document.createElement('canvas');
+        outlineCanvas.width = layer.canvas.width;
+        outlineCanvas.height = layer.canvas.height;
+        const outlineCtx = outlineCanvas.getContext('2d');
+
+        // Draw outline in all directions
+        outlineCtx.save();
+        outlineCtx.globalCompositeOperation = 'source-over';
         for (let dx = -thickness; dx <= thickness; dx++) {
             for (let dy = -thickness; dy <= thickness; dy++) {
                 if (dx === 0 && dy === 0) continue;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist <= thickness) {
-                    ctx.globalAlpha = 1 - (dist / thickness) * 0.5; // Fade edges
-                    ctx.drawImage(original, dx, dy);
+                    outlineCtx.save();
+                    outlineCtx.globalAlpha = 1 - (dist / thickness) * 0.5;
+                    outlineCtx.shadowColor = color;
+                    outlineCtx.shadowBlur = 0;
+                    outlineCtx.shadowOffsetX = dx;
+                    outlineCtx.shadowOffsetY = dy;
+                    outlineCtx.drawImage(original, 0, 0);
+                    outlineCtx.restore();
                 }
             }
         }
-        
-        // Draw original on top
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = 'source-over';
+        outlineCtx.restore();
+
+        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+        ctx.drawImage(outlineCanvas, 0, 0);
         ctx.drawImage(original, 0, 0);
-        
+
         this.syncGlobalLayersToCurrentFrame();
         this.renderCurrentFrameToMainCanvas();
     }
@@ -2061,48 +2048,41 @@ class SpriteSpark {
     // Drop shadow effect
     applyDropShadowEffect(color = '#000000', offsetX = 4, offsetY = 4, blur = 4, opacity = 0.5) {
         this.undoAdd();
-        
+
         const frame = this.frames[this.currentFrame];
         if (!frame || !this.activeLayerId) return;
-        
+
         const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
         if (layerIndex === -1) return;
-        
+
         const layer = frame.layers[layerIndex];
         if (!layer || !layer.isVisible) return;
-        
+
         const ctx = layer.canvas.getContext('2d');
         const original = document.createElement('canvas');
         original.width = layer.canvas.width;
         original.height = layer.canvas.height;
         original.getContext('2d').drawImage(layer.canvas, 0, 0);
-        
+
         // Create shadow
-        const shadow = document.createElement('canvas');
-        shadow.width = layer.canvas.width;
-        shadow.height = layer.canvas.height;
-        const shadowCtx = shadow.getContext('2d');
-        
-        shadowCtx.drawImage(layer.canvas, 0, 0);
-        shadowCtx.globalCompositeOperation = 'source-in';
-        shadowCtx.fillStyle = color;
-        shadowCtx.fillRect(0, 0, shadow.width, shadow.height);
-        
-        if (blur > 0) {
-            shadowCtx.filter = `blur(${blur}px)`;
-            shadowCtx.drawImage(shadow, 0, 0);
-        }
-        
+        const shadowCanvas = document.createElement('canvas');
+        shadowCanvas.width = layer.canvas.width;
+        shadowCanvas.height = layer.canvas.height;
+        const shadowCtx = shadowCanvas.getContext('2d');
+
+        shadowCtx.save();
+        shadowCtx.globalAlpha = opacity;
+        shadowCtx.shadowColor = color;
+        shadowCtx.shadowBlur = blur;
+        shadowCtx.shadowOffsetX = offsetX;
+        shadowCtx.shadowOffsetY = offsetY;
+        shadowCtx.drawImage(original, 0, 0);
+        shadowCtx.restore();
+
         ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-        
-        // Draw shadow first
-        ctx.globalAlpha = opacity;
-        ctx.drawImage(shadow, offsetX, offsetY);
-        
-        // Draw original on top
-        ctx.globalAlpha = 1;
+        ctx.drawImage(shadowCanvas, 0, 0);
         ctx.drawImage(original, 0, 0);
-        
+
         this.syncGlobalLayersToCurrentFrame();
         this.renderCurrentFrameToMainCanvas();
     }
@@ -2110,36 +2090,36 @@ class SpriteSpark {
     // Pixelate effect
     applyPixelateEffect(pixelSize = 8) {
         this.undoAdd();
-        
+
         const frame = this.frames[this.currentFrame];
         if (!frame || !this.activeLayerId) return;
-        
+
         const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
         if (layerIndex === -1) return;
-        
+
         const layer = frame.layers[layerIndex];
         if (!layer || !layer.isVisible) return;
-        
+
         const ctx = layer.canvas.getContext('2d');
         const w = layer.canvas.width, h = layer.canvas.height;
-        
+
         // Turn off image smoothing for pixelated look
         ctx.imageSmoothingEnabled = false;
-        
+
         // Scale down then scale back up
         const tempCanvas = document.createElement('canvas');
         const newW = Math.max(1, Math.floor(w / pixelSize));
         const newH = Math.max(1, Math.floor(h / pixelSize));
         tempCanvas.width = newW;
         tempCanvas.height = newH;
-        
+
         const tempCtx = tempCanvas.getContext('2d');
         tempCtx.imageSmoothingEnabled = false;
         tempCtx.drawImage(layer.canvas, 0, 0, w, h, 0, 0, newW, newH);
-        
+
         ctx.clearRect(0, 0, w, h);
         ctx.drawImage(tempCanvas, 0, 0, newW, newH, 0, 0, w, h);
-        
+
         this.syncGlobalLayersToCurrentFrame();
         this.renderCurrentFrameToMainCanvas();
     }
@@ -2528,8 +2508,8 @@ class SpriteSpark {
                 window.SpriteSparkModals && window.SpriteSparkModals.showRecolorModal(this);
                 break;
             case 'glow':
-            window.SpriteSparkModals && window.SpriteSparkModals.showGlowModal(this);
-            break;
+                window.SpriteSparkModals && window.SpriteSparkModals.showGlowModal(this);
+                break;
             case 'neon':
                 window.SpriteSparkModals && window.SpriteSparkModals.showNeonModal(this);
                 break;
@@ -4094,7 +4074,7 @@ class SpriteSpark {
     getProjectData() {
         // Ensure all frame data is synced before saving
         this.syncGlobalLayersToCurrentFrame();
-        
+
         return {
             canvasWidth: this.canvasWidth,
             canvasHeight: this.canvasHeight,
@@ -4105,8 +4085,8 @@ class SpriteSpark {
                     isVisible: layer.isVisible !== undefined ? layer.isVisible : true,
                     opacity: layer.opacity !== undefined ? layer.opacity : 100,
                     blendMode: layer.blendMode || 'source-over',
-                    image: layer.canvas && layer.canvas.width > 0 && layer.canvas.height > 0 
-                        ? layer.canvas.toDataURL('image/png') 
+                    image: layer.canvas && layer.canvas.width > 0 && layer.canvas.height > 0
+                        ? layer.canvas.toDataURL('image/png')
                         : null // Don't save empty canvases
                 }))
             })),
@@ -4140,7 +4120,7 @@ class SpriteSpark {
         // Keep track of loading progress
         let totalImages = 0;
         let loadedImages = 0;
-        
+
         // Count total images that need to be loaded
         data.frames.forEach(frame => {
             frame.layers.forEach(layerData => {
@@ -4155,16 +4135,16 @@ class SpriteSpark {
                     this.selectFrame(this.currentFrame);
                     this.renderLayersList();
                     this.updateFramesList();
-                    
+
                     // Update UI inputs
                     const canvasWidthInput = document.getElementById('canvasWidth');
                     const canvasHeightInput = document.getElementById('canvasHeight');
                     const fpsInput = document.getElementById('fpsInput');
-                    
+
                     if (canvasWidthInput) canvasWidthInput.value = this.canvasWidth;
                     if (canvasHeightInput) canvasHeightInput.value = this.canvasHeight;
                     if (fpsInput) fpsInput.value = this.fps;
-                    
+
                     // Force a final render
                     this.renderCurrentFrameToMainCanvas();
                 }, 100);
@@ -4176,14 +4156,14 @@ class SpriteSpark {
             layers: frameData.layers.map((layerData, layerIndex) => {
                 const canvas = this.createLayerCanvas();
                 const ctx = canvas.getContext('2d');
-                
+
                 // Load image data for this specific layer
                 if (layerData.image) {
                     const img = new window.Image();
                     img.onload = () => {
                         ctx.drawImage(img, 0, 0);
                         loadedImages++;
-                        
+
                         // If this is the current frame, also update the global layer
                         if (frameIndex === this.currentFrame && this.layers[layerIndex]) {
                             const globalCtx = this.layers[layerIndex].canvas.getContext('2d');
@@ -4194,7 +4174,7 @@ class SpriteSpark {
                                 this.renderCurrentFrameToMainCanvas();
                             }
                         }
-                        
+
                         checkComplete();
                     };
                     img.onerror = () => {
@@ -4210,14 +4190,14 @@ class SpriteSpark {
                         setTimeout(checkComplete, 50);
                     }
                 }
-                
-                return { 
+
+                return {
                     id: layerData.id,
                     name: layerData.name,
                     isVisible: layerData.isVisible !== undefined ? layerData.isVisible : true,
                     opacity: layerData.opacity !== undefined ? layerData.opacity : 100,
                     blendMode: layerData.blendMode || 'source-over',
-                    canvas 
+                    canvas
                 };
             })
         }));
@@ -4911,7 +4891,7 @@ class SpriteSpark {
         // For 90-degree rotations, we can do pixel-perfect rotation
         if (Math.abs(degrees) === 90) {
             let newWidth, newHeight;
-            
+
             // For 90-degree rotations, swap dimensions
             if (degrees === 90 || degrees === -270) {
                 // 90 degrees clockwise
@@ -4932,7 +4912,7 @@ class SpriteSpark {
             rotatedCanvas.width = newWidth;
             rotatedCanvas.height = newHeight;
             const rotatedCtx = rotatedCanvas.getContext('2d');
-            
+
             // Disable image smoothing for pixel-perfect rotation
             rotatedCtx.imageSmoothingEnabled = false;
 
@@ -5219,6 +5199,39 @@ function updateCanvasContainerScrolling() {
         canvasContainer.classList.remove('scrolling');
         // Center vertically by resetting scroll
         canvasContainer.scrollTop = 0;
+    }
+}
+
+// Function to update panel layout
+function updatePanelLayout(panelType, isVisible) {
+    const mainContent = document.querySelector('.main-content');
+    const bottomPanel = document.querySelector('.bottom-panel');
+    
+    if (panelType === 'left') {
+        const width = isVisible ? '300px' : '0px';
+        document.documentElement.style.setProperty('--left-panel-width', width);
+        if (bottomPanel) {
+            bottomPanel.style.left = width;
+        }
+    } else if (panelType === 'right') {
+        const width = isVisible ? '300px' : '0px';
+        document.documentElement.style.setProperty('--right-panel-width', width);
+        if (bottomPanel) {
+            bottomPanel.style.right = width;
+        }
+    } else if (panelType === 'bottom') {
+        const height = isVisible ? '140px' : '0px';
+        document.documentElement.style.setProperty('--bottom-panel-height', height);
+        
+        // Update canvas container height
+        const canvasContainer = document.querySelector('.canvas-container');
+        if (canvasContainer) {
+            if (isVisible) {
+                canvasContainer.style.height = 'calc(100% - var(--bottom-panel-height))';
+            } else {
+                canvasContainer.style.height = '100%';
+            }
+        }
     }
 }
 
@@ -5665,6 +5678,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Simulate menu click for consistency
                 app.handleMenuClick({ target: btn, preventDefault: () => { } });
             }
+        });
+    });
+
+    // Sync toolbar button states with panel collapse buttons
+    document.querySelectorAll('.panel-collapse-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const panelType = btn.getAttribute('data-panel');
+            const toolbarBtn = document.querySelector(`.panel-toggle-btn[data-panel="${panelType}"]`);
+            const panel = document.getElementById(panelType + 'Panel');
+            
+            if (toolbarBtn && panel) {
+                const isCollapsed = panel.classList.contains('collapsed');
+                toolbarBtn.classList.toggle('active', !isCollapsed);
+            }
+        });
+    });
+
+    // Panel toggle buttons functionality
+    document.querySelectorAll('.panel-toggle-btn').forEach(btn => {
+        const panelType = btn.getAttribute('data-panel');
+        
+        // Set initial active state based on panel visibility
+        const panel = document.getElementById(panelType + 'Panel');
+        if (panel && !panel.classList.contains('collapsed')) {
+            btn.classList.add('active');
+        }
+        
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            const isActive = btn.classList.contains('active');
+            
+            if (isActive) {
+                // Hide panel
+                btn.classList.remove('active');
+                if (panel) {
+                    panel.classList.add('collapsed');
+                }
+            } else {
+                // Show panel
+                btn.classList.add('active');
+                if (panel) {
+                    panel.classList.remove('collapsed');
+                }
+            }
+            
+            // Update layout
+            updatePanelLayout(panelType, !isActive);
+            
+            // Trigger canvas resize to fit new layout
+            setTimeout(() => {
+                if (app && app.handleResize) {
+                    app.handleResize();
+                }
+            }, 300); // Wait for transition to complete
         });
     });
 

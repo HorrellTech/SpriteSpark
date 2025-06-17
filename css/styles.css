@@ -1435,3 +1435,70 @@ select:focus {
 .canvas-container.dragging-selection {
     cursor: move !important;
 }
+
+/* Panel Toggle Buttons */
+.panel-toggles {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.panel-toggle-btn {
+    padding: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-control);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm, 4px);
+    cursor: pointer;
+    transition: all var(--transition-fast, 0.2s);
+    position: relative;
+}
+
+.panel-toggle-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+.panel-toggle-btn.active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: var(--text-accent);
+}
+
+.panel-toggle-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 2px;
+    background: var(--accent-color);
+    border-radius: 1px;
+}
+
+/* Update panel state based on collapsed class */
+.panel-toggle-btn[data-panel="left"]:not(.active) ~ .main-content .left-panel,
+.left-panel.collapsed {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+    border-right: none;
+}
+
+.panel-toggle-btn[data-panel="right"]:not(.active) ~ .main-content .right-panel,
+.right-panel.collapsed {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+    border-left: none;
+}
+
+.panel-toggle-btn[data-panel="bottom"]:not(.active) ~ .bottom-panel,
+.bottom-panel.collapsed {
+    height: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-top: none;
+}

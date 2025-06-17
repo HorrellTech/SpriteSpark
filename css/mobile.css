@@ -88,30 +88,4 @@ body.mobile-mode .main-content {
     display: none !important;
 }
 
-/* Force landscape: show overlay if in portrait mode */
-@media screen and (orientation: portrait) {
-  body::before {
-    content: "Please rotate your device to landscape mode for the best experience.";
-    position: fixed;
-    z-index: 99999;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: #222c;
-    color: #fff;
-    font-size: 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    pointer-events: all;
-  }
-  .main-content,
-  .menubar,
-  .toolbar,
-  .panel,
-  .canvas-container,
-  .bottom-panel {
-    filter: blur(4px);
-    pointer-events: none;
-    user-select: none;
-  }
-}
+/* Portrait warning removed - users can now use portrait mode */
