@@ -13,7 +13,7 @@ https://horrelltech.github.io/SpriteSpark/
 * **Pixel-Perfect Pen**: A core drawing tool that creates clean, single-pixel lines without unwanted anti-aliasing.
 * **Color Palette**: A full-featured palette with default swatches, a primary/secondary color system, and a color picker. Right-click on the canvas to quickly swap primary and secondary colors!
 * **Shape Tools**: Draw perfect Lines, Rectangles, and Ellipses with a live preview.
-* **Advanced Brushes**: Use the **Curve Brush** to create and adjust smooth, vector-like curves or the **Smooth Brush** for fluid, freehand strokes.
+* **Realtime Animate While drawing**: The canvas can loop through the frames while you draw, creating fun, quick animations.
 * **Fill Tool (Bucket)**: Fill areas with color, with adjustable tolerance and the ability to reference all visible layers for accurate fills.
 * **Symmetry Tools (Mirroring)**: Draw with various symmetry modes (horizontal, vertical, diagonal, and more) to create intricate designs effortlessly. Animated guides show you the axes of symmetry.
 * **Eraser**: A standard eraser tool to remove parts of your drawing.
