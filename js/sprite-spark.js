@@ -26,6 +26,7 @@ class SpriteSpark {
         this.playInterval = null;
         this.animationInterval = null;
         this.loopAnimation = true;
+        this.frameActiveStates = []; // Track which frames are active/inactive
 
         // layer glow
         this.layerGlowSettings = {};
@@ -664,6 +665,7 @@ class SpriteSpark {
             });
         }
 
+        // Flood fill controls
         if (floodFillTolerance && floodFillToleranceValue) {
             floodFillTolerance.value = this.floodFillTolerance;
             floodFillToleranceValue.textContent = this.floodFillTolerance;
@@ -673,7 +675,6 @@ class SpriteSpark {
             });
         }
 
-        const floodFillDetectAllLayers = document.getElementById('floodFillDetectAllLayers');
         if (floodFillDetectAllLayers) {
             floodFillDetectAllLayers.checked = this.floodFillDetectAllLayers;
             floodFillDetectAllLayers.addEventListener('change', (e) => {
@@ -1560,7 +1561,7 @@ class SpriteSpark {
 
     createEmptyFrame() {
         // Create a frame with the same number of layers as the current global layers
-        return {
+        const frame = {
             layers: this.layers.map(layer => {
                 const newCanvas = document.createElement('canvas');
                 newCanvas.width = this.canvasWidth;
@@ -1575,8 +1576,14 @@ class SpriteSpark {
                     blendMode: layer.blendMode,
                     canvas: newCanvas
                 };
-            })
+            }),
+            isActive: true // New frames are active by default
         };
+
+        // Also add to frameActiveStates array
+        this.frameActiveStates.push(true);
+
+        return frame;
     }
 
     addEmptyFrame() {
@@ -1591,9 +1598,11 @@ class SpriteSpark {
                     blendMode: layer.blendMode,
                     canvas: this.createLayerCanvas()
                 };
-            })
+            }),
+            isActive: true // New frames are active by default
         };
         this.frames.push(newFrame);
+        this.frameActiveStates.push(true);
         this.currentFrame = this.frames.length - 1;
         this.selectFrame(this.currentFrame);
         this.updateFramesList();
@@ -3667,6 +3676,15 @@ class SpriteSpark {
         }
     }
 
+    toggleFrameActiveState(frameIndex) {
+        if (frameIndex >= 0 && frameIndex < this.frames.length) {
+            const frame = this.frames[frameIndex];
+            frame.isActive = !frame.isActive;
+            this.frameActiveStates[frameIndex] = frame.isActive;
+            this.updateFramesList();
+        }
+    }
+
     updateFramesList() {
         const framesList = document.getElementById('framesList');
         if (!framesList) return;
@@ -3679,8 +3697,22 @@ class SpriteSpark {
         framesList.innerHTML = '';
         this.frames.forEach((frame, idx) => {
             const item = document.createElement('div');
-            item.className = `frame-item ${size} ${idx === this.currentFrame ? 'active' : ''}`;
+            const isActive = frame.isActive !== false; // Default to true if not set
+            const isCurrentFrame = idx === this.currentFrame;
+
+            item.className = `frame-item ${size} ${isCurrentFrame ? 'active' : ''} ${!isActive ? 'inactive' : ''}`;
             item.dataset.frame = idx;
+
+            // Frame toggle button (active/inactive)
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = `frame-toggle-btn ${isActive ? 'active' : 'inactive'}`;
+            toggleBtn.title = isActive ? 'Disable Frame' : 'Enable Frame';
+            toggleBtn.innerHTML = isActive ? '●' : '○';
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleFrameActiveState(idx);
+            });
+            item.appendChild(toggleBtn);
 
             // Frame number
             const numberDiv = document.createElement('div');
@@ -3688,53 +3720,58 @@ class SpriteSpark {
             numberDiv.textContent = idx + 1;
             item.appendChild(numberDiv);
 
-            // Thumbnail
-            const thumbDiv = document.createElement('div');
-            thumbDiv.className = 'frame-thumbnail';
-            const thumbCanvas = document.createElement('canvas');
-            // Set canvas size based on size
-            let w = 64, h = 48;
-            if (size === 'small') { w = 32; h = 24; }
-            if (size === 'large') { w = 128; h = 96; }
-            thumbCanvas.width = w;
-            thumbCanvas.height = h;
-            const thumbCtx = thumbCanvas.getContext('2d');
+            // Thumbnail (only for non-simple modes)
+            if (size !== 'simple') {
+                const thumbDiv = document.createElement('div');
+                thumbDiv.className = 'frame-thumbnail';
+                const thumbCanvas = document.createElement('canvas');
 
-            // Draw all layers for this frame, bottom to top
-            if (frame.layers) {
-                for (let i = 0; i < frame.layers.length; i++) {
-                    const l = frame.layers[i];
-                    if (l.isVisible !== false && l.canvas instanceof HTMLCanvasElement) {
-                        // Fit and center the image in the thumbnail
-                        const srcW = l.canvas.width;
-                        const srcH = l.canvas.height;
-                        const dstW = thumbCanvas.width;
-                        const dstH = thumbCanvas.height;
-                        const srcAspect = srcW / srcH;
-                        const dstAspect = dstW / dstH;
-                        let drawW, drawH, dx, dy;
-                        if (srcAspect > dstAspect) {
-                            drawW = dstW;
-                            drawH = dstW / srcAspect;
-                            dx = 0;
-                            dy = (dstH - drawH) / 2;
-                        } else {
-                            drawH = dstH;
-                            drawW = dstH * srcAspect;
-                            dx = (dstW - drawW) / 2;
-                            dy = 0;
+                // Set canvas size based on size
+                let w = 48, h = 36; // Default medium
+                if (size === 'small') { w = 32; h = 24; }
+                if (size === 'large') { w = 64; h = 48; }
+
+                thumbCanvas.width = w;
+                thumbCanvas.height = h;
+                const thumbCtx = thumbCanvas.getContext('2d');
+
+                // Draw all layers for this frame, bottom to top
+                if (frame.layers) {
+                    for (let i = 0; i < frame.layers.length; i++) {
+                        const l = frame.layers[i];
+                        if (l.isVisible !== false && l.canvas instanceof HTMLCanvasElement) {
+                            // Fit and center the image in the thumbnail
+                            const srcW = l.canvas.width;
+                            const srcH = l.canvas.height;
+                            const dstW = thumbCanvas.width;
+                            const dstH = thumbCanvas.height;
+                            const srcAspect = srcW / srcH;
+                            const dstAspect = dstW / dstH;
+                            let drawW, drawH, dx, dy;
+                            if (srcAspect > dstAspect) {
+                                drawW = dstW;
+                                drawH = dstW / srcAspect;
+                                dx = 0;
+                                dy = (dstH - drawH) / 2;
+                            } else {
+                                drawH = dstH;
+                                drawW = dstH * srcAspect;
+                                dx = (dstW - drawW) / 2;
+                                dy = 0;
+                            }
+                            thumbCtx.globalAlpha = l.opacity / 100 || 1;
+                            thumbCtx.globalCompositeOperation = l.blendMode || 'source-over';
+                            thumbCtx.drawImage(l.canvas, 0, 0, srcW, srcH, dx, dy, drawW, drawH);
                         }
-                        thumbCtx.globalAlpha = l.opacity / 100 || 1;
-                        thumbCtx.globalCompositeOperation = l.blendMode || 'source-over';
-                        thumbCtx.drawImage(l.canvas, 0, 0, srcW, srcH, dx, dy, drawW, drawH);
                     }
                 }
-            }
 
-            thumbCtx.globalAlpha = 1.0;
-            thumbCtx.globalCompositeOperation = 'source-over';
-            thumbDiv.appendChild(thumbCanvas);
-            item.appendChild(thumbDiv);
+                thumbCtx.globalAlpha = 1.0;
+                thumbCtx.globalCompositeOperation = 'source-over';
+                thumbDiv.appendChild(thumbCanvas);
+                item.appendChild(thumbDiv);
+            }
+            // Note: For simple mode, we don't add any thumbnail at all
 
             item.addEventListener('click', () => this.selectFrame(idx));
             framesList.appendChild(item);

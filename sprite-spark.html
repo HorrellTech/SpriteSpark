@@ -292,8 +292,28 @@
                         </label>
                     </div>
 
+                    <!-- Flood fill options (shown when bucket tool is selected) -->
+                    <div class="property-group" id="floodFillOptions" style="display:none;">
+                        <h4 style="margin: 0 0 var(--spacing-md) 0; color: var(--accent-color); font-size: var(--font-size-small); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Fill Tool Options</h4>
+                        
+                        <label>Tolerance: <span id="floodFillToleranceValue">0</span></label>
+                        <input type="range" id="floodFillTolerance" min="0" max="255" value="0">
+                        
+                        <label style="display: block; margin-top: var(--spacing-md);">
+                            <input type="checkbox" id="floodFillDetectAllLayers">
+                            Detect all visible layers
+                        </label>
+                        
+                        <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary);">
+                            <strong>Tolerance:</strong> 0 = exact color match, 255 = fill all colors<br>
+                            <strong>Detect all layers:</strong> Consider all visible layers when detecting fill area
+                        </div>
+                    </div>
+
                     <!-- Spline tool options -->
                     <div class="property-group" id="splineOptions" style="display:none;">
+                        <h4 style="margin: 0 0 var(--spacing-md) 0; color: var(--accent-color); font-size: var(--font-size-small); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Spline Tool Options</h4>
+    
                         <label>Curve Intensity: <span id="splineIntensityValue">50</span>%</label>
                         <input type="range" id="splineIntensity" min="0" max="100" value="50">
 
@@ -545,13 +565,14 @@
                     <button class="small-btn" data-action="insert-frame" title="Insert Frame">⇤</button>
                     <button class="small-btn" data-action="delete-frame" title="Delete Frame">−</button>
                     <button class="small-btn" data-action="duplicate-frame" title="Duplicate Frame">⧉</button>
-                    <button class="small-btn" data-action="move-frame-up" title="Move Frame Up">←</button>
-                    <button class="small-btn" data-action="move-frame-down" title="Move Frame Down">→</button>
+                    <button class="small-btn" data-action="move-frame-up" title="Move Frame Up">↑</button>
+                    <button class="small-btn" data-action="move-frame-down" title="Move Frame Down">↓</button>
                 </div>
                 <span style="margin-left: 30%; font-weight: 600;">Frames</span>
                 <div class="frame-size-controls">
-                    <label>Size:
+                    <label>View:
                         <select id="frameThumbSize">
+                            <option value="simple">Simple</option>
                             <option value="small">Small</option>
                             <option value="medium" selected>Medium</option>
                             <option value="large">Large</option>
@@ -559,8 +580,8 @@
                     </label>
                 </div>
             </div>
-            <div class="frames-list-horizontal" id="framesList">
-                <!-- Frames will be rendered here horizontally -->
+            <div class="frames-list-vertical" id="framesList">
+                <!-- Frames will be rendered here vertically -->
             </div>
         </div>
     </div>
