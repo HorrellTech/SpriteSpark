@@ -39,6 +39,10 @@
     /* Scrollbar Colors */
     --scrollbar-thumb: #424242;
     --scrollbar-thumb-hover: #4e4e4e;
+    
+    /* Transparency Checkerboard Colors */
+    --checkerboard-light: #2a2a2a;
+    --checkerboard-dark: #1a1a1a;
 }
 
 /* Light Theme */
@@ -78,6 +82,10 @@
     /* Scrollbar Colors */
     --scrollbar-thumb: #c1c1c1;
     --scrollbar-thumb-hover: #a8a8a8;
+    
+    /* Transparency Checkerboard Colors */
+    --checkerboard-light: #ffffff;
+    --checkerboard-dark: #f0f0f0;
 }
 
 /* Blue Theme */
@@ -117,6 +125,10 @@
     /* Scrollbar Colors */
     --scrollbar-thumb: #34495e;
     --scrollbar-thumb-hover: #4a5f7a;
+    
+    /* Transparency Checkerboard Colors */
+    --checkerboard-light: #253141;
+    --checkerboard-dark: #1a2332;
 }
 
 /* Green Theme */
@@ -156,6 +168,10 @@
     /* Scrollbar Colors */
     --scrollbar-thumb: #18552c;
     --scrollbar-thumb-hover: #217a3a;
+    
+    /* Transparency Checkerboard Colors */
+    --checkerboard-light: #133d22;
+    --checkerboard-dark: #0d2a18;
 }
 
 /* Orange Theme */
@@ -188,6 +204,9 @@
 
     --scrollbar-thumb: #ff9800;
     --scrollbar-thumb-hover: #ffa726;
+    
+    --checkerboard-light: #3e2a00;
+    --checkerboard-dark: #2d1f00;
 }
 
 /* Red Theme */
@@ -220,6 +239,9 @@
 
     --scrollbar-thumb: #e53935;
     --scrollbar-thumb-hover: #ff5252;
+    
+    --checkerboard-light: #4b1818;
+    --checkerboard-dark: #3a1010;
 }
 
 /* Mono (Grayscale) Theme */
@@ -252,6 +274,9 @@
 
     --scrollbar-thumb: #393939;
     --scrollbar-thumb-hover: #666666;
+    
+    --checkerboard-light: #2e2e2e;
+    --checkerboard-dark: #232323;
 }
 
 /* Purple Theme */
@@ -291,6 +316,10 @@
     /* Scrollbar Colors */
     --scrollbar-thumb: #472985;
     --scrollbar-thumb-hover: #5a3a95;
+    
+    /* Transparency Checkerboard Colors */
+    --checkerboard-light: #301b5c;
+    --checkerboard-dark: #251447;
 }
 
 /* High Contrast Theme */
@@ -330,6 +359,10 @@
     /* Scrollbar Colors */
     --scrollbar-thumb: #6fc3df;
     --scrollbar-thumb-hover: #9cdcf0;
+    
+    /* Transparency Checkerboard Colors */
+    --checkerboard-light: #333333;
+    --checkerboard-dark: #000000;
 }
 
 /* Ironman Theme (Maroon & Gold) */
@@ -362,6 +395,9 @@
 
     --scrollbar-thumb: #b71c1c;
     --scrollbar-thumb-hover: #ffd700;
+
+    --checkerboard-light: #4b1a1a;
+    --checkerboard-dark: #3a1313;
 }
 
 /* Gold Theme */
@@ -394,6 +430,9 @@
 
     --scrollbar-thumb: #bfa76f;
     --scrollbar-thumb-hover: #ffd700;
+    
+    --checkerboard-light: #2c210a;
+    --checkerboard-dark: #221a08;
 }
 
 /* Midnight Blue Theme */
@@ -426,6 +465,9 @@
 
     --scrollbar-thumb: #233554;
     --scrollbar-thumb-hover: #64ffda;
+    
+    --checkerboard-light: #233554;
+    --checkerboard-dark: #112240;
 }
 
 /* Sakura Pink Theme */
@@ -458,6 +500,9 @@
 
     --scrollbar-thumb: #f06292;
     --scrollbar-thumb-hover: #ad1457;
+    
+    --checkerboard-light: #ffd6e0;
+    --checkerboard-dark: #ffe4ef;
 }
 
 /* Emerald Theme */
@@ -490,6 +535,9 @@
 
     --scrollbar-thumb: #43a047;
     --scrollbar-thumb-hover: #388e3c;
+    
+    --checkerboard-light: #a5d6a7;
+    --checkerboard-dark: #c8e6c9;
 }
 
 /* Neon Dark Theme */
@@ -522,6 +570,9 @@
 
     --scrollbar-thumb: #f5c2e7;
     --scrollbar-thumb-hover: #89dceb;
+    
+    --checkerboard-light: #2a273f;
+    --checkerboard-dark: #232136;
 }
 
 /* Neon Night Theme */
@@ -554,6 +605,9 @@
 
     --scrollbar-thumb: #00ffd0;
     --scrollbar-thumb-hover: #00bfff;
+    
+    --checkerboard-light: #232635;
+    --checkerboard-dark: #181a20;
 }
 
 /* Solarized Dark Theme */
@@ -586,6 +640,9 @@
 
     --scrollbar-thumb: #586e75;
     --scrollbar-thumb-hover: #268bd2;
+    
+    --checkerboard-light: #073642;
+    --checkerboard-dark: #002b36;
 }
 
 /* Nord Dark Theme */
@@ -618,6 +675,9 @@
 
     --scrollbar-thumb: #4c566a;
     --scrollbar-thumb-hover: #5e81ac;
+
+    --checkerboard-light: #434c5e;
+    --checkerboard-dark: #3b4252;
 }
 
 /* Dracula Theme */
@@ -650,6 +710,9 @@
 
     --scrollbar-thumb: #6272a4;
     --scrollbar-thumb-hover: #bd93f9;
+    
+    --checkerboard-light: #44475a;
+    --checkerboard-dark: #21222c;
 }
 
 /* Oceanic Dark Theme */
@@ -682,6 +745,9 @@
 
     --scrollbar-thumb: #4f5b66;
     --scrollbar-thumb-hover: #6699cc;
+    
+    --checkerboard-light: #22313a;
+    --checkerboard-dark: #1b2b34;
 }
 
 /* Cyberpunk Dark Theme */
@@ -714,6 +780,9 @@
 
     --scrollbar-thumb: #ff00c8;
     --scrollbar-thumb-hover: #00fff7;
+    
+    --checkerboard-light: #23203a;
+    --checkerboard-dark: #1a1625;
 }
 
 /* Midnight Forest Theme */
@@ -746,6 +815,9 @@
 
     --scrollbar-thumb: #3c6e5a;
     --scrollbar-thumb-hover: #7fffd4;
+    
+    --checkerboard-light: #1e2d2b;
+    --checkerboard-dark: #162222;
 }
 
 /* Deep Space Theme */
@@ -778,6 +850,9 @@
 
     --scrollbar-thumb: #6c63ff;
     --scrollbar-thumb-hover: #a5b4fc;
+    
+    --checkerboard-light: #1a2238;
+    --checkerboard-dark: #141b2d;
 }
 
 /* Custom Theme Variables - Users can override these */
@@ -811,6 +886,9 @@
     
     --scrollbar-thumb: var(--custom-scrollbar-thumb, #424242);
     --scrollbar-thumb-hover: var(--custom-scrollbar-thumb-hover, #4e4e4e);
+    
+    --checkerboard-light: var(--custom-checkerboard-light, #2a2a2a);
+    --checkerboard-dark: var(--custom-checkerboard-dark, #1a1a1a);
 }
 
 /* Theme transition animations */

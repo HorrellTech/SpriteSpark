@@ -123,27 +123,27 @@
                 <path d="M6 8l2 2 2-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
         </button>
-        
+
         <div class="toolbar-separator"></div>
 
         <!-- Panel Toggle Buttons -->
         <div class="panel-toggles">
             <button class="tool-btn panel-toggle-btn" data-panel="left" title="Toggle Left Panel">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <rect x="1" y="2" width="4" height="12" rx="1" stroke="currentColor" fill="currentColor"/>
-                    <rect x="7" y="2" width="8" height="12" rx="1" stroke="currentColor" fill="none"/>
+                    <rect x="1" y="2" width="4" height="12" rx="1" stroke="currentColor" fill="currentColor" />
+                    <rect x="7" y="2" width="8" height="12" rx="1" stroke="currentColor" fill="none" />
                 </svg>
             </button>
             <button class="tool-btn panel-toggle-btn" data-panel="bottom" title="Toggle Bottom Panel">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <rect x="2" y="1" width="12" height="8" rx="1" stroke="currentColor" fill="none"/>
-                    <rect x="2" y="11" width="12" height="4" rx="1" stroke="currentColor" fill="currentColor"/>
+                    <rect x="2" y="1" width="12" height="8" rx="1" stroke="currentColor" fill="none" />
+                    <rect x="2" y="11" width="12" height="4" rx="1" stroke="currentColor" fill="currentColor" />
                 </svg>
             </button>
             <button class="tool-btn panel-toggle-btn" data-panel="right" title="Toggle Right Panel">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <rect x="1" y="2" width="8" height="12" rx="1" stroke="currentColor" fill="none"/>
-                    <rect x="11" y="2" width="4" height="12" rx="1" stroke="currentColor" fill="currentColor"/>
+                    <rect x="1" y="2" width="8" height="12" rx="1" stroke="currentColor" fill="none" />
+                    <rect x="11" y="2" width="4" height="12" rx="1" stroke="currentColor" fill="currentColor" />
                 </svg>
             </button>
         </div>
@@ -155,8 +155,10 @@
             <input type="range" id="zoomInput" min="0.5" max="8" step="0.1" value="1">
             <span id="zoomLevelDisplay">100%</span>
             <!-- Buy Me A Coffee button to the right of zoom controls -->
-            <a href="https://www.buymeacoffee.com/SynKrown" target="_blank" class="bmc-button" style="margin-left:16px;vertical-align:middle;display:inline-block;">
-                <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="30" style="vertical-align:middle;">
+            <a href="https://www.buymeacoffee.com/SynKrown" target="_blank" class="bmc-button"
+                style="margin-left:16px;vertical-align:middle;display:inline-block;">
+                <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="30"
+                    style="vertical-align:middle;">
             </a>
         </div>
     </div>
@@ -197,7 +199,8 @@
                 <div class="tool-grid">
                     <button class="drawing-tool" data-tool="pointer" title="Pointer/Select Tool">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M3 2l10 4-4 2-2 4L3 2z" stroke="currentColor" stroke-width="1" fill="currentColor"/>
+                            <path d="M3 2l10 4-4 2-2 4L3 2z" stroke="currentColor" stroke-width="1"
+                                fill="currentColor" />
                         </svg>
                     </button>
                     <button class="drawing-tool active" data-tool="pen" title="Pen">
@@ -218,27 +221,47 @@
                                 d="M6.5 1A1.5 1.5 0 005 2.5v2.872l-.803-.267A1.5 1.5 0 003 6.632v6.736A1.5 1.5 0 004.5 15h7a1.5 1.5 0 001.5-1.5V6.5a1.5 1.5 0 00-1.5-1.5H11V2.5A1.5 1.5 0 009.5 1h-3z" />
                         </svg>
                     </button>
+                    <button class="drawing-tool" data-tool="spline" title="Spline Tool">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M2 12 Q6 8 8 8 Q10 8 14 4" stroke-linecap="round" />
+                            <circle cx="2" cy="12" r="1.5" fill="currentColor" />
+                            <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                            <circle cx="14" cy="4" r="1.5" fill="currentColor" />
+                        </svg>
+                    </button>
                     <button class="drawing-tool" data-tool="rectangle-select" title="Rectangle Selection">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3,3">
-                            <rect x="2" y="2" width="12" height="12"/>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-dasharray="3,3">
+                            <rect x="2" y="2" width="12" height="12" />
                         </svg>
                     </button>
                     <button class="drawing-tool" data-tool="lasso-select" title="Lasso Selection">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M2 8 Q8 2 14 8 Q10 14 6 10 Q2 12 2 8 Z" stroke-dasharray="3,3"/>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M2 8 Q8 2 14 8 Q10 14 6 10 Q2 12 2 8 Z" stroke-dasharray="3,3" />
                         </svg>
                     </button>
                     <button class="drawing-tool" data-tool="line" title="Line Tool">
-                        <svg width="16" height="16"><line x1="2" y1="14" x2="14" y2="2" stroke="currentColor" stroke-width="2"/></svg>
+                        <svg width="16" height="16">
+                            <line x1="2" y1="14" x2="14" y2="2" stroke="currentColor" stroke-width="2" />
+                        </svg>
                     </button>
                     <button class="drawing-tool" data-tool="rectangle" title="Rectangle Tool">
-                        <svg width="16" height="16"><rect x="2" y="2" width="12" height="12" stroke="currentColor" fill="none" stroke-width="2"/></svg>
+                        <svg width="16" height="16">
+                            <rect x="2" y="2" width="12" height="12" stroke="currentColor" fill="none"
+                                stroke-width="2" />
+                        </svg>
                     </button>
                     <button class="drawing-tool" data-tool="ellipse" title="Ellipse Tool">
-                        <svg width="16" height="16"><ellipse cx="8" cy="8" rx="6" ry="4" stroke="currentColor" fill="none" stroke-width="2"/></svg>
+                        <svg width="16" height="16">
+                            <ellipse cx="8" cy="8" rx="6" ry="4" stroke="currentColor" fill="none" stroke-width="2" />
+                        </svg>
                     </button>
                     <button class="drawing-tool" data-tool="circle" title="Circle Tool">
-                        <svg width="16" height="16"><circle cx="8" cy="8" r="6" stroke="currentColor" fill="none" stroke-width="2"/></svg>
+                        <svg width="16" height="16">
+                            <circle cx="8" cy="8" r="6" stroke="currentColor" fill="none" stroke-width="2" />
+                        </svg>
                     </button>
                     <button class="drawing-tool" data-tool="eyedropper" title="Eyedropper">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -269,15 +292,42 @@
                         </label>
                     </div>
 
-                    <div class="property-group" id="floodFillOptions" style="display:none;">
-                        <label>
-                            Tolerance: <span id="floodFillToleranceValue">0</span>
-                        </label>
-                        <input type="range" id="floodFillTolerance" min="0" max="255" value="0">
-                        <label style="display:block; margin-top:6px;">
-                            <input type="checkbox" id="floodFillDetectAllLayers">
-                            Detect All Layers
-                        </label>
+                    <!-- Spline tool options -->
+                    <div class="property-group" id="splineOptions" style="display:none;">
+                        <label>Curve Intensity: <span id="splineIntensityValue">50</span>%</label>
+                        <input type="range" id="splineIntensity" min="0" max="100" value="50">
+
+                        <label>Spline Type:</label>
+                        <select id="splineType">
+                            <option value="catmull-rom">Catmull-Rom (Smooth)</option>
+                            <option value="bezier">Bezier (Curved)</option>
+                            <option value="b-spline">B-Spline (Very Smooth)</option>
+                        </select>
+
+                        <label>Curve Smoothing: <span id="splineSmoothingValue">20</span></label>
+                        <input type="range" id="splineSmoothing" min="5" max="100" value="20">
+
+                        <label>Tension: <span id="splineTensionValue">50</span>%</label>
+                        <input type="range" id="splineTension" min="0" max="100" value="50">
+
+                        <div style="margin-top: 8px;">
+                            <label style="display: block;">
+                                <input type="checkbox" id="splineShowControlLines" checked>
+                                Show Control Lines
+                            </label>
+                            <label style="display: block;">
+                                <input type="checkbox" id="splineShowNumbers" checked>
+                                Show Point Numbers
+                            </label>
+                        </div>
+
+                        <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary);">
+                            <strong>Instructions:</strong><br>
+                            • Left click: Add point<br>
+                            • Drag: Move point<br>
+                            • Right click: Remove point<br>
+                            • Click Apply when done
+                        </div>
                     </div>
                 </div>
             </div>
@@ -487,7 +537,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="bottom-panel" id="bottomPanel">
             <div class="bottom-panel-header">
                 <div class="frames-controls">
@@ -514,7 +564,7 @@
             </div>
         </div>
     </div>
-        
+
     <!--div class="resize-handle bottom-resize" id="bottomResize"></div-->
 
     <!-- Resize Handles -->
@@ -552,7 +602,7 @@
             <button id="exportLoadingCancel" class="modal-btn" style="margin-top:18px;">Cancel</button>
         </div>
     </div>
-    
+
     <script src="js/sprite-spark.js"></script>
 </body>
 

@@ -279,13 +279,14 @@ body {
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    overflow-y: auto; /* Always show vertical scrollbar if needed */
+    overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) var(--bg-secondary);
     height: 100%;
     min-height: 0;
     max-height: none;
+    padding: var(--spacing-md); /* Add padding to the panel itself */
 }
 
 /* For Webkit browsers (Chrome, Edge, Safari) */
@@ -324,22 +325,26 @@ body {
     bottom: 0;
     height: var(--bottom-panel-height, 320px);
     background: var(--bg-secondary);
-    border-top: 1px solid var(--border-color);
+    border-top: 2px solid var(--border-color);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     z-index: 20;
     transition: height 0.2s;
+    box-shadow: var(--shadow-lg);
 }
 .bottom-panel-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 12px;
-    background: var(--bg-primary);
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: var(--bg-elevated);
     border-bottom: 1px solid var(--border-color);
     font-size: 1rem;
-    height: 32px;
+    height: 40px;
     gap: 12px;
+    box-shadow: var(--shadow-sm);
 }
 
 .panel-header {
@@ -379,20 +384,45 @@ body {
 
 .panel-section {
     padding: var(--spacing-lg);
-    border-bottom: 1px solid var(--border-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-lg);
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-normal);
 }
 
 .panel-section:last-child {
-    border-bottom: none;
+    margin-bottom: var(--spacing-lg); /* Keep consistent spacing at bottom */
 }
 
 .panel-section h3 {
     font-size: var(--font-size-small);
     font-weight: 600;
-    margin-bottom: var(--spacing-md);
-    color: var(--text-secondary);
+    margin-bottom: var(--spacing-lg);
+    color: var(--accent-color);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+/* Add icons to section headers for better visual hierarchy */
+.panel-section h3::before {
+    content: '';
+    width: 12px;
+    height: 12px;
+    background: var(--accent-color);
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.panel-section:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-md);
 }
 
 /* Color Picker */
@@ -400,6 +430,10 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-control);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
 }
 
 .current-colors {
@@ -453,6 +487,10 @@ body {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--bg-control);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
 }
 
 .drawing-tool {
@@ -485,17 +523,23 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-control);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
 }
 
 .layers-controls {
     display: flex;
     gap: var(--spacing-sm);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .small-btn {
-    width: 24px;
-    height: 24px;
-    background: var(--bg-control);
+    width: 28px;
+    height: 28px;
+    background: var(--bg-elevated);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     color: var(--text-primary);
@@ -504,12 +548,21 @@ body {
     align-items: center;
     justify-content: center;
     font-size: var(--font-size-small);
+    font-weight: 600;
     transition: all var(--transition-fast);
+    box-shadow: var(--shadow-sm);
 }
 
 .small-btn:hover {
     background: var(--bg-hover);
     border-color: var(--border-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.small-btn:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
 }
 
 .layers-list {
@@ -518,6 +571,10 @@ body {
     gap: var(--spacing-xs);
     max-height: 200px;
     overflow-y: auto;
+    padding: var(--spacing-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
 }
 
 .layer-drag-grip {
@@ -639,12 +696,12 @@ body {
     display: grid;
     place-items: center;
     box-shadow: var(--shadow-md);
-    background-color: var(--bg-secondary);
+    background-color: var(--checkerboard-light);
     background-image: 
-        linear-gradient(45deg, var(--bg-control) 25%, transparent 25%), 
-        linear-gradient(-45deg, var(--bg-control) 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, var(--bg-control) 75%),
-        linear-gradient(-45deg, transparent 75%, var(--bg-control) 75%);
+        linear-gradient(45deg, var(--checkerboard-dark) 25%, transparent 25%), 
+        linear-gradient(-45deg, var(--checkerboard-dark) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, var(--checkerboard-dark) 75%),
+        linear-gradient(-45deg, transparent 75%, var(--checkerboard-dark) 75%);
     background-size: 20px 20px;
     background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
     width: fit-content;
@@ -677,11 +734,15 @@ body {
     z-index: 1; /* Main drawing canvas on bottom */
 }
 
-/* Animation Controls */
+/* Animation Controls Container */
 .animation-controls {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-control);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
 }
 
 .animation-controls label {
@@ -708,10 +769,11 @@ body {
 /* Frames */
 .frames-controls {
     display: flex;
-    gap: 4px;
-    align-items: center; /* Ensure vertical centering */
-    height: 100%;
-    margin-right: 0; /* Remove margin if present */
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--bg-control);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
 }
 
 .frames-list {
@@ -724,24 +786,44 @@ body {
 
 .frame-item {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    padding: var(--spacing-sm);
-    background: var(--bg-control);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
     cursor: pointer;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--border-color);
+    background: var(--bg-elevated);
     transition: all var(--transition-fast);
+    min-width: 56px;
+    min-height: 56px;
+    padding: var(--spacing-sm);
+    box-shadow: var(--shadow-sm);
 }
 
 .frame-item:hover {
-    background: var(--bg-hover);
     border-color: var(--border-hover);
+    background: var(--bg-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .frame-item.active {
-    background: var(--accent-color);
-    color: var(--text-accent);
     border-color: var(--accent-color);
+    background: var(--accent-color-alpha);
+    box-shadow: 0 0 0 2px var(--accent-color-alpha);
+}
+
+.frame-thumbnail {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--checkerboard-light);
+    background-image: 
+        linear-gradient(45deg, var(--checkerboard-dark) 25%, transparent 25%), 
+        linear-gradient(-45deg, var(--checkerboard-dark) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, var(--checkerboard-dark) 75%),
+        linear-gradient(-45deg, transparent 75%, var(--checkerboard-dark) 75%);
+    background-size: 8px 8px;
+    background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
 }
 
 .frame-number {
@@ -749,13 +831,6 @@ body {
     text-align: center;
     font-size: var(--font-size-small);
     font-weight: 600;
-}
-
-.frame-thumbnail {
-    margin-left: var(--spacing-sm);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
 }
 
 .frame-thumbnail canvas {
@@ -768,12 +843,20 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: var(--bg-control);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
 }
 
 .property-group {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
 }
 
 .property-group label {
@@ -952,6 +1035,10 @@ select:focus {
     display: flex;
     align-items: center;
     margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm);
+    background: var(--bg-control);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
 }
 
 .live-preview-controls label {
@@ -966,14 +1053,15 @@ select:focus {
 
 .live-preview-wrapper {
     width: 100%;
-    aspect-ratio: 4 / 3; /* Or match canvas aspect ratio */
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+    aspect-ratio: 4 / 3;
+    background-color: var(--bg-control);
+    border: 2px solid var(--border-color);
     border-radius: var(--radius-md);
     display: flex;
     justify-content: center;
     align-items: center;
     overflow: hidden;
+    box-shadow: var(--shadow-sm);
 }
 
 #livePreviewCanvas {
@@ -982,9 +1070,29 @@ select:focus {
     object-fit: contain;
 }
 
-/* Canvas Size Section */
+/* Canvas Size Controls Container */
+.canvas-size-controls {
+    padding: var(--spacing-md);
+    background: var(--bg-control);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
 .canvas-size-controls .property-group {
     margin-bottom: var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+}
+
+.placement-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
 }
 
 .canvas-size-controls label {
@@ -1009,11 +1117,12 @@ select:focus {
     outline: none;
 }
 
-.placement-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--spacing-xs);
-    margin-top: var(--spacing-sm);
+/* Object Properties Container */
+#objectPropertiesSection .property-group {
+    background: var(--bg-control);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-md);
 }
 
 .placement-grid button {
@@ -1099,7 +1208,25 @@ select:focus {
 .drawing-options {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-control);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.option-group {
+    padding: var(--spacing-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+}
+
+.option-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-sm);
+    display: block;
 }
 
 .pixel-perfect #mainCanvas,
@@ -1244,6 +1371,10 @@ select:focus {
     margin-left: auto;
     display: flex;
     align-items: center;
+    padding: var(--spacing-sm);
+    background: var(--bg-control);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
 }
 .frames-controls {
     display: flex;
@@ -1256,10 +1387,31 @@ select:focus {
     overflow-y: hidden;
     display: flex;
     align-items: flex-start;
-    gap: 8px;
-    padding: 8px 12px;
-    background: var(--bg-secondary); /* Use theme variable */
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
+    background: var(--bg-primary);
     height: 100%;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    margin: var(--spacing-md);
+}
+
+/* Spline Options styling */
+#splineOptions {
+    background: var(--bg-control);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin-top: var(--spacing-md);
+}
+
+#splineOptions label {
+    margin-bottom: var(--spacing-sm);
+    font-weight: 500;
+}
+
+#splineOptions select {
+    margin-bottom: var(--spacing-md);
 }
 
 /* Frame item backgrounds and borders */
@@ -1501,4 +1653,21 @@ select:focus {
     min-height: 0;
     overflow: hidden;
     border-top: none;
+}
+
+/* Special styling for active/focused elements */
+.property-group:focus-within {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-color-alpha);
+}
+
+.color-picker-container:hover,
+.tool-grid:hover,
+.layers-container:hover,
+.tool-properties:hover,
+.animation-controls:hover,
+.drawing-options:hover,
+.canvas-size-controls:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-md);
 }

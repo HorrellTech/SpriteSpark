@@ -47,7 +47,7 @@ class SpriteSpark {
         this.canvasWidth = 320;
         this.canvasHeight = 240;
         this.zoom = 1;
-        this.showGrid = true;
+        this.showGrid = false;
         this.showOnionSkin = false;
         this.isDrawing = false;
 
@@ -67,6 +67,19 @@ class SpriteSpark {
         this.curveBrushActive = false;
         this.curveBrushDraggingPoint = null;
         this.curveBrushApplyIconPos = null;
+
+        // Spline tool properties - ADD THESE MISSING PROPERTIES
+        this.splinePoints = [];
+        this.splineActive = false;
+        this.isDraggingSplinePoint = false;
+        this.draggingSplinePointIndex = -1;
+        this.splineApplyButton = null;
+        this.splineIntensity = 0.5; // 0 = straight lines, 1 = maximum curve
+        this.splineType = 'catmull-rom'; // 'catmull-rom', 'bezier', 'b-spline'
+        this.splineSmoothing = 0.02; // Step size for curve sampling (lower = smoother)
+        this.splineTension = 0.5; // Tension for certain spline types
+        this.splineShowControlLines = true; // Show connection lines between points
+        this.splineShowNumbers = true; // Show point numbers
 
         // Selection properties
         this.selectionActive = false;
@@ -145,12 +158,24 @@ class SpriteSpark {
 
     drawCheckerboardBackground() {
         if (!this.mainCtx) return;
+
+        // Force recomputation of CSS custom properties
+        getComputedStyle(document.documentElement).getPropertyValue('--checkerboard-light');
+
+        // Get theme-aware checkerboard colors
+        const computedStyle = getComputedStyle(document.documentElement);
+        const lightColor = computedStyle.getPropertyValue('--checkerboard-light').trim() || '#e0e0e0';
+        const darkColor = computedStyle.getPropertyValue('--checkerboard-dark').trim() || '#ffffff';
+
+        // Clear the canvas first
+        this.mainCtx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+
         // Draw a checkerboard pattern on the main canvas for transparency
         const ctx = this.mainCtx;
         const size = 10;
         for (let y = 0; y < this.canvasHeight; y += size) {
             for (let x = 0; x < this.canvasWidth; x += size) {
-                ctx.fillStyle = ((x / size + y / size) % 2 === 0) ? '#e0e0e0' : '#ffffff';
+                ctx.fillStyle = ((x / size + y / size) % 2 === 0) ? lightColor : darkColor;
                 ctx.fillRect(x, y, size, size);
             }
         }
@@ -185,14 +210,15 @@ class SpriteSpark {
         // Canvas events
         if (this.mainCanvas) {
             this.mainCanvas.addEventListener('mousedown', this.startDrawing.bind(this));
-            //this.mainCanvas.addEventListener('mousemove', this.draw.bind(this));
-            //this.mainCanvas.addEventListener('mouseup', this.stopDrawing.bind(this));
-            //this.mainCanvas.addEventListener('mouseleave', this.stopDrawing.bind(this));
-            // Swap colors on right click
             this.mainCanvas.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
-                this.swapPrimaryAndSecondaryColors();
+                if (this.currentTool === 'spline') {
+                    this.handleSplineRightClick(e);
+                } else {
+                    this.swapPrimaryAndSecondaryColors();
+                }
             });
+
 
             // Ghost cursor
             this.mainCanvas.addEventListener('mousemove', this.updateGhostCursor.bind(this));
@@ -206,6 +232,11 @@ class SpriteSpark {
             this.mainCanvas.addEventListener('mousedown', this.handleCurveBrushMouseDown.bind(this));
             this.mainCanvas.addEventListener('mousemove', this.handleCurveBrushMouseMove.bind(this));
             this.mainCanvas.addEventListener('mouseup', this.handleCurveBrushMouseUp.bind(this));
+
+            // Spline tool events
+            this.mainCanvas.addEventListener('mousedown', this.handleSplineMouseDown.bind(this));
+            this.mainCanvas.addEventListener('mousemove', this.handleSplineMouseMove.bind(this));
+            this.mainCanvas.addEventListener('mouseup', this.handleSplineMouseUp.bind(this));
         }
 
         // Panel resizing
@@ -526,6 +557,17 @@ class SpriteSpark {
         const showBrushGhost = document.getElementById('showBrushGhost');
         const floodFillTolerance = document.getElementById('floodFillTolerance');
         const floodFillToleranceValue = document.getElementById('floodFillToleranceValue');
+        const splineIntensity = document.getElementById('splineIntensity');
+        const splineIntensityValue = document.getElementById('splineIntensityValue');
+
+        // Enhanced spline controls
+        const splineType = document.getElementById('splineType');
+        const splineSmoothing = document.getElementById('splineSmoothing');
+        const splineSmoothingValue = document.getElementById('splineSmoothingValue');
+        const splineTension = document.getElementById('splineTension');
+        const splineTensionValue = document.getElementById('splineTensionValue');
+        const splineShowControlLines = document.getElementById('splineShowControlLines');
+        const splineShowNumbers = document.getElementById('splineShowNumbers');
 
         if (brushSize) {
             brushSize.addEventListener('input', (e) => {
@@ -539,6 +581,79 @@ class SpriteSpark {
             opacity.addEventListener('input', (e) => {
                 this.opacity = parseInt(e.target.value);
                 if (opacityValue) opacityValue.textContent = this.opacity;
+            });
+        }
+
+        // Enhanced spline controls
+        if (splineIntensity && splineIntensityValue) {
+            splineIntensity.value = this.splineIntensity * 100;
+            splineIntensityValue.textContent = Math.round(this.splineIntensity * 100);
+            splineIntensity.addEventListener('input', (e) => {
+                this.splineIntensity = parseInt(e.target.value, 10) / 100;
+                splineIntensityValue.textContent = parseInt(e.target.value, 10);
+                if (this.splineActive) {
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawSplinePreview();
+                }
+            });
+        }
+
+        if (splineType) {
+            splineType.value = this.splineType;
+            splineType.addEventListener('change', (e) => {
+                this.splineType = e.target.value;
+                if (this.splineActive) {
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawSplinePreview();
+                }
+            });
+        }
+
+        if (splineSmoothing && splineSmoothingValue) {
+            splineSmoothing.value = this.splineSmoothing * 1000; // Scale for slider
+            splineSmoothingValue.textContent = (this.splineSmoothing * 1000).toFixed(0);
+            splineSmoothing.addEventListener('input', (e) => {
+                this.splineSmoothing = parseInt(e.target.value, 10) / 1000;
+                splineSmoothingValue.textContent = parseInt(e.target.value, 10);
+                if (this.splineActive) {
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawSplinePreview();
+                }
+            });
+        }
+
+        if (splineTension && splineTensionValue) {
+            splineTension.value = this.splineTension * 100;
+            splineTensionValue.textContent = Math.round(this.splineTension * 100);
+            splineTension.addEventListener('input', (e) => {
+                this.splineTension = parseInt(e.target.value, 10) / 100;
+                splineTensionValue.textContent = parseInt(e.target.value, 10);
+                if (this.splineActive) {
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawSplinePreview();
+                }
+            });
+        }
+
+        if (splineShowControlLines) {
+            splineShowControlLines.checked = this.splineShowControlLines;
+            splineShowControlLines.addEventListener('change', (e) => {
+                this.splineShowControlLines = e.target.checked;
+                if (this.splineActive) {
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawSplinePreview();
+                }
+            });
+        }
+
+        if (splineShowNumbers) {
+            splineShowNumbers.checked = this.splineShowNumbers;
+            splineShowNumbers.addEventListener('change', (e) => {
+                this.splineShowNumbers = e.target.checked;
+                if (this.splineActive) {
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawSplinePreview();
+                }
             });
         }
 
@@ -600,15 +715,28 @@ class SpriteSpark {
 
         toolButtons.forEach(btn => {
             btn.addEventListener('click', () => {
-                this.currentTool = btn.getAttribute('data-tool');
-                const floodFillOptions = document.getElementById('floodFillOptions');
-                if (floodFillOptions) {
-                    floodFillOptions.style.display = (this.currentTool === 'bucket') ? 'block' : 'none';
-                }
-
                 toolButtons.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 this.currentTool = btn.getAttribute('data-tool');
+
+                // Show/hide tool-specific options
+                const floodFillOptions = document.getElementById('floodFillOptions');
+                const splineOptions = document.getElementById('splineOptions');
+
+                if (floodFillOptions) {
+                    floodFillOptions.style.display = (this.currentTool === 'bucket') ? 'block' : 'none';
+                }
+                if (splineOptions) {
+                    splineOptions.style.display = (this.currentTool === 'spline') ? 'block' : 'none';
+                }
+
+                // Clear spline state when switching tools
+                if (this.currentTool !== 'spline' && this.splineActive) {
+                    this.splinePoints = [];
+                    this.splineActive = false;
+                    this.splineApplyButton = null;
+                    this.renderCurrentFrameToMainCanvas();
+                }
             });
         });
     }
@@ -891,8 +1019,13 @@ class SpriteSpark {
         document.documentElement.setAttribute('data-theme', themeName);
         this.currentTheme = themeName;
         localStorage.setItem('spriteSparkTheme', themeName);
-        // Update grid after theme change
-        setTimeout(() => this.drawGrid(), 100);
+
+        // Force a redraw after theme change to update checkerboard colors
+        setTimeout(() => {
+            this.drawGrid();
+            this.drawCheckerboardBackground(); // Add this line
+            this.renderCurrentFrameToMainCanvas(); // Add this line
+        }, 100);
     }
 
     // --- Layer Management ---
@@ -1304,6 +1437,10 @@ class SpriteSpark {
             this.ghostCanvas.width = newWidth;
             this.ghostCanvas.height = newHeight;
         }
+        if (this.livePreviewCanvas) {
+            this.livePreviewCanvas.width = newWidth;
+            this.livePreviewCanvas.height = newHeight;
+        }
 
         // Resize all layer canvases
         this.layers.forEach(layer => {
@@ -1342,9 +1479,52 @@ class SpriteSpark {
             }
         });
 
+        // Update all frame layer canvases too
+        this.frames.forEach(frame => {
+            frame.layers.forEach((frameLayer, layerIndex) => {
+                if (frameLayer.canvas) {
+                    const tempCanvas = document.createElement('canvas');
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCanvas.width = frameLayer.canvas.width;
+                    tempCanvas.height = frameLayer.canvas.height;
+                    tempCtx.drawImage(frameLayer.canvas, 0, 0);
+
+                    frameLayer.canvas.width = newWidth;
+                    frameLayer.canvas.height = newHeight;
+
+                    const ctx = frameLayer.canvas.getContext('2d');
+                    ctx.clearRect(0, 0, newWidth, newHeight);
+
+                    if (method === 'stretch') {
+                        ctx.drawImage(tempCanvas, 0, 0, newWidth, newHeight);
+                    } else if (method === 'fit') {
+                        const oldAspect = tempCanvas.width / tempCanvas.height;
+                        const newAspect = newWidth / newHeight;
+                        let drawWidth, drawHeight, dx, dy;
+
+                        if (newAspect > oldAspect) {
+                            drawHeight = newHeight;
+                            drawWidth = drawHeight * oldAspect;
+                        } else {
+                            drawWidth = newWidth;
+                            drawHeight = drawWidth / oldAspect;
+                        }
+
+                        dx = (newWidth - drawWidth) / 2;
+                        dy = (newHeight - drawHeight) / 2;
+                        ctx.drawImage(tempCanvas, dx, dy, drawWidth, drawHeight);
+                    } else {
+                        ctx.drawImage(tempCanvas, 0, 0);
+                    }
+                }
+            });
+        });
+
+        // IMPORTANT: Call these methods to update the visual size and re-render
+        this.resizeCanvases();
         this.drawGrid();
         this.renderCurrentFrameToMainCanvas();
-        this.resizeCanvases();
+
         console.log(`Canvas resized to ${newWidth}x${newHeight} using ${method}`);
     }
 
@@ -2263,6 +2443,11 @@ class SpriteSpark {
             this.drawCurveBrushPreview();
         }
 
+        // Draw spline preview
+        if (this.currentTool === 'spline' && this.splinePoints.length > 0) {
+            this.drawSplinePreview();
+        }
+
         this.ctx.globalAlpha = 1.0;
         this.ctx.globalCompositeOperation = 'source-over';
     }
@@ -2660,6 +2845,12 @@ class SpriteSpark {
         const rect = this.mainCanvas.getBoundingClientRect();
         const x = Math.floor((e.clientX - rect.left) / this.zoom);
         const y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+        // --- PREVENT DRAWING WHILE USING CERTAIN TOOLS ---
+        if (this.currentTool === 'spline') {
+            // Spline tool is handled in its own event handlers, don't draw
+            return;
+        }
 
         // Check if clicking on selection rotate button
         if (this.selectionActive && this.selectionRotateButton) {
@@ -4973,6 +5164,460 @@ class SpriteSpark {
         this.renderCurrentFrameToMainCanvas();
     }
 
+    // --- Spline Tool Event Handlers ---
+    handleSplineMouseDown(e) {
+        if (this.currentTool !== 'spline') return;
+        e.preventDefault();
+
+        const rect = this.mainCanvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / this.zoom);
+        const y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+        // Check if clicking on apply button
+        if (this.splineApplyButton && this.isPointInApplyButton(x, y)) {
+            this.applySpline();
+            return;
+        }
+
+        // Check if clicking on existing point
+        for (let i = 0; i < this.splinePoints.length; i++) {
+            const point = this.splinePoints[i];
+            if (Math.hypot(point.x - x, point.y - y) < 12) {
+                this.isDraggingSplinePoint = true;
+                this.draggingSplinePointIndex = i;
+                return;
+            }
+        }
+
+        // Add new point
+        this.splinePoints.push({ x, y });
+        this.splineActive = true;
+        this.renderCurrentFrameToMainCanvas();
+        this.drawSplinePreview();
+    }
+
+    handleSplineMouseMove(e) {
+        if (this.currentTool !== 'spline') return;
+
+        if (this.isDraggingSplinePoint && this.draggingSplinePointIndex >= 0) {
+            const rect = this.mainCanvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / this.zoom);
+            const y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+            this.splinePoints[this.draggingSplinePointIndex] = { x, y };
+            this.renderCurrentFrameToMainCanvas();
+            this.drawSplinePreview();
+        }
+    }
+
+    handleSplineMouseUp(e) {
+        if (this.currentTool !== 'spline') return;
+
+        this.isDraggingSplinePoint = false;
+        this.draggingSplinePointIndex = -1;
+    }
+
+    handleSplineRightClick(e) {
+        if (this.currentTool !== 'spline') return;
+
+        const rect = this.mainCanvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / this.zoom);
+        const y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+        // Remove point if right-clicking near one
+        for (let i = 0; i < this.splinePoints.length; i++) {
+            const point = this.splinePoints[i];
+            if (Math.hypot(point.x - x, point.y - y) < 12) {
+                this.splinePoints.splice(i, 1);
+                if (this.splinePoints.length === 0) {
+                    this.splineActive = false;
+                    this.splineApplyButton = null;
+                }
+                this.renderCurrentFrameToMainCanvas();
+                this.drawSplinePreview();
+                return;
+            }
+        }
+    }
+
+    bezierSpline(p1, p2, p3, t, intensity) {
+        // Quadratic Bezier interpolation
+        const cpx = p2.x + (p3.x - p1.x) * intensity * this.splineTension * 0.3;
+        const cpy = p2.y + (p3.y - p1.y) * intensity * this.splineTension * 0.3;
+
+        const x = (1 - t) * (1 - t) * p1.x + 2 * (1 - t) * t * cpx + t * t * p2.x;
+        const y = (1 - t) * (1 - t) * p1.y + 2 * (1 - t) * t * cpy + t * t * p2.y;
+
+        return { x, y };
+    }
+
+    bSplineInterpolate(p0, p1, p2, p3, t, intensity) {
+        // Simplified B-spline interpolation
+        const t2 = t * t;
+        const t3 = t2 * t;
+
+        const factor = intensity * this.splineTension;
+
+        const x = factor * (
+            (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3 +
+            (3 * p0.x - 6 * p1.x + 3 * p2.x) * t2 +
+            (-3 * p0.x + 3 * p2.x) * t +
+            (p0.x + 4 * p1.x + p2.x)
+        ) / 6;
+
+        const y = factor * (
+            (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3 +
+            (3 * p0.y - 6 * p1.y + 3 * p2.y) * t2 +
+            (-3 * p0.y + 3 * p2.y) * t +
+            (p0.y + 4 * p1.y + p2.y)
+        ) / 6;
+
+        return { x, y };
+    }
+
+    // --- Draw Spline Preview and Controls ---
+    drawSplinePreview() {
+        if (!this.ctx || this.splinePoints.length === 0) return;
+
+        // Draw the spline curve
+        if (this.splinePoints.length > 1) {
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.8;
+            this.ctx.strokeStyle = this.primaryColor;
+            this.ctx.lineWidth = this.brushSize;
+            this.ctx.setLineDash([6, 4]);
+            this.drawSplineCurve(this.ctx, this.splinePoints, this.splineIntensity);
+            this.ctx.setLineDash([]);
+            this.ctx.restore();
+        }
+
+        // Draw control points
+        for (let i = 0; i < this.splinePoints.length; i++) {
+            const pt = this.splinePoints[i];
+            this.ctx.save();
+
+            // Point background
+            this.ctx.beginPath();
+            this.ctx.arc(pt.x, pt.y, 8, 0, 2 * Math.PI);
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.globalAlpha = 0.9;
+            this.ctx.fill();
+
+            // Point border
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeStyle = this.isDraggingSplinePoint && this.draggingSplinePointIndex === i ?
+                this.primaryColor : '#333333';
+            this.ctx.globalAlpha = 1;
+            this.ctx.stroke();
+
+            // Point number (if enabled)
+            if (this.splineShowNumbers) {
+                this.ctx.fillStyle = '#333333';
+                this.ctx.font = 'bold 10px sans-serif';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText((i + 1).toString(), pt.x, pt.y);
+            }
+
+            this.ctx.restore();
+        }
+
+        // Draw connection lines between points (if enabled)
+        if (this.splineShowControlLines && this.splinePoints.length > 1) {
+            this.ctx.save();
+            this.ctx.strokeStyle = '#888888';
+            this.ctx.lineWidth = 1;
+            this.ctx.setLineDash([2, 4]);
+            this.ctx.globalAlpha = 0.5;
+            this.ctx.beginPath();
+            for (let i = 0; i < this.splinePoints.length; i++) {
+                const pt = this.splinePoints[i];
+                if (i === 0) this.ctx.moveTo(pt.x, pt.y);
+                else this.ctx.lineTo(pt.x, pt.y);
+            }
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
+            this.ctx.restore();
+        }
+
+        // Draw apply button
+        if (this.splinePoints.length > 1) {
+            this.drawSplineApplyButton();
+        } else {
+            this.splineApplyButton = null;
+        }
+    }
+
+    drawSplineApplyButton() {
+        // Position apply button at bottom-right of canvas
+        const buttonSize = 32;
+        const margin = 16;
+        const buttonX = this.canvasWidth - buttonSize - margin;
+        const buttonY = this.canvasHeight - buttonSize - margin;
+
+        this.splineApplyButton = {
+            x: buttonX,
+            y: buttonY,
+            size: buttonSize
+        };
+
+        this.ctx.save();
+
+        // Button background
+        this.ctx.fillStyle = '#4CAF50';
+        this.ctx.globalAlpha = 0.9;
+        this.ctx.fillRect(buttonX, buttonY, buttonSize, buttonSize);
+
+        // Button border
+        this.ctx.strokeStyle = '#333333';
+        this.ctx.lineWidth = 2;
+        this.ctx.globalAlpha = 1;
+        this.ctx.strokeRect(buttonX, buttonY, buttonSize, buttonSize);
+
+        // Check mark icon
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 3;
+        this.ctx.lineCap = 'round';
+        this.ctx.beginPath();
+        this.ctx.moveTo(buttonX + 8, buttonY + 16);
+        this.ctx.lineTo(buttonX + 14, buttonY + 22);
+        this.ctx.lineTo(buttonX + 24, buttonY + 10);
+        this.ctx.stroke();
+
+        // "Apply" text
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 8px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'bottom';
+        this.ctx.fillText('Apply', buttonX + buttonSize / 2, buttonY + buttonSize - 2);
+
+        this.ctx.restore();
+    }
+
+    isPointInApplyButton(x, y) {
+        if (!this.splineApplyButton) return false;
+        const btn = this.splineApplyButton;
+        return x >= btn.x && x <= btn.x + btn.size &&
+            y >= btn.y && y <= btn.y + btn.size;
+    }
+
+    // --- Draw Spline Curve with Intensity ---
+    drawSplineCurve(ctx, points, intensity) {
+        if (points.length < 2) return;
+
+        if (this.pixelDrawingMode && this.brushSize === 1) {
+            this.drawPixelSpline(ctx, points, intensity);
+        } else {
+            this.drawSmoothSpline(ctx, points, intensity);
+        }
+    }
+
+    drawSmoothSpline(ctx, points, intensity) {
+        if (points.length === 2) {
+            // Just a straight line for 2 points
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            ctx.lineTo(points[1].x, points[1].y);
+            ctx.stroke();
+            return;
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+
+        switch (this.splineType) {
+            case 'catmull-rom':
+                this.drawCatmullRomSpline(ctx, points, intensity);
+                break;
+            case 'bezier':
+                this.drawBezierSpline(ctx, points, intensity);
+                break;
+            case 'b-spline':
+                this.drawBSpline(ctx, points, intensity);
+                break;
+            default:
+                this.drawCatmullRomSpline(ctx, points, intensity);
+        }
+
+        ctx.stroke();
+    }
+
+    drawBezierSpline(ctx, points, intensity) {
+        // Quadratic Bezier curves between consecutive points
+        for (let i = 0; i < points.length - 1; i++) {
+            const p1 = points[i];
+            const p2 = points[i + 1];
+
+            if (i < points.length - 2) {
+                // Use next point to influence control point
+                const p3 = points[i + 2];
+                const cpx = p2.x + (p3.x - p1.x) * intensity * this.splineTension * 0.3;
+                const cpy = p2.y + (p3.y - p1.y) * intensity * this.splineTension * 0.3;
+                ctx.quadraticCurveTo(cpx, cpy, p2.x, p2.y);
+            } else {
+                ctx.lineTo(p2.x, p2.y);
+            }
+        }
+    }
+
+    drawBSpline(ctx, points, intensity) {
+        // B-spline implementation for smoother curves
+        if (points.length < 3) {
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            return;
+        }
+
+        const degree = 3; // Cubic B-spline
+        for (let i = 0; i < points.length - 1; i++) {
+            for (let t = 0; t <= 1; t += this.splineSmoothing * 2) {
+                const point = this.bSplinePoint(points, i, t, degree, intensity);
+                if (t === 0 && i === 0) {
+                    ctx.moveTo(point.x, point.y);
+                } else {
+                    ctx.lineTo(point.x, point.y);
+                }
+            }
+        }
+    }
+
+    bSplinePoint(points, segment, t, degree, intensity) {
+        // Simplified B-spline calculation
+        const n = points.length - 1;
+        let x = 0, y = 0;
+
+        for (let i = 0; i <= n; i++) {
+            const basis = this.bSplineBasis(i, degree, t, n);
+            x += basis * points[i].x * intensity;
+            y += basis * points[i].y * intensity;
+        }
+
+        return { x, y };
+    }
+
+    bSplineBasis(i, k, t, n) {
+        // Simplified basis function calculation
+        if (k === 0) {
+            return (i <= t * n && t * n < i + 1) ? 1 : 0;
+        }
+
+        const c1 = (t * n - i) / k;
+        const c2 = (i + k + 1 - t * n) / k;
+
+        return c1 * this.bSplineBasis(i, k - 1, t, n) +
+            c2 * this.bSplineBasis(i + 1, k - 1, t, n);
+    }
+
+    drawPixelSpline(ctx, points, intensity) {
+        // Enhanced pixel spline with different curve types
+        const samples = [];
+
+        if (points.length === 2) {
+            this._drawPixelLine(ctx, points[0].x, points[0].y, points[1].x, points[1].y,
+                this.primaryColor, this.brushSize, false);
+            return;
+        }
+
+        // Sample the spline curve with configurable smoothing
+        for (let i = 0; i < points.length - 1; i++) {
+            const p0 = points[i - 1] || points[i];
+            const p1 = points[i];
+            const p2 = points[i + 1];
+            const p3 = points[i + 2] || points[i + 1];
+
+            for (let t = 0; t < 1; t += this.splineSmoothing) {
+                let point;
+                switch (this.splineType) {
+                    case 'catmull-rom':
+                        point = this.catmullRomSpline(p0, p1, p2, p3, t, intensity);
+                        break;
+                    case 'bezier':
+                        point = this.bezierSpline(p1, p2, p3, t, intensity);
+                        break;
+                    case 'b-spline':
+                        point = this.bSplineInterpolate(p0, p1, p2, p3, t, intensity);
+                        break;
+                    default:
+                        point = this.catmullRomSpline(p0, p1, p2, p3, t, intensity);
+                }
+                samples.push(point);
+            }
+        }
+
+        // Add the last point
+        samples.push(points[points.length - 1]);
+
+        // Draw pixel lines between sampled points
+        for (let i = 0; i < samples.length - 1; i++) {
+            const p1 = samples[i];
+            const p2 = samples[i + 1];
+            this._drawPixelLine(ctx, Math.round(p1.x), Math.round(p1.y),
+                Math.round(p2.x), Math.round(p2.y), this.primaryColor, this.brushSize, false);
+        }
+    }
+
+    drawCatmullRomSpline(ctx, points, intensity) {
+        for (let i = 0; i < points.length - 1; i++) {
+            const p0 = points[i - 1] || points[i];
+            const p1 = points[i];
+            const p2 = points[i + 1];
+            const p3 = points[i + 2] || points[i + 1];
+
+            // Enhanced control with tension
+            const tension = this.splineTension;
+            const cp1x = p1.x + (p2.x - p0.x) * intensity * tension * 0.16;
+            const cp1y = p1.y + (p2.y - p0.y) * intensity * tension * 0.16;
+            const cp2x = p2.x - (p3.x - p1.x) * intensity * tension * 0.16;
+            const cp2y = p2.y - (p3.y - p1.y) * intensity * tension * 0.16;
+
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+        }
+    }
+
+    catmullRomSpline(p0, p1, p2, p3, t, intensity) {
+        const t2 = t * t;
+        const t3 = t2 * t;
+
+        // Apply intensity to the curve calculation
+        const factor = intensity * 0.5;
+
+        return {
+            x: factor * ((-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3 +
+                (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+                (-p0.x + p2.x) * t) + p1.x,
+            y: factor * ((-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3 +
+                (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+                (-p0.y + p2.y) * t) + p1.y
+        };
+    }
+
+    // --- Apply Spline to Layer ---
+    applySpline() {
+        if (!this.activeLayerId || this.splinePoints.length < 2) return;
+
+        this.undoAdd();
+        const layer = this.layers.find(l => l.id === this.activeLayerId);
+        if (layer) {
+            const ctx = layer.canvas.getContext('2d');
+            ctx.save();
+            ctx.globalAlpha = this.opacity / 100;
+            ctx.strokeStyle = this.primaryColor;
+            ctx.lineWidth = this.brushSize;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            this.drawSplineCurve(ctx, this.splinePoints, this.splineIntensity);
+            ctx.restore();
+        }
+
+        // Clear spline state
+        this.splinePoints = [];
+        this.splineActive = false;
+        this.splineApplyButton = null;
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+    }
+
     // UNDO/REDO functionality
     undoAdd() {
         const state = {
@@ -5206,7 +5851,7 @@ function updateCanvasContainerScrolling() {
 function updatePanelLayout(panelType, isVisible) {
     const mainContent = document.querySelector('.main-content');
     const bottomPanel = document.querySelector('.bottom-panel');
-    
+
     if (panelType === 'left') {
         const width = isVisible ? '300px' : '0px';
         document.documentElement.style.setProperty('--left-panel-width', width);
@@ -5222,7 +5867,7 @@ function updatePanelLayout(panelType, isVisible) {
     } else if (panelType === 'bottom') {
         const height = isVisible ? '140px' : '0px';
         document.documentElement.style.setProperty('--bottom-panel-height', height);
-        
+
         // Update canvas container height
         const canvasContainer = document.querySelector('.canvas-container');
         if (canvasContainer) {
@@ -5687,7 +6332,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const panelType = btn.getAttribute('data-panel');
             const toolbarBtn = document.querySelector(`.panel-toggle-btn[data-panel="${panelType}"]`);
             const panel = document.getElementById(panelType + 'Panel');
-            
+
             if (toolbarBtn && panel) {
                 const isCollapsed = panel.classList.contains('collapsed');
                 toolbarBtn.classList.toggle('active', !isCollapsed);
@@ -5698,18 +6343,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Panel toggle buttons functionality
     document.querySelectorAll('.panel-toggle-btn').forEach(btn => {
         const panelType = btn.getAttribute('data-panel');
-        
+
         // Set initial active state based on panel visibility
         const panel = document.getElementById(panelType + 'Panel');
         if (panel && !panel.classList.contains('collapsed')) {
             btn.classList.add('active');
         }
-        
+
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            
+
             const isActive = btn.classList.contains('active');
-            
+
             if (isActive) {
                 // Hide panel
                 btn.classList.remove('active');
@@ -5723,10 +6368,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     panel.classList.remove('collapsed');
                 }
             }
-            
+
             // Update layout
             updatePanelLayout(panelType, !isActive);
-            
+
             // Trigger canvas resize to fit new layout
             setTimeout(() => {
                 if (app && app.handleResize) {
