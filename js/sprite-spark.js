@@ -930,10 +930,28 @@ class SpriteSpark {
     startAnimateCanvasFrames() {
         this.stopAnimateCanvasFrames();
         if (!this.frames || this.frames.length < 2) return;
+
         const frameDuration = 1000 / this.fps;
         this.animateCanvasFramesInterval = setInterval(() => {
+            // Find next active frame
             let nextFrame = this.currentFrame + 1;
-            if (nextFrame >= this.frames.length) nextFrame = 0;
+            while (nextFrame < this.frames.length && this.frames[nextFrame].isActive === false) {
+                nextFrame++;
+            }
+
+            if (nextFrame >= this.frames.length) {
+                // Loop back to first active frame
+                nextFrame = 0;
+                while (nextFrame < this.frames.length && this.frames[nextFrame].isActive === false) {
+                    nextFrame++;
+                }
+                if (nextFrame >= this.frames.length) {
+                    // No active frames, stop animation
+                    this.stopAnimateCanvasFrames();
+                    return;
+                }
+            }
+
             this.selectFrame(nextFrame);
         }, frameDuration);
     }
@@ -1362,20 +1380,55 @@ class SpriteSpark {
             return;
         }
         this.pauseAnimation();
-        this.currentFrameIndex = this.currentFrame; // Start from current frame
+
+        // Find the next active frame from current position
+        let startIndex = this.currentFrame;
+        while (startIndex < this.frames.length && this.frames[startIndex].isActive === false) {
+            startIndex++;
+        }
+        if (startIndex >= this.frames.length) {
+            // No active frames found after current, start from beginning
+            startIndex = 0;
+            while (startIndex < this.frames.length && this.frames[startIndex].isActive === false) {
+                startIndex++;
+            }
+        }
+
+        this.currentFrameIndex = startIndex;
         const frameDuration = 1000 / this.fps;
+
         this.animationInterval = setInterval(() => {
-            this.renderFrameToLivePreview(this.currentFrameIndex);
-            this.currentFrameIndex++;
-            if (this.currentFrameIndex >= this.frames.length) {
+            // Only render if current frame is active
+            if (this.frames[this.currentFrameIndex] && this.frames[this.currentFrameIndex].isActive !== false) {
+                this.renderFrameToLivePreview(this.currentFrameIndex);
+            }
+
+            // Find next active frame
+            let nextIndex = this.currentFrameIndex + 1;
+            while (nextIndex < this.frames.length && this.frames[nextIndex].isActive === false) {
+                nextIndex++;
+            }
+
+            if (nextIndex >= this.frames.length) {
                 if (this.loopAnimation) {
-                    this.currentFrameIndex = 0;
+                    // Loop back to first active frame
+                    nextIndex = 0;
+                    while (nextIndex < this.frames.length && this.frames[nextIndex].isActive === false) {
+                        nextIndex++;
+                    }
+                    if (nextIndex >= this.frames.length) {
+                        // No active frames at all, stop animation
+                        this.pauseAnimation();
+                        return;
+                    }
                 } else {
-                    this.currentFrameIndex = this.frames.length - 1;
+                    // No loop, stop at last active frame
                     this.pauseAnimation();
                     return;
                 }
             }
+
+            this.currentFrameIndex = nextIndex;
         }, frameDuration);
     }
 
@@ -1579,9 +1632,6 @@ class SpriteSpark {
             }),
             isActive: true // New frames are active by default
         };
-
-        // Also add to frameActiveStates array
-        this.frameActiveStates.push(true);
 
         return frame;
     }
@@ -4307,6 +4357,7 @@ class SpriteSpark {
             canvasWidth: this.canvasWidth,
             canvasHeight: this.canvasHeight,
             frames: this.frames.map((frame, frameIndex) => ({
+                isActive: frame.isActive !== undefined ? frame.isActive : true, // Include active state
                 layers: frame.layers.map((layer, layerIndex) => ({
                     id: layer.id,
                     name: layer.name,
@@ -4379,8 +4430,9 @@ class SpriteSpark {
             }
         };
 
-        // Restore frames with proper layer distribution
+        // Restore frames with proper layer distribution and active states
         this.frames = data.frames.map((frameData, frameIndex) => ({
+            isActive: frameData.isActive !== undefined ? frameData.isActive : true, // Restore active state
             layers: frameData.layers.map((layerData, layerIndex) => {
                 const canvas = this.createLayerCanvas();
                 const ctx = canvas.getContext('2d');
@@ -4542,6 +4594,14 @@ class SpriteSpark {
             };
         }
 
+        // Filter only active frames for export
+        const activeFrames = this.frames.filter(frame => frame.isActive !== false);
+
+        if (activeFrames.length === 0) {
+            alert("No active frames to export!");
+            return;
+        }
+
         if (format === "gif") {
             const gif = new window.GIF({
                 workers: 1,
@@ -4551,7 +4611,7 @@ class SpriteSpark {
                 workerScript: 'js/gif.worker.js'
             });
 
-            let totalFrames = this.frames.length;
+            let totalFrames = activeFrames.length;
 
             // --- ASYNC FRAME ADDITION ---
             const addFramesAsync = async () => {
@@ -4561,7 +4621,7 @@ class SpriteSpark {
                     tempCanvas.width = this.canvasWidth;
                     tempCanvas.height = this.canvasHeight;
                     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-                    const frame = this.frames[f];
+                    const frame = activeFrames[f]; // Use filtered active frames
                     for (let i = 0; i < frame.layers.length; i++) {
                         const layer = frame.layers[i];
                         if (!layer.isVisible) continue;
@@ -4604,7 +4664,7 @@ class SpriteSpark {
             });
 
             let frameIdx = 0;
-            const totalFrames = this.frames.length;
+            const totalFrames = activeFrames.length; // Use filtered active frames
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = this.canvasWidth;
             tempCanvas.height = this.canvasHeight;
@@ -4620,7 +4680,7 @@ class SpriteSpark {
                         return;
                     }
                     tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-                    const frame = this.frames[frameIdx];
+                    const frame = activeFrames[frameIdx]; // Use filtered active frames
                     for (let i = 0; i < frame.layers.length; i++) {
                         const layer = frame.layers[i];
                         if (!layer.isVisible) continue;

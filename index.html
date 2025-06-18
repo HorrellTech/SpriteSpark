@@ -23,7 +23,7 @@
             background: var(--bg);
             color: var(--text);
             font-family: 'Segoe UI', 'Arial', sans-serif;
-            min-height: 100vh;
+            overflow-x: hidden;
         }
         body {
             display: flex;
@@ -31,14 +31,22 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            width: 100vw;
+            position: relative;
         }
         .container {
             background: var(--bg-elevated);
             border-radius: 16px;
             box-shadow: 0 4px 32px #000a;
             padding: 40px 32px 32px 32px;
-            max-width: 420px;
+            width: 90vw;
+            max-width: 500px;
+            min-height: 80vh;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
         h1 {
             font-size: 2.2rem;
@@ -84,10 +92,10 @@
             background: var(--bg-elevated);
             border-radius: 12px;
             box-shadow: 0 8px 32px #000c;
-            width: 90vw;
-            height: 90vh;
-            max-width: 90vw;
-            max-height: 90vh;
+            width: 95vw;
+            height: 95vh;
+            max-width: 95vw;
+            max-height: 95vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -123,20 +131,28 @@
             display: block;
         }
         @media (max-width: 700px) {
-            .container { padding: 24px 8px 16px 8px; }
+            .container { 
+                padding: 24px 16px 16px 16px; 
+                width: 95vw;
+                min-height: 90vh;
+            }
             .modal-content { 
-                max-width: 99vw; 
-                max-height: 99vh; 
-                width: 99vw; 
-                height: 99vh; 
+                max-width: 100vw; 
+                max-height: 100vh; 
+                width: 100vw; 
+                height: 100vh; 
+                border-radius: 0;
+            }
+            body {
+                padding: 0;
             }
         }
         /* Logo styling */
         .logo-img {
             display: block;
             margin: 0 auto 1.5em auto;
-            max-width: 240px;
-            width: 60%;
+            max-width: 280px;
+            width: 70%;
             height: auto;
             border-radius: 24px;
             box-shadow:
@@ -148,7 +164,7 @@
         /* GIF Gallery under logo */
         /* GIF Gallery Carousel */
         .gif-gallery {
-            width: 60%; /* Match logo width */
+            width: 70%; /* Match logo width */
             margin: 0 auto 1.5em auto;
             position: relative;
             height: 120px;
@@ -295,6 +311,10 @@
                 height: 32px;
                 font-size: 1rem;
             }
+            
+            .logo-img {
+                width: 80%;
+            }
         }
 
         /* Fullscreen GIF modal */
@@ -325,7 +345,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            /* Remove padding/margin if any */
         }
 
         .gif-modal-img {
@@ -338,7 +357,6 @@
             display: block;
             margin: 0 auto;
             animation: scaleIn 0.18s;
-            /* Remove max-width/max-height so it fills modal */
         }
         @keyframes scaleIn {
             from { transform: scale(0.92);}
@@ -373,22 +391,12 @@
 
         /* Logo styling */
         .logo-img {
-            display: block;
-            margin: 0 auto 1.5em auto;
-            max-width: 240px;
-            width: 60%;
-            height: auto;
-            border-radius: 24px;
-            box-shadow:
-                0 0 0 8px rgba(0,0,0,0.12),
-                0 0 32px 12px #0c011f,
-                0 0 0 2px rgba(0,0,0,0.08);
             cursor: pointer;
             transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
         }
 
         .logo-img:hover {
-            transform: scale(1.1);
+            transform: scale(1.05);
             box-shadow:
                 0 0 0 8px rgba(0,0,0,0.18),
                 0 0 48px 16px #0c011f,
@@ -397,10 +405,37 @@
         }
 
         @keyframes logoWiggle {
-            0% { transform: scale(1.1) rotate(0deg); }
-            25% { transform: scale(1.2) rotate(10deg); }
-            75% { transform: scale(1.2) rotate(-10deg); }
-            100% { transform: scale(1.1) rotate(0deg); }
+            0% { transform: scale(1.05) rotate(0deg); }
+            25% { transform: scale(1.1) rotate(5deg); }
+            75% { transform: scale(1.1) rotate(-5deg); }
+            100% { transform: scale(1.05) rotate(0deg); }
+        }
+
+        /* Add indicators styling */
+        .carousel-indicators {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+        }
+
+        .indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .indicator.active {
+            background: var(--accent);
+        }
+
+        .indicator:hover {
+            background: rgba(255,255,255,0.6);
         }
     </style>
 </head>
