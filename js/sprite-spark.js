@@ -5977,9 +5977,35 @@ function updatePanelLayout(panelType, isVisible) {
     }
 }
 
+// Helper: get distance between two touches
+function getTouchDist(touches) {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+// Helper: get midpoint between two touches
+function getTouchMid(touches) {
+    if (touches.length < 2) return { x: 0, y: 0 };
+    return {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2
+    };
+}
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
     const app = new SpriteSpark();
+
+    // Touch and stylus gesture state
+    let lastTouchDist = null;
+    let lastTouchZoom = 1;
+    let isTouchPanning = false;
+    let touchPanStart = { x: 0, y: 0 };
+    let touchScrollStart = { left: 0, top: 0 };
+    let isMultiTouch = false;
+    let isPanningOrZooming = false; // Add this flag to track pan/zoom state
 
     // Ctrl+Wheel zoom for canvas only
     const canvasContainer = document.querySelector('.canvas-container');
@@ -6102,15 +6128,201 @@ document.addEventListener('DOMContentLoaded', () => {
         if (canvasContainer.scrollTop < 0) canvasContainer.scrollTop = 0;
     }
 
+    // Touch start
     if (canvasContainer) {
-        canvasContainer.addEventListener('mousedown', startPan);
-        canvasContainer.addEventListener('mousemove', panMove);
-        window.addEventListener('mouseup', endPan);
+        canvasContainer.addEventListener('touchstart', function (e) {
+            if (e.touches.length === 2) {
+                // Two finger: pan/zoom - prevent drawing
+                isTouchPanning = true;
+                isMultiTouch = true;
+                isPanningOrZooming = true; // Set flag to prevent drawing
+                lastTouchDist = getTouchDist(e.touches);
+                lastTouchZoom = parseFloat(zoomInput.value);
+                const mid = getTouchMid(e.touches);
+                touchPanStart.x = mid.x;
+                touchPanStart.y = mid.y;
+                touchScrollStart.left = canvasContainer.scrollLeft;
+                touchScrollStart.top = canvasContainer.scrollTop;
+                
+                // Stop any ongoing drawing
+                if (app.isDrawing) {
+                    app.stopDrawing({ button: 0 });
+                }
+            } else if (e.touches.length === 1 && !isMultiTouch && !isPanningOrZooming) {
+                // Single finger: drawing (only if not multitouch and not panning/zooming)
+                const touch = e.touches[0];
+                // Simulate mouse event for drawing
+                const fakeEvent = {
+                    button: 0,
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    ctrlKey: false,
+                    preventDefault: () => { },
+                    pointerType: touch.touchType || 'touch',
+                    pressure: touch.force || 0.5 // fallback for browsers without force
+                };
+                // If stylus and pressure enabled, set brush size
+                if (
+                    stylusPressureEnabled &&
+                    (touch.touchType === 'stylus' || fakeEvent.pointerType === 'pen' || fakeEvent.pointerType === 'stylus')
+                ) {
+                    const min = 1, max = 50;
+                    app.brushSize = Math.max(min, Math.round((fakeEvent.pressure || 0.5) * max));
+                    const brushSizeInput = document.getElementById('brushSize');
+                    if (brushSizeInput) brushSizeInput.value = app.brushSize;
+                    const brushSizeValue = document.getElementById('brushSizeValue');
+                    if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
+                }
+                app.startDrawing(fakeEvent);
+            }
+        }, { passive: false });
 
-        // Prevent default middle mouse scroll behavior
-        canvasContainer.addEventListener('mousedown', function (e) {
-            if (e.button === 1) e.preventDefault();
+        // Touch move
+        canvasContainer.addEventListener('touchmove', function (e) {
+            if (e.touches.length === 2 && isTouchPanning) {
+                // Pan and zoom - definitely not drawing
+                isPanningOrZooming = true;
+                
+                const mid = getTouchMid(e.touches);
+                // Pan
+                const dx = mid.x - touchPanStart.x;
+                const dy = mid.y - touchPanStart.y;
+                canvasContainer.scrollLeft = touchScrollStart.left - dx;
+                canvasContainer.scrollTop = touchScrollStart.top - dy;
+                // Zoom
+                const dist = getTouchDist(e.touches);
+                if (lastTouchDist && Math.abs(dist - lastTouchDist) > 2) {
+                    let scale = dist / lastTouchDist;
+                    let newZoom = Math.max(0.5, Math.min(8, lastTouchZoom * scale));
+                    zoomInput.value = Math.round(newZoom * 100) / 100;
+                    app.updateZoomLevel();
+                }
+                e.preventDefault();
+            } else if (e.touches.length === 1 && app.isDrawing && !isMultiTouch && !isPanningOrZooming) {
+                // Drawing (only if not multitouch and not panning/zooming)
+                const touch = e.touches[0];
+                const fakeEvent = {
+                    button: 0,
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    ctrlKey: false,
+                    preventDefault: () => { },
+                    pointerType: touch.touchType || 'touch',
+                    pressure: touch.force || 0.5
+                };
+                // Stylus pressure
+                if (
+                    stylusPressureEnabled &&
+                    (touch.touchType === 'stylus' || fakeEvent.pointerType === 'pen' || fakeEvent.pointerType === 'stylus')
+                ) {
+                    const min = 1, max = 50;
+                    app.brushSize = Math.max(min, Math.round((fakeEvent.pressure || 0.5) * max));
+                    const brushSizeInput = document.getElementById('brushSize');
+                    if (brushSizeInput) brushSizeInput.value = app.brushSize;
+                    const brushSizeValue = document.getElementById('brushSizeValue');
+                    if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
+                }
+                app.draw(fakeEvent);
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Touch end/cancel
+        canvasContainer.addEventListener('touchend', function (e) {
+            if (e.touches.length === 0) {
+                // All touches ended
+                if (app.isDrawing && !isPanningOrZooming) {
+                    app.stopDrawing({ button: 0 });
+                }
+                // Reset all touch states
+                isTouchPanning = false;
+                isMultiTouch = false;
+                isPanningOrZooming = false;
+                lastTouchDist = null;
+            } else if (e.touches.length === 1) {
+                // Went from multi-touch to single touch
+                if (isPanningOrZooming) {
+                    // We were panning/zooming, stop that and don't start drawing
+                    isPanningOrZooming = false;
+                    isTouchPanning = false;
+                    isMultiTouch = false;
+                    lastTouchDist = null;
+                } else if (app.isDrawing) {
+                    // We were drawing with single touch, continue
+                    // No action needed, keep drawing
+                }
+            }
         });
+
+        canvasContainer.addEventListener('touchcancel', function (e) {
+            // Cancel all touch interactions
+            if (app.isDrawing) app.stopDrawing({ button: 0 });
+            isTouchPanning = false;
+            isMultiTouch = false;
+            isPanningOrZooming = false;
+            lastTouchDist = null;
+        });
+
+        // --- Stylus support via Pointer Events ---
+        if (window.PointerEvent) {
+            canvasContainer.addEventListener('pointerdown', function (e) {
+                // Don't start drawing if we're in a pan/zoom gesture
+                if (isPanningOrZooming) return;
+                
+                if (e.pointerType === 'pen') {
+                    // Stylus pressure
+                    if (stylusPressureEnabled && e.pressure) {
+                        const min = 1, max = 50;
+                        app.brushSize = Math.max(min, Math.round(e.pressure * max));
+                        const brushSizeInput = document.getElementById('brushSize');
+                        if (brushSizeInput) brushSizeInput.value = app.brushSize;
+                        const brushSizeValue = document.getElementById('brushSizeValue');
+                        if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
+                    }
+                    app.startDrawing(e);
+                } else if (e.pointerType === 'touch' && e.isPrimary && !isMultiTouch && !isPanningOrZooming) {
+                    app.startDrawing(e);
+                }
+            });
+            
+            canvasContainer.addEventListener('pointermove', function (e) {
+                // Don't draw if we're in a pan/zoom gesture
+                if (isPanningOrZooming) return;
+                
+                if (e.pointerType === 'pen' && app.isDrawing) {
+                    // Stylus pressure
+                    if (stylusPressureEnabled && e.pressure) {
+                        const min = 1, max = 50;
+                        app.brushSize = Math.max(min, Math.round(e.pressure * max));
+                        const brushSizeInput = document.getElementById('brushSize');
+                        if (brushSizeInput) brushSizeInput.value = app.brushSize;
+                        const brushSizeValue = document.getElementById('brushSizeValue');
+                        if (brushSizeValue) brushSizeValue.textContent = app.brushSize;
+                    }
+                    app.draw(e);
+                } else if (e.pointerType === 'touch' && app.isDrawing && !isMultiTouch && !isPanningOrZooming) {
+                    app.draw(e);
+                }
+            });
+            
+            canvasContainer.addEventListener('pointerup', function (e) {
+                if ((e.pointerType === 'pen' || e.pointerType === 'touch') && app.isDrawing && !isPanningOrZooming) {
+                    app.stopDrawing(e);
+                }
+            });
+            
+            canvasContainer.addEventListener('pointercancel', function (e) {
+                if ((e.pointerType === 'pen' || e.pointerType === 'touch') && app.isDrawing) {
+                    app.stopDrawing(e);
+                }
+                // Reset pan/zoom state on pointer cancel
+                if (e.pointerType === 'touch') {
+                    isPanningOrZooming = false;
+                    isTouchPanning = false;
+                    isMultiTouch = false;
+                }
+            });
+        }
     }
 
     function updateResizerPointerEvents() {
@@ -6187,14 +6399,6 @@ document.addEventListener('DOMContentLoaded', () => {
             stylusPressureEnabled = e.target.checked;
         });
     }
-
-    // Touch and stylus gesture state
-    let lastTouchDist = null;
-    let lastTouchZoom = 1;
-    let isTouchPanning = false;
-    let touchPanStart = { x: 0, y: 0 };
-    let touchScrollStart = { left: 0, top: 0 };
-    let isMultiTouch = false;
 
     // Helper: get distance between two touches
     function getTouchDist(touches) {
