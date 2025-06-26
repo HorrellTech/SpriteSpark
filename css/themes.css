@@ -938,3 +938,33 @@ html {
         height: 100% !important;
     }
 }
+
+/* OVERRIDE CHECKERBOARD COLORS - Force light colors regardless of theme */
+:root,
+[data-theme="dark"],
+[data-theme="light"],
+[data-theme="blue"],
+[data-theme="green"],
+[data-theme="orange"],
+[data-theme="red"],
+[data-theme="mono"],
+[data-theme="purple"],
+[data-theme="high-contrast"],
+[data-theme="ironman"],
+[data-theme="gold"],
+[data-theme="midnight"],
+[data-theme="sakura"],
+[data-theme="emerald"],
+[data-theme="neon-dark"],
+[data-theme="neon-night"],
+[data-theme="solarized-dark"],
+[data-theme="nord-dark"],
+[data-theme="dracula"],
+[data-theme="oceanic-dark"],
+[data-theme="cyberpunk-dark"],
+[data-theme="midnight-forest"],
+[data-theme="deep-space"],
+[data-theme="custom"] {
+    --checkerboard-light: #ffffff !important;
+    --checkerboard-dark: #f0f0f0 !important;
+}
