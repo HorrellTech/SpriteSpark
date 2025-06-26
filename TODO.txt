@@ -5,3 +5,5 @@
     on the canvas. This will allow people to be more specific with out having something to draw with. It will read the script 
     and produce it to the animation studio as an animation.
 - Fix resizing of canvas 
+- Export zip file full of transparent png files
+- Get effects working and add contrast, brightness, vignette, fish lense 
