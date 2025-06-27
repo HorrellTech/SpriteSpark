@@ -939,6 +939,12 @@ html {
     }
 }
 
+:root {
+    --success-color: #4CAF50;
+    --success-color-hover: #45a049;
+    --success-color-alpha: rgba(76, 175, 80, 0.1);
+}
+
 /* OVERRIDE CHECKERBOARD COLORS - Force light colors regardless of theme */
 :root,
 [data-theme="dark"],

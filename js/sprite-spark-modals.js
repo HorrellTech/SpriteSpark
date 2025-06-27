@@ -406,6 +406,156 @@ window.SpriteSparkModals = {
         modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
     },
 
+    showContrastModal(app) {
+        let modal = document.getElementById('effectContrastModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'effectContrastModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+        <div class="modal-content" style="min-width:320px;">
+            <h2>Contrast Effect</h2>
+            <label>
+                Contrast Level:
+                <input type="range" id="contrastLevel" min="0.1" max="3" step="0.1" value="1.2" style="width:120px;">
+                <span id="contrastLevelValue">1.2</span>
+            </label>
+            <div class="modal-actions" style="margin-top:16px;">
+                <button id="contrastApplyBtn" class="modal-btn accent">Apply</button>
+                <button id="contrastCancelBtn" class="modal-btn">Cancel</button>
+            </div>
+        </div>
+    `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('#contrastLevel').addEventListener('input', function () {
+            modal.querySelector('#contrastLevelValue').textContent = this.value;
+        });
+
+        modal.querySelector('#contrastApplyBtn').onclick = () => {
+            const contrast = parseFloat(modal.querySelector('#contrastLevel').value);
+            app.applyContrastEffect(contrast);
+            modal.remove();
+        };
+        modal.querySelector('#contrastCancelBtn').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    },
+
+    showBrightnessModal(app) {
+        let modal = document.getElementById('effectBrightnessModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'effectBrightnessModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+        <div class="modal-content" style="min-width:320px;">
+            <h2>Brightness Effect</h2>
+            <label>
+                Brightness Level:
+                <input type="range" id="brightnessLevel" min="0.1" max="3" step="0.1" value="1.2" style="width:120px;">
+                <span id="brightnessLevelValue">1.2</span>
+            </label>
+            <div class="modal-actions" style="margin-top:16px;">
+                <button id="brightnessApplyBtn" class="modal-btn accent">Apply</button>
+                <button id="brightnessCancelBtn" class="modal-btn">Cancel</button>
+            </div>
+        </div>
+    `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('#brightnessLevel').addEventListener('input', function () {
+            modal.querySelector('#brightnessLevelValue').textContent = this.value;
+        });
+
+        modal.querySelector('#brightnessApplyBtn').onclick = () => {
+            const brightness = parseFloat(modal.querySelector('#brightnessLevel').value);
+            app.applyBrightnessEffect(brightness);
+            modal.remove();
+        };
+        modal.querySelector('#brightnessCancelBtn').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    },
+
+    showVignetteModal(app) {
+        let modal = document.getElementById('effectVignetteModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'effectVignetteModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+        <div class="modal-content" style="min-width:320px;">
+            <h2>Vignette Effect</h2>
+            <label>
+                Strength:
+                <input type="range" id="vignetteStrength" min="0" max="1" step="0.1" value="0.5" style="width:120px;">
+                <span id="vignetteStrengthValue">0.5</span>
+            </label>
+            <label>
+                Falloff:
+                <input type="range" id="vignetteFalloff" min="0.1" max="2" step="0.1" value="0.7" style="width:120px;">
+                <span id="vignetteFalloffValue">0.7</span>
+            </label>
+            <div class="modal-actions" style="margin-top:16px;">
+                <button id="vignetteApplyBtn" class="modal-btn accent">Apply</button>
+                <button id="vignetteCancelBtn" class="modal-btn">Cancel</button>
+            </div>
+        </div>
+    `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('#vignetteStrength').addEventListener('input', function () {
+            modal.querySelector('#vignetteStrengthValue').textContent = this.value;
+        });
+
+        modal.querySelector('#vignetteFalloff').addEventListener('input', function () {
+            modal.querySelector('#vignetteFalloffValue').textContent = this.value;
+        });
+
+        modal.querySelector('#vignetteApplyBtn').onclick = () => {
+            const strength = parseFloat(modal.querySelector('#vignetteStrength').value);
+            const falloff = parseFloat(modal.querySelector('#vignetteFalloff').value);
+            app.applyVignetteEffect(strength, falloff);
+            modal.remove();
+        };
+        modal.querySelector('#vignetteCancelBtn').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    },
+
+    showFishEyeModal(app) {
+        let modal = document.getElementById('effectFishEyeModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'effectFishEyeModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+        <div class="modal-content" style="min-width:320px;">
+            <h2>Fish Eye Effect</h2>
+            <label>
+                Distortion Strength:
+                <input type="range" id="fishEyeStrength" min="0" max="2" step="0.1" value="0.5" style="width:120px;">
+                <span id="fishEyeStrengthValue">0.5</span>
+            </label>
+            <div class="modal-actions" style="margin-top:16px;">
+                <button id="fishEyeApplyBtn" class="modal-btn accent">Apply</button>
+                <button id="fishEyeCancelBtn" class="modal-btn">Cancel</button>
+            </div>
+        </div>
+    `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('#fishEyeStrength').addEventListener('input', function () {
+            modal.querySelector('#fishEyeStrengthValue').textContent = this.value;
+        });
+
+        modal.querySelector('#fishEyeApplyBtn').onclick = () => {
+            const strength = parseFloat(modal.querySelector('#fishEyeStrength').value);
+            app.applyFishEyeEffect(strength);
+            modal.remove();
+        };
+        modal.querySelector('#fishEyeCancelBtn').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    },
+
     showPixelateModal(app) {
         let modal = document.getElementById('effectPixelateModal');
         if (modal) modal.remove();

@@ -124,6 +124,10 @@ class SpriteSpark {
         this.mirrorAnimationPhase = 0;
         this.mirrorAnimationInterval = null;
 
+        // AI Drawing properties
+        this.aiDrawing = null;
+        this.aiDrawingCommands = null;
+
         // Canvas resizing
         this.currentPlacement = 'center';
     }
@@ -446,6 +450,64 @@ class SpriteSpark {
             });
         }
 
+        // Initialize AI Drawing
+        this.aiDrawing = new AIDrawing(this);
+        this.aiDrawingCommands = new AIDrawingCommands(this);
+
+        // AI Drawing controls
+        const generateAIArtBtn = document.getElementById('generateAIArt');
+        const setApiKeyBtn = document.getElementById('setApiKey');
+        const aiPromptInput = document.getElementById('aiPrompt');
+        const aiCanvasSizeSelect = document.getElementById('aiCanvasSize');
+        const aiArtStyleSelect = document.getElementById('aiArtStyle');
+
+        if (generateAIArtBtn) {
+            generateAIArtBtn.addEventListener('click', () => {
+                const prompt = aiPromptInput.value.trim();
+                const size = 0;//parseInt(aiCanvasSizeSelect.value);
+                const style = aiArtStyleSelect.value;
+
+                if (!prompt) {
+                    alert('Please enter a description of what to draw');
+                    return;
+                }
+
+                this.generateAIDrawing(prompt, size, style);
+            });
+        }
+
+        // CHAT GPT API Key setting
+        /*if (setApiKeyBtn) {
+            setApiKeyBtn.addEventListener('click', () => {
+                const currentKey = localStorage.getItem('openai_api_key');
+                const keyPreview = currentKey ? `${currentKey.substring(0, 8)}...` : 'None set';
+
+                const apiKey = prompt(`Enter your OpenAI API key:\n\nCurrent key: ${keyPreview}\n\nYou can get an API key from https://platform.openai.com/api-keys`);
+                if (apiKey && apiKey.trim()) {
+                    localStorage.setItem('openai_api_key', apiKey.trim());
+                    alert('API key saved locally!');
+                    this.updateApiKeyButton();
+                }
+            });
+        }*/
+
+        if (setApiKeyBtn) {
+            setApiKeyBtn.addEventListener('click', () => {
+                const currentKey = localStorage.getItem('gemini_api_key');
+                const keyPreview = currentKey ? `${currentKey.substring(0, 8)}...` : 'None set';
+
+                const apiKey = prompt(`Enter your Google Gemini API key:\n\nCurrent key: ${keyPreview}\n\nYou can get a free API key from https://makersuite.google.com/app/apikey`);
+                if (apiKey && apiKey.trim()) {
+                    localStorage.setItem('gemini_api_key', apiKey.trim());
+                    alert('Gemini API key saved locally!');
+                    this.updateApiKeyButton();
+                }
+            });
+        }
+
+        // Update button text on load
+        this.updateApiKeyButton();
+
         // Tool properties
         this.initializeToolProperties();
 
@@ -454,6 +516,813 @@ class SpriteSpark {
 
         // Canvas resize controls
         this.initializeCanvasResizeControls();
+    }
+
+    /*updateApiKeyButton() {
+        const setApiKeyBtn = document.getElementById('setApiKey');
+        const hasApiKey = localStorage.getItem('openai_api_key');
+
+        if (setApiKeyBtn) {
+            setApiKeyBtn.textContent = hasApiKey ? 'Update API Key' : 'Set API Key';
+            if (hasApiKey) {
+                setApiKeyBtn.classList.add('has-key');
+            } else {
+                setApiKeyBtn.classList.remove('has-key');
+            }
+        }
+    }*/
+
+    updateApiKeyButton() {
+        const setApiKeyBtn = document.getElementById('setApiKey');
+        const hasApiKey = localStorage.getItem('gemini_api_key');
+
+        if (setApiKeyBtn) {
+            setApiKeyBtn.textContent = hasApiKey ? 'Update Gemini API Key' : 'Set Gemini API Key';
+            if (hasApiKey) {
+                setApiKeyBtn.classList.add('has-key');
+            } else {
+                setApiKeyBtn.classList.remove('has-key');
+            }
+        }
+    }
+
+    /*async generateAIDrawing(prompt, size, style) {
+        const apiKey = localStorage.getItem('openai_api_key');
+        if (!apiKey) {
+            alert('Please set your OpenAI API key first');
+            return;
+        }
+
+        const generateBtn = document.getElementById('generateAIArt');
+        const originalText = generateBtn.textContent;
+        generateBtn.textContent = 'Generating...';
+        generateBtn.disabled = true;
+
+        try {
+            console.log('Making API request with prompt:', prompt);
+            console.log('Using canvas size:', size, 'x', size);
+
+            // Create system prompt for drawing commands
+            const systemPrompt = `You are a drawing assistant that creates images using simple drawing commands. 
+Create a ${size}x${size} image for the given prompt using ONLY these commands:
+
+Available commands:
+- circle(x, y, radius, filled, color) - Draw a circle
+- rectangle(x, y, width, height, filled, color) - Draw a rectangle  
+- line(x1, y1, x2, y2, color) - Draw a line
+- ellipse(x, y, radiusX, radiusY, filled, color) - Draw an ellipse
+- triangle(x1, y1, x2, y2, x3, y3, filled, color) - Draw a triangle
+
+Rules:
+- Coordinates must be within 0 to ${size - 1}
+- Colors must be hex format like "#FF0000"
+- filled parameter is true/false for shapes
+- Return ONLY a JSON array of commands, no explanations
+- Keep it simple with 5-15 commands max
+
+Style: ${style}
+
+Example format:
+[
+  {"type": "circle", "x": 16, "y": 16, "radius": 8, "filled": true, "color": "#FF0000"},
+  {"type": "line", "x1": 0, "y1": 0, "x2": 31, "y2": 31, "color": "#0000FF"},
+  {"type": "rectangle", "x": 10, "y": 10, "width": 20, "height": 20, "filled": false, "color": "#00FF00"},
+  {"type": "ellipse", "x": 16, "y": 16, "radiusX": 10, "radiusY": 5, "filled": true, "color": "#FFFF00"},
+  {"type": "triangle", "x1": 5, "y1": 5, "x2": 15, "y2": 25, "x3": 25, "y3": 5, "filled": true, "color": "#FF00FF"}
+]`;
+
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: `Create drawing commands for: ${prompt}` }
+                    ],
+                    max_tokens: 3000,
+                    temperature: 0.7
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+            }
+
+            const data = await response.json();
+            const content = data.choices[0].message.content.trim();
+
+            let commands;
+            try {
+                // Try to parse JSON directly
+                commands = JSON.parse(content);
+            } catch (parseError) {
+                // Try to extract JSON from response
+                const jsonMatch = content.match(/\[[\s\S]*\]/);
+                if (!jsonMatch) {
+                    throw new Error('No valid JSON commands found in AI response');
+                }
+                commands = JSON.parse(jsonMatch[0]);
+            }
+
+            // Validate and execute commands
+            this.executeDrawingCommands(commands, size);
+
+        } catch (error) {
+            console.error('AI generation failed:', error);
+
+            // Create simple fallback
+            const fallbackCommands = this.createFallbackCommands(size, prompt);
+            this.executeDrawingCommands(fallbackCommands, size);
+
+            this.showNotification('AI response failed. Created a simple fallback design.', 'warning');
+
+        } finally {
+            generateBtn.textContent = originalText;
+            generateBtn.disabled = false;
+        }
+    }*/
+
+    async generateAIDrawing(prompt, size, style) {
+        const apiKey = localStorage.getItem('gemini_api_key');
+        if (!apiKey) {
+            alert('Please set your Gemini API key first');
+            return;
+        }
+
+        const generateBtn = document.getElementById('generateAIArt');
+        const originalText = generateBtn.textContent;
+        generateBtn.textContent = 'Generating...';
+        generateBtn.disabled = true;
+
+        try {
+            console.log('Making Gemini API request with prompt:', prompt);
+
+            // Use the current canvas dimensions instead of the selected size
+            const canvasSize = Math.min(this.canvasWidth, this.canvasHeight); // Use smaller dimension for square art
+            console.log('Using canvas size:', canvasSize, 'x', canvasSize);
+
+            let systemPrompt;
+
+            if (style === 'realistic') {
+                // For realistic style, use a different approach - describe pixel patterns
+                systemPrompt = `You are a drawing assistant that creates realistic-looking sprites using simple drawing commands.
+Create a ${canvasSize}x${canvasSize} realistic image for the given prompt using ONLY these commands:
+
+Available commands:
+- circle(x, y, radius, filled, color) - Draw a circle
+- rectangle(x, y, width, height, filled, color) - Draw a rectangle  
+- line(x1, y1, x2, y2, color) - Draw a line
+- ellipse(x, y, radiusX, radiusY, filled, color) - Draw an ellipse
+- triangle(x1, y1, x2, y2, x3, y3, filled, color) - Draw a triangle
+
+Rules:
+- Coordinates must be within 0 to ${canvasSize - 1}
+- Colors must be hex format like "#FF0000"
+- filled parameter is true/false for shapes
+- Return ONLY a JSON array of commands, no explanations
+- Use 15-30 commands for realistic detail
+- Use realistic colors and proportions
+- Layer shapes to create depth and detail
+- Think about actual object anatomy and structure
+
+For animals like cats:
+- Start with basic body shapes (oval for body, circle for head)
+- Add details like ears (triangles), eyes (small circles), nose, mouth
+- Use appropriate colors (browns, oranges, blacks, whites for cats)
+- Consider proportions (cat head is about 1/3 of body size)
+
+For objects:
+- Break down into component shapes
+- Use realistic proportions
+- Add shadows/highlights with darker/lighter colors
+- Layer from background to foreground
+
+Create realistic drawing commands for: ${prompt}`;
+            } else {
+                // Original system prompt for other styles
+                systemPrompt = `You are a drawing assistant that creates pixel art using simple drawing commands. 
+Create a ${canvasSize}x${canvasSize} pixel art image for the given prompt using ONLY these commands:
+
+Available commands:
+- circle(x, y, radius, filled, color) - Draw a circle
+- rectangle(x, y, width, height, filled, color) - Draw a rectangle  
+- line(x1, y1, x2, y2, color) - Draw a line
+- ellipse(x, y, radiusX, radiusY, filled, color) - Draw an ellipse
+- triangle(x1, y1, x2, y2, x3, y3, filled, color) - Draw a triangle
+
+Rules:
+- Coordinates must be within 0 to ${canvasSize - 1}
+- Colors must be hex format like "#FF0000"
+- filled parameter is true/false for shapes
+- Return ONLY a JSON array of commands, no explanations
+- Keep it simple with 5-15 commands max
+- Think about pixel art aesthetics - simple shapes, bold colors
+
+Style: ${style}
+
+Example format (adjusted for ${canvasSize}x${canvasSize} canvas):
+[
+  {"type": "circle", "x": ${Math.floor(canvasSize / 2)}, "y": ${Math.floor(canvasSize / 2)}, "radius": ${Math.floor(canvasSize / 8)}, "filled": true, "color": "#FF0000"},
+  {"type": "line", "x1": 0, "y1": 0, "x2": ${canvasSize - 1}, "y2": ${canvasSize - 1}, "color": "#0000FF"},
+  {"type": "rectangle", "x": ${Math.floor(canvasSize / 4)}, "y": ${Math.floor(canvasSize / 4)}, "width": ${Math.floor(canvasSize / 2)}, "height": ${Math.floor(canvasSize / 2)}, "filled": false, "color": "#00FF00"}
+]
+
+Create drawing commands for: ${prompt}`;
+            }
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: systemPrompt
+                        }]
+                    }],
+                    generationConfig: {
+                        temperature: style === 'realistic' ? 0.3 : 0.7, // Lower temperature for more consistent realistic results
+                        topK: 40,
+                        topP: 0.95,
+                        maxOutputTokens: style === 'realistic' ? 4096 : 2048, // More tokens for complex realistic drawings
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`Gemini API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+            }
+
+            const data = await response.json();
+
+            // Add console output for the full API response
+            console.log('Full Gemini API response:', JSON.stringify(data, null, 2));
+
+            if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+                throw new Error('No response from Gemini API');
+            }
+
+            const content = data.candidates[0].content.parts[0].text.trim();
+
+            // Add console output for the raw text content
+            console.log('Raw Gemini response text:', content);
+
+            let commands;
+            try {
+                // Try to parse JSON directly
+                commands = JSON.parse(content);
+                console.log('Successfully parsed JSON commands:', commands);
+            } catch (parseError) {
+                console.log('Failed to parse JSON directly, trying to extract from text');
+                // Try to extract JSON from response
+                const jsonMatch = content.match(/\[[\s\S]*\]/);
+                if (!jsonMatch) {
+                    console.error('No valid JSON commands found in Gemini response');
+                    throw new Error('No valid JSON commands found in Gemini response');
+                }
+                console.log('Extracted JSON string:', jsonMatch[0]);
+                commands = JSON.parse(jsonMatch[0]);
+                console.log('Successfully parsed extracted JSON commands:', commands);
+            }
+
+            // Validate and execute commands using the canvas size
+            this.executeDrawingCommands(commands, canvasSize);
+
+        } catch (error) {
+            console.error('Gemini AI generation failed:', error);
+
+            // Create simple fallback using canvas size
+            const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
+            const fallbackCommands = this.createRealisticFallbackCommands(canvasSize, prompt, style);
+            console.log('Using fallback commands:', fallbackCommands);
+            this.executeDrawingCommands(fallbackCommands, canvasSize);
+
+            this.showNotification('AI response failed. Created a simple fallback design.', 'warning');
+
+        } finally {
+            generateBtn.textContent = originalText;
+            generateBtn.disabled = false;
+        }
+    }
+
+    // Add a new method for realistic fallback commands
+    createRealisticFallbackCommands(size, prompt, style) {
+        const centerX = Math.floor(size / 2);
+        const centerY = Math.floor(size / 2);
+
+        if (style === 'realistic' && prompt.toLowerCase().includes('cat')) {
+            // Create a more realistic cat fallback
+            return [
+                // Body (ellipse)
+                { "type": "ellipse", "x": centerX, "y": centerY + size / 6, "radiusX": size / 4, "radiusY": size / 6, "filled": true, "color": "#D2691E" },
+                // Head (circle)
+                { "type": "circle", "x": centerX, "y": centerY - size / 6, "radius": size / 6, "filled": true, "color": "#DEB887" },
+                // Left ear
+                { "type": "triangle", "x1": centerX - size / 8, "y1": centerY - size / 4, "x2": centerX - size / 12, "y2": centerY - size / 3, "x3": centerX - size / 20, "y3": centerY - size / 5, "filled": true, "color": "#D2691E" },
+                // Right ear
+                { "type": "triangle", "x1": centerX + size / 8, "y1": centerY - size / 4, "x2": centerX + size / 12, "y2": centerY - size / 3, "x3": centerX + size / 20, "y3": centerY - size / 5, "filled": true, "color": "#D2691E" },
+                // Left eye
+                { "type": "circle", "x": centerX - size / 12, "y": centerY - size / 8, "radius": 2, "filled": true, "color": "#228B22" },
+                // Right eye
+                { "type": "circle", "x": centerX + size / 12, "y": centerY - size / 8, "radius": 2, "filled": true, "color": "#228B22" },
+                // Nose
+                { "type": "triangle", "x1": centerX - 1, "y1": centerY - size / 20, "x2": centerX + 1, "y2": centerY - size / 20, "x3": centerX, "y3": centerY - size / 30, "filled": true, "color": "#FF69B4" },
+                // Mouth
+                { "type": "line", "x1": centerX, "y1": centerY - size / 30, "x2": centerX, "y2": centerY, "color": "#000000" },
+                // Tail
+                { "type": "ellipse", "x": centerX + size / 3, "y": centerY, "radiusX": size / 8, "radiusY": 3, "filled": true, "color": "#D2691E" }
+            ];
+        } else if (style === 'realistic') {
+            // Generic realistic fallback
+            const fallbackCommands = this.createFallbackCommands(size, prompt);
+            // Add some realistic details
+            fallbackCommands.push(
+                { "type": "circle", "x": centerX + 2, "y": centerY - 2, "radius": 2, "filled": true, "color": "#FFFFFF" }, // highlight
+                { "type": "circle", "x": centerX - 2, "y": centerY + 2, "radius": 1, "filled": true, "color": "#888888" }  // shadow
+            );
+            return fallbackCommands;
+        } else {
+            // Use original fallback for other styles
+            return this.createFallbackCommands(size, prompt);
+        }
+    }
+
+    // Add drawing command interpreter
+    executeDrawingCommand(ctx, cmd, canvasSize) {
+        if (!cmd || typeof cmd !== 'object' || !cmd.type) {
+            throw new Error('Invalid command format');
+        }
+
+        // Clamp coordinates to canvas bounds instead of throwing errors
+        const clampCoord = (coord, name) => {
+            if (typeof coord !== 'number' || isNaN(coord)) {
+                console.warn(`Invalid ${name}: ${coord}, using 0`);
+                return 0;
+            }
+            return Math.max(0, Math.min(coord, canvasSize - 1));
+        };
+
+        // Validate color format
+        const validateColor = (color) => {
+            if (typeof color !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(color)) {
+                console.warn(`Invalid color: ${color}, using black`);
+                return '#000000';
+            }
+            return color;
+        };
+
+        ctx.save();
+
+        switch (cmd.type) {
+            case 'circle':
+                const circleX = clampCoord(cmd.x, 'x');
+                const circleY = clampCoord(cmd.y, 'y');
+                const circleColor = validateColor(cmd.color);
+                const radius = Math.max(1, Math.min(cmd.radius || 5, canvasSize / 2));
+
+                ctx.beginPath();
+                ctx.arc(circleX, circleY, radius, 0, 2 * Math.PI);
+
+                if (cmd.filled) {
+                    ctx.fillStyle = circleColor;
+                    ctx.fill();
+                } else {
+                    ctx.strokeStyle = circleColor;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+                break;
+
+            case 'rectangle':
+                const rectX = clampCoord(cmd.x, 'x');
+                const rectY = clampCoord(cmd.y, 'y');
+                const rectColor = validateColor(cmd.color);
+                const width = Math.max(1, Math.min(cmd.width || 10, canvasSize - rectX));
+                const height = Math.max(1, Math.min(cmd.height || 10, canvasSize - rectY));
+
+                if (cmd.filled) {
+                    ctx.fillStyle = rectColor;
+                    ctx.fillRect(rectX, rectY, width, height);
+                } else {
+                    ctx.strokeStyle = rectColor;
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(rectX, rectY, width, height);
+                }
+                break;
+
+            case 'line':
+                // Provide default values for missing coordinates
+                const lineX1 = clampCoord(cmd.x1 !== undefined ? cmd.x1 : cmd.x || 0, 'x1');
+                const lineY1 = clampCoord(cmd.y1 !== undefined ? cmd.y1 : cmd.y || 0, 'y1');
+                const lineX2 = clampCoord(cmd.x2 !== undefined ? cmd.x2 : (cmd.x || 0) + 10, 'x2');
+                const lineY2 = clampCoord(cmd.y2 !== undefined ? cmd.y2 : (cmd.y || 0) + 10, 'y2');
+                const lineColor = validateColor(cmd.color);
+
+                ctx.strokeStyle = lineColor;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(lineX1, lineY1);
+                ctx.lineTo(lineX2, lineY2);
+                ctx.stroke();
+                break;
+
+            case 'ellipse':
+                const ellipseX = clampCoord(cmd.x, 'x');
+                const ellipseY = clampCoord(cmd.y, 'y');
+                const ellipseColor = validateColor(cmd.color);
+                const radiusX = Math.max(1, Math.min(cmd.radiusX || 5, canvasSize / 2));
+                const radiusY = Math.max(1, Math.min(cmd.radiusY || 5, canvasSize / 2));
+
+                ctx.beginPath();
+                ctx.ellipse(ellipseX, ellipseY, radiusX, radiusY, 0, 0, 2 * Math.PI);
+
+                if (cmd.filled) {
+                    ctx.fillStyle = ellipseColor;
+                    ctx.fill();
+                } else {
+                    ctx.strokeStyle = ellipseColor;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+                break;
+
+            case 'triangle':
+                // Provide default values for missing coordinates
+                const triX1 = clampCoord(cmd.x1 !== undefined ? cmd.x1 : cmd.x || 0, 'x1');
+                const triY1 = clampCoord(cmd.y1 !== undefined ? cmd.y1 : cmd.y || 0, 'y1');
+                const triX2 = clampCoord(cmd.x2 !== undefined ? cmd.x2 : (cmd.x || 0) + 10, 'x2');
+                const triY2 = clampCoord(cmd.y2 !== undefined ? cmd.y2 : (cmd.y || 0) + 10, 'y2');
+                const triX3 = clampCoord(cmd.x3 !== undefined ? cmd.x3 : (cmd.x || 0) + 5, 'x3');
+                const triY3 = clampCoord(cmd.y3 !== undefined ? cmd.y3 : (cmd.y || 0) + 15, 'y3');
+                const triColor = validateColor(cmd.color);
+
+                ctx.beginPath();
+                ctx.moveTo(triX1, triY1);
+                ctx.lineTo(triX2, triY2);
+                ctx.lineTo(triX3, triY3);
+                ctx.closePath();
+
+                if (cmd.filled) {
+                    ctx.fillStyle = triColor;
+                    ctx.fill();
+                } else {
+                    ctx.strokeStyle = triColor;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+                break;
+
+            default:
+                console.warn(`Unknown command type: ${cmd.type}`);
+        }
+
+        ctx.restore();
+    }
+
+    executeDrawingCommands(commands, size) {
+        if (!Array.isArray(commands) || commands.length === 0) {
+            console.error('Invalid or empty commands array');
+            return;
+        }
+
+        // Validate commands first
+        for (const cmd of commands) {
+            if (!cmd || typeof cmd !== 'object' || !cmd.type) {
+                console.error('Invalid command format:', cmd);
+                return;
+            }
+        }
+
+        // Create a temporary canvas to draw the AI art
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = size;
+        tempCanvas.height = size;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // Clear with transparent background
+        tempCtx.clearRect(0, 0, size, size);
+
+        // Execute each drawing command
+        try {
+            for (const cmd of commands) {
+                this.executeDrawingCommand(tempCtx, cmd, size);
+            }
+
+            // Convert the temporary canvas to pixel data
+            const imageData = tempCtx.getImageData(0, 0, size, size);
+            const pixelData = [];
+
+            // Convert ImageData to 2D array format
+            for (let y = 0; y < size; y++) {
+                const row = [];
+                for (let x = 0; x < size; x++) {
+                    const index = (y * size + x) * 4;
+                    const r = imageData.data[index];
+                    const g = imageData.data[index + 1];
+                    const b = imageData.data[index + 2];
+                    const a = imageData.data[index + 3];
+
+                    // Convert to hex color if pixel is not transparent
+                    if (a > 0) {
+                        const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+                        row.push(hex);
+                    } else {
+                        row.push(null); // Transparent pixel
+                    }
+                }
+                pixelData.push(row);
+            }
+
+            // Draw the AI art to the active layer
+            this.drawAIPixelData(pixelData);
+
+        } catch (error) {
+            console.error('Error executing drawing commands:', error);
+
+            // Create simple fallback
+            const fallbackCommands = this.createFallbackCommands(size, 'AI Art');
+            this.executeDrawingCommands(fallbackCommands, size);
+        }
+    }
+
+    createFallbackCommands(size, prompt) {
+        const center = Math.floor(size / 2);
+        const radius = Math.floor(size / 4);
+
+        // Simple fallback based on prompt keywords
+        let color = '#FF0000';
+        if (prompt.toLowerCase().includes('blue')) color = '#0000FF';
+        else if (prompt.toLowerCase().includes('green')) color = '#00FF00';
+        else if (prompt.toLowerCase().includes('yellow')) color = '#FFFF00';
+
+        // Include triangle in fallback options
+        const shapes = [
+            {
+                type: 'circle',
+                x: center,
+                y: center,
+                radius: radius,
+                filled: true,
+                color: color
+            },
+            {
+                type: 'triangle',
+                x1: center,
+                y1: center - radius,
+                x2: center - radius,
+                y2: center + radius,
+                x3: center + radius,
+                y3: center + radius,
+                filled: true,
+                color: color
+            },
+            {
+                type: 'rectangle',
+                x: center - radius,
+                y: center - radius,
+                width: radius * 2,
+                height: radius * 2,
+                filled: true,
+                color: color
+            }
+        ];
+
+        // Return a random shape or the first one based on prompt
+        if (prompt.toLowerCase().includes('triangle')) {
+            return [shapes[1]];
+        } else if (prompt.toLowerCase().includes('square') || prompt.toLowerCase().includes('rectangle')) {
+            return [shapes[2]];
+        } else {
+            return [shapes[0]];
+        }
+    }
+
+    // Add this simple fallback method
+    createSimpleFallback(width, height, prompt) {
+        const pixelData = [];
+
+        // Create a simple colored square based on prompt
+        let color = '#FF0000'; // Default red
+
+        if (prompt.toLowerCase().includes('blue')) color = '#0000FF';
+        else if (prompt.toLowerCase().includes('green')) color = '#00FF00';
+        else if (prompt.toLowerCase().includes('yellow')) color = '#FFFF00';
+        else if (prompt.toLowerCase().includes('purple')) color = '#FF00FF';
+        else if (prompt.toLowerCase().includes('orange')) color = '#FFA500';
+
+        const centerX = Math.floor(width / 2);
+        const centerY = Math.floor(height / 2);
+        const radius = Math.min(width, height) / 3;
+
+        for (let y = 0; y < height; y++) {
+            const row = [];
+            for (let x = 0; x < width; x++) {
+                // Create a simple circle pattern
+                const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+                if (distance < radius) {
+                    row.push(color);
+                } else {
+                    row.push(null);
+                }
+            }
+            pixelData.push(row);
+        }
+
+        return pixelData;
+    }
+
+    // Add these helper methods to the SpriteSpark class:
+    createFallbackPixelArt(width, height, prompt) {
+        const pixelData = [];
+
+        // Create a simple pattern based on the prompt
+        const colors = this.getFallbackColors(prompt);
+
+        for (let y = 0; y < height; y++) {
+            const row = [];
+            for (let x = 0; x < width; x++) {
+                // Create a simple pattern
+                if (prompt.toLowerCase().includes('house')) {
+                    row.push(this.getHousePixel(x, y, width, height, colors));
+                } else if (prompt.toLowerCase().includes('tree')) {
+                    row.push(this.getTreePixel(x, y, width, height, colors));
+                } else if (prompt.toLowerCase().includes('cat') || prompt.toLowerCase().includes('animal')) {
+                    row.push(this.getAnimalPixel(x, y, width, height, colors));
+                } else {
+                    // Generic geometric pattern
+                    row.push(this.getGenericPixel(x, y, width, height, colors));
+                }
+            }
+            pixelData.push(row);
+        }
+
+        return pixelData;
+    }
+
+    showNotification(message, type = 'info') {
+        // Create a temporary notification element
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: ${type === 'warning' ? '#ff9800' : '#4caf50'};
+            color: white;
+            border-radius: 4px;
+            z-index: 10000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            font-size: 14px;
+            max-width: 300px;
+        `;
+        notification.textContent = message;
+
+        document.body.appendChild(notification);
+
+        // Remove after 4 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 4000);
+    }
+
+    getFallbackColors(prompt) {
+        const lowerPrompt = prompt.toLowerCase();
+
+        if (lowerPrompt.includes('house')) {
+            return ['#8B4513', '#FF0000', '#00FF00', '#0000FF', '#FFFF00']; // Brown, red, green, blue, yellow
+        } else if (lowerPrompt.includes('tree')) {
+            return ['#228B22', '#8B4513', '#90EE90', '#006400']; // Green, brown, light green, dark green
+        } else if (lowerPrompt.includes('cat') || lowerPrompt.includes('animal')) {
+            return ['#FFA500', '#000000', '#FFFFFF', '#FF69B4']; // Orange, black, white, pink
+        } else {
+            return ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF']; // Basic colors
+        }
+    }
+
+    getHousePixel(x, y, width, height, colors) {
+        const centerX = Math.floor(width / 2);
+        const centerY = Math.floor(height / 2);
+
+        // Simple house shape
+        if (y < height * 0.3 && Math.abs(x - centerX) < width * 0.3) {
+            return colors[1]; // Roof (red)
+        } else if (y >= height * 0.3 && y < height * 0.8 && Math.abs(x - centerX) < width * 0.25) {
+            return colors[0]; // Wall (brown)
+        } else if (y >= height * 0.5 && y < height * 0.7 && Math.abs(x - centerX - width * 0.1) < width * 0.05) {
+            return colors[3]; // Door (blue)
+        }
+        return null; // Transparent
+    }
+
+    getTreePixel(x, y, width, height, colors) {
+        const centerX = Math.floor(width / 2);
+
+        // Simple tree shape
+        if (y < height * 0.7 && Math.abs(x - centerX) < width * 0.3) {
+            return colors[0]; // Leaves (green)
+        } else if (y >= height * 0.7 && Math.abs(x - centerX) < width * 0.1) {
+            return colors[1]; // Trunk (brown)
+        }
+        return null; // Transparent
+    }
+
+    getAnimalPixel(x, y, width, height, colors) {
+        const centerX = Math.floor(width / 2);
+        const centerY = Math.floor(height / 2);
+
+        // Simple cat/animal shape
+        const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+        if (distance < Math.min(width, height) * 0.3) {
+            return colors[0]; // Body
+        } else if (y < height * 0.4 && Math.abs(x - centerX) < width * 0.2) {
+            return colors[0]; // Head
+        }
+        return null; // Transparent
+    }
+
+    getGenericPixel(x, y, width, height, colors) {
+        // Create a simple geometric pattern
+        const pattern = (x + y) % colors.length;
+        if ((x % 3 === 0 && y % 3 === 0) || (x % 5 === 0 && y % 5 === 0)) {
+            return colors[pattern];
+        }
+        return null;
+    }
+
+    adjustPixelDataDimensions(pixelData, targetWidth, targetHeight) {
+        const adjusted = [];
+
+        for (let y = 0; y < targetHeight; y++) {
+            const row = [];
+            for (let x = 0; x < targetWidth; x++) {
+                // Try to get pixel from original data, or use null
+                const sourceY = Math.min(y, pixelData.length - 1);
+                const sourceRow = pixelData[sourceY];
+
+                if (Array.isArray(sourceRow) && x < sourceRow.length) {
+                    row.push(sourceRow[x]);
+                } else {
+                    row.push(null);
+                }
+            }
+            adjusted.push(row);
+        }
+
+        return adjusted;
+    }
+
+    drawAIPixelData(pixelData) {
+        if (!this.activeLayerId) {
+            alert('Please select a layer first');
+            return;
+        }
+
+        this.undoAdd();
+        const layer = this.layers.find(l => l.id === this.activeLayerId);
+        if (!layer) return;
+
+        const ctx = layer.canvas.getContext('2d');
+
+        // Calculate starting position to center the AI art on the canvas
+        const artWidth = pixelData[0].length;
+        const artHeight = pixelData.length;
+        const startX = Math.floor((this.canvasWidth - artWidth) / 2);
+        const startY = Math.floor((this.canvasHeight - artHeight) / 2);
+
+        // Draw each pixel
+        for (let y = 0; y < pixelData.length; y++) {
+            for (let x = 0; x < pixelData[y].length; x++) {
+                const color = pixelData[y][x];
+                // Skip null/transparent pixels
+                if (color && color !== 'transparent' && color !== '#00000000' && color !== null) {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(startX + x, startY + y, 1, 1);
+                }
+            }
+        }
+
+        this.syncGlobalLayersToCurrentFrame();
+        this.renderCurrentFrameToMainCanvas();
+
+        // Show success message
+        const generateBtn = document.getElementById('generateAIArt');
+        const originalText = generateBtn.textContent;
+        generateBtn.textContent = '✓ Generated!';
+        generateBtn.style.backgroundColor = 'var(--success-color)';
+
+        setTimeout(() => {
+            generateBtn.textContent = originalText;
+            generateBtn.style.backgroundColor = '';
+        }, 2000);
     }
 
     initializeAnimationControls() {
@@ -2769,6 +3638,18 @@ class SpriteSpark {
             case 'pixelate':
                 window.SpriteSparkModals && window.SpriteSparkModals.showPixelateModal(this);
                 break;
+            case 'contrast':
+                window.SpriteSparkModals && window.SpriteSparkModals.showContrastModal(this);
+                break;
+            case 'brightness':
+                window.SpriteSparkModals && window.SpriteSparkModals.showBrightnessModal(this);
+                break;
+            case 'vignette':
+                window.SpriteSparkModals && window.SpriteSparkModals.showVignetteModal(this);
+                break;
+            case 'fish-eye':
+                window.SpriteSparkModals && window.SpriteSparkModals.showFishEyeModal(this);
+                break;
 
             // Add other actions as needed...
         }
@@ -4180,6 +5061,243 @@ class SpriteSpark {
         this.renderCurrentFrameToMainCanvas();
     }
 
+    applyContrastEffect(contrast = 1.2) {
+        // Add undo state first
+        this.undoAdd();
+
+        // Only apply contrast to the active layer in the current frame
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+
+        const ctx = layer.canvas.getContext('2d');
+        const w = layer.canvas.width, h = layer.canvas.height;
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+            // Apply contrast formula: newValue = ((oldValue - 128) * contrast) + 128
+            data[i] = Math.min(255, Math.max(0, ((data[i] - 128) * contrast) + 128));     // Red
+            data[i + 1] = Math.min(255, Math.max(0, ((data[i + 1] - 128) * contrast) + 128)); // Green
+            data[i + 2] = Math.min(255, Math.max(0, ((data[i + 2] - 128) * contrast) + 128)); // Blue
+            // Alpha channel remains unchanged
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+
+        // Sync to global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+            globalCtx.drawImage(layer.canvas, 0, 0);
+        }
+
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    applyBrightnessEffect(brightness = 1.2) {
+        // Add undo state first
+        this.undoAdd();
+
+        // Only apply brightness to the active layer in the current frame
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+
+        const ctx = layer.canvas.getContext('2d');
+        const w = layer.canvas.width, h = layer.canvas.height;
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+            // Apply brightness multiplier
+            data[i] = Math.min(255, Math.max(0, data[i] * brightness));     // Red
+            data[i + 1] = Math.min(255, Math.max(0, data[i + 1] * brightness)); // Green
+            data[i + 2] = Math.min(255, Math.max(0, data[i + 2] * brightness)); // Blue
+            // Alpha channel remains unchanged
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+
+        // Sync to global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+            globalCtx.drawImage(layer.canvas, 0, 0);
+        }
+
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    applyVignetteEffect(strength = 0.5, falloff = 0.7) {
+        // Add undo state first
+        this.undoAdd();
+
+        // Only apply vignette to the active layer in the current frame
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+
+        const ctx = layer.canvas.getContext('2d');
+        const w = layer.canvas.width, h = layer.canvas.height;
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+
+        const centerX = w / 2;
+        const centerY = h / 2;
+        const maxDistance = Math.sqrt(centerX * centerX + centerY * centerY);
+
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const idx = (y * w + x) * 4;
+
+                // Calculate distance from center
+                const dx = x - centerX;
+                const dy = y - centerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Calculate vignette factor
+                const normalizedDistance = distance / maxDistance;
+                const vignetteFactor = Math.max(0, 1 - Math.pow(normalizedDistance / falloff, 2) * strength);
+
+                // Apply vignette
+                data[idx] = Math.min(255, Math.max(0, data[idx] * vignetteFactor));     // Red
+                data[idx + 1] = Math.min(255, Math.max(0, data[idx + 1] * vignetteFactor)); // Green
+                data[idx + 2] = Math.min(255, Math.max(0, data[idx + 2] * vignetteFactor)); // Blue
+                // Alpha channel remains unchanged
+            }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+
+        // Sync to global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+            globalCtx.drawImage(layer.canvas, 0, 0);
+        }
+
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    applyFishEyeEffect(strength = 0.5) {
+        // Add undo state first
+        this.undoAdd();
+
+        // Only apply fish eye to the active layer in the current frame
+        const frame = this.frames[this.currentFrame];
+        if (!frame || !this.activeLayerId) return;
+
+        const layerIndex = this.layers.findIndex(l => l.id === this.activeLayerId);
+        if (layerIndex === -1) return;
+
+        const layer = frame.layers[layerIndex];
+        if (!layer || !layer.isVisible) return;
+
+        const ctx = layer.canvas.getContext('2d');
+        const w = layer.canvas.width, h = layer.canvas.height;
+
+        // Create a copy of the original image
+        const originalCanvas = document.createElement('canvas');
+        originalCanvas.width = w;
+        originalCanvas.height = h;
+        const originalCtx = originalCanvas.getContext('2d');
+        originalCtx.drawImage(layer.canvas, 0, 0);
+
+        const originalImgData = originalCtx.getImageData(0, 0, w, h);
+        const originalData = originalImgData.data;
+
+        // Clear the canvas and create new distorted image
+        ctx.clearRect(0, 0, w, h);
+        const newImgData = ctx.createImageData(w, h);
+        const newData = newImgData.data;
+
+        const centerX = w / 2;
+        const centerY = h / 2;
+        const radius = Math.min(centerX, centerY);
+
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const idx = (y * w + x) * 4;
+
+                // Calculate distance from center
+                const dx = x - centerX;
+                const dy = y - centerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < radius) {
+                    // Apply fish eye distortion
+                    const normalizedDistance = distance / radius;
+                    const distortionFactor = 1 + strength * normalizedDistance * normalizedDistance;
+
+                    // Calculate source coordinates
+                    const sourceX = centerX + (dx / distortionFactor);
+                    const sourceY = centerY + (dy / distortionFactor);
+
+                    // Bilinear interpolation for smooth results
+                    const x1 = Math.floor(sourceX);
+                    const y1 = Math.floor(sourceY);
+                    const x2 = Math.min(x1 + 1, w - 1);
+                    const y2 = Math.min(y1 + 1, h - 1);
+
+                    if (x1 >= 0 && y1 >= 0 && x2 < w && y2 < h) {
+                        const fx = sourceX - x1;
+                        const fy = sourceY - y1;
+
+                        for (let c = 0; c < 4; c++) {
+                            const p1 = originalData[(y1 * w + x1) * 4 + c];
+                            const p2 = originalData[(y1 * w + x2) * 4 + c];
+                            const p3 = originalData[(y2 * w + x1) * 4 + c];
+                            const p4 = originalData[(y2 * w + x2) * 4 + c];
+
+                            const interpolated = p1 * (1 - fx) * (1 - fy) +
+                                p2 * fx * (1 - fy) +
+                                p3 * (1 - fx) * fy +
+                                p4 * fx * fy;
+
+                            newData[idx + c] = Math.round(interpolated);
+                        }
+                    }
+                } else {
+                    // Copy original pixel if outside radius
+                    for (let c = 0; c < 4; c++) {
+                        newData[idx + c] = originalData[idx + c];
+                    }
+                }
+            }
+        }
+
+        ctx.putImageData(newImgData, 0, 0);
+
+        // Sync to global layer
+        const globalLayer = this.layers[layerIndex];
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+            globalCtx.drawImage(layer.canvas, 0, 0);
+        }
+
+        this.renderCurrentFrameToMainCanvas();
+    }
+
     syncGlobalLayersToCurrentFrame() {
         const frame = this.frames[this.currentFrame];
         if (!frame || !frame.layers) return;
@@ -4213,6 +5331,20 @@ class SpriteSpark {
     }
 
     handleKeyboard(e) {
+        // Check if the active element is a text input, textarea, or contenteditable element
+        const activeElement = document.activeElement;
+        const isTextInput = activeElement && (
+            activeElement.tagName === 'INPUT' ||
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.contentEditable === 'true' ||
+            activeElement.isContentEditable
+        );
+
+        // If we're in a text input, don't process keyboard shortcuts
+        if (isTextInput) {
+            return;
+        }
+
         // Example: Ctrl+Z for undo, Ctrl+Y for redo, Space for play/pause
         if (e.ctrlKey && e.key === 'z') {
             this.undo();
@@ -6143,7 +7275,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 touchPanStart.y = mid.y;
                 touchScrollStart.left = canvasContainer.scrollLeft;
                 touchScrollStart.top = canvasContainer.scrollTop;
-                
+
                 // Stop any ongoing drawing
                 if (app.isDrawing) {
                     app.stopDrawing({ button: 0 });
@@ -6182,7 +7314,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.touches.length === 2 && isTouchPanning) {
                 // Pan and zoom - definitely not drawing
                 isPanningOrZooming = true;
-                
+
                 const mid = getTouchMid(e.touches);
                 // Pan
                 const dx = mid.x - touchPanStart.x;
@@ -6268,7 +7400,7 @@ document.addEventListener('DOMContentLoaded', () => {
             canvasContainer.addEventListener('pointerdown', function (e) {
                 // Don't start drawing if we're in a pan/zoom gesture
                 if (isPanningOrZooming) return;
-                
+
                 if (e.pointerType === 'pen') {
                     // Stylus pressure
                     if (stylusPressureEnabled && e.pressure) {
@@ -6284,11 +7416,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     app.startDrawing(e);
                 }
             });
-            
+
             canvasContainer.addEventListener('pointermove', function (e) {
                 // Don't draw if we're in a pan/zoom gesture
                 if (isPanningOrZooming) return;
-                
+
                 if (e.pointerType === 'pen' && app.isDrawing) {
                     // Stylus pressure
                     if (stylusPressureEnabled && e.pressure) {
@@ -6304,13 +7436,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     app.draw(e);
                 }
             });
-            
+
             canvasContainer.addEventListener('pointerup', function (e) {
                 if ((e.pointerType === 'pen' || e.pointerType === 'touch') && app.isDrawing && !isPanningOrZooming) {
                     app.stopDrawing(e);
                 }
             });
-            
+
             canvasContainer.addEventListener('pointercancel', function (e) {
                 if ((e.pointerType === 'pen' || e.pointerType === 'touch') && app.isDrawing) {
                     app.stopDrawing(e);

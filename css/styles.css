@@ -1860,3 +1860,126 @@ select:focus {
     border-color: var(--border-hover);
     box-shadow: var(--shadow-md);
 }
+
+/* AI Drawing Controls */
+.ai-drawing-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-control);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.ai-drawing-controls .property-group {
+    margin-bottom: var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+}
+
+.ai-drawing-controls label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    color: var(--text-secondary);
+    font-size: var(--font-size-small);
+}
+
+.ai-drawing-controls textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: var(--spacing-sm);
+    background: var(--bg-control);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font-family);
+    font-size: var(--font-size-small);
+    resize: vertical;
+}
+
+.ai-drawing-controls textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-color-alpha);
+}
+
+.ai-drawing-controls select {
+    width: 100%;
+    padding: var(--spacing-sm);
+    background: var(--bg-control);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--font-size-small);
+}
+
+.ai-drawing-controls select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-color-alpha);
+}
+
+/* Make AI buttons full width like other panel buttons */
+#generateAIArt,
+#setApiKey {
+    width: 100% !important;
+    height: 36px !important;
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--text-primary) !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: var(--font-size-normal) !important;
+    font-weight: 600 !important;
+    transition: all var(--transition-fast) !important;
+    box-shadow: var(--shadow-sm) !important;
+    margin-top: var(--spacing-sm) !important;
+}
+
+#generateAIArt:hover,
+#setApiKey:hover {
+    background: var(--bg-hover) !important;
+    border-color: var(--border-hover) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+#generateAIArt:active,
+#setApiKey:active {
+    transform: translateY(0) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+#generateAIArt:disabled {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
+
+/* Special styling for the generate button */
+#generateAIArt {
+    background: var(--accent-color) !important;
+    color: var(--text-accent) !important;
+    border-color: var(--accent-color) !important;
+}
+
+#generateAIArt:hover:not(:disabled) {
+    background: var(--accent-color-hover) !important;
+    border-color: var(--accent-color-hover) !important;
+}
+
+/* API key button success state */
+#setApiKey.has-key {
+    background: var(--success-color, #4CAF50) !important;
+    border-color: var(--success-color, #4CAF50) !important;
+    color: white !important;
+}
+
+#setApiKey.has-key:hover {
+    background: var(--success-color-hover, #45a049) !important;
+    border-color: var(--success-color-hover, #45a049) !important;
+}

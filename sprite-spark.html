@@ -17,6 +17,7 @@
 
     <script src="js/sprite-object.js"></script>
     <script src="js/sprite-spark-modals.js"></script>
+    <script src="js/ai-drawing.js"></script>
 </head>
 
 <body>
@@ -69,6 +70,11 @@
                 <li><span data-action="drop-shadow">Drop Shadow</span></li>
                 <li><span data-action="emboss">Emboss</span></li>
                 <li><span data-action="pixelate">Pixelate</span></li>
+
+                <li><span data-action="contrast">Contrast</span></li>
+                <li><span data-action="brightness">Brightness</span></li>
+                <li><span data-action="vignette">Vignette</span></li>
+                <li><span data-action="fish-eye">Fish Eye</span></li>
             </ul>
         </div>
         <div class="menu-item">
@@ -294,16 +300,18 @@
 
                     <!-- Flood fill options (shown when bucket tool is selected) -->
                     <div class="property-group" id="floodFillOptions" style="display:none;">
-                        <h4 style="margin: 0 0 var(--spacing-md) 0; color: var(--accent-color); font-size: var(--font-size-small); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Fill Tool Options</h4>
-                        
+                        <h4
+                            style="margin: 0 0 var(--spacing-md) 0; color: var(--accent-color); font-size: var(--font-size-small); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                            Fill Tool Options</h4>
+
                         <label>Tolerance: <span id="floodFillToleranceValue">0</span></label>
                         <input type="range" id="floodFillTolerance" min="0" max="255" value="0">
-                        
+
                         <label style="display: block; margin-top: var(--spacing-md);">
                             <input type="checkbox" id="floodFillDetectAllLayers">
                             Detect all visible layers
                         </label>
-                        
+
                         <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary);">
                             <strong>Tolerance:</strong> 0 = exact color match, 255 = fill all colors<br>
                             <strong>Detect all layers:</strong> Consider all visible layers when detecting fill area
@@ -312,8 +320,10 @@
 
                     <!-- Spline tool options -->
                     <div class="property-group" id="splineOptions" style="display:none;">
-                        <h4 style="margin: 0 0 var(--spacing-md) 0; color: var(--accent-color); font-size: var(--font-size-small); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Spline Tool Options</h4>
-    
+                        <h4
+                            style="margin: 0 0 var(--spacing-md) 0; color: var(--accent-color); font-size: var(--font-size-small); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                            Spline Tool Options</h4>
+
                         <label>Curve Intensity: <span id="splineIntensityValue">50</span>%</label>
                         <input type="range" id="splineIntensity" min="0" max="100" value="50">
 
@@ -554,6 +564,37 @@
                         </div>
                     </div>
                     <button class="small-btn" data-action="apply-canvas-size">Apply</button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>AI Drawing</h3>
+                <div class="ai-drawing-controls">
+                    <div class="property-group">
+                        <label for="aiPrompt">Describe what to draw:</label>
+                        <textarea id="aiPrompt" placeholder="e.g., a simple house, a cat, a sword"></textarea>
+                    </div>
+                    <!--div class="property-group">
+                        <label>Canvas Size for AI:</label>
+                        <select id="aiCanvasSize">
+                            <option value="16">16x16 (Tiny)</option>
+                            <option value="32" selected>32x32 (Small)</option>
+                            <option value="64">64x64 (Medium)</option>
+                            <option value="128">128x128 (Large)</option>
+                        </select>
+                    </div-->
+                    <div class="property-group">
+                        <label>Art Style:</label>
+                        <select id="aiArtStyle">
+                            <option value="pixel-art">Pixel Art</option>
+                            <option value="simple-drawing">Simple Drawing</option>
+                            <option value="line-art">Line Art</option>
+                            <option value="minimalist">Minimalist</option>
+                            <!--option value="realistic">Realistic</option-->
+                        </select>
+                    </div>
+                    <button id="generateAIArt" class="small-btn">Generate AI Art</button>
+                    <button id="setApiKey" class="small-btn">Set API Key</button>
                 </div>
             </div>
         </div>
