@@ -476,6 +476,32 @@ class SpriteSpark {
             });
         }
 
+        // AI Animation controls
+        const generateAIAnimationBtn = document.getElementById('generateAIAnimation');
+        const aiAnimationPromptInput = document.getElementById('aiAnimationPrompt');
+        const aiAnimationFramesInput = document.getElementById('aiAnimationFrames');
+        const aiAnimationStyleSelect = document.getElementById('aiAnimationStyle');
+
+        if (generateAIAnimationBtn) {
+            generateAIAnimationBtn.addEventListener('click', () => {
+                const prompt = aiAnimationPromptInput.value.trim();
+                const frameCount = parseInt(aiAnimationFramesInput.value) || 8;
+                const style = aiAnimationStyleSelect.value;
+
+                if (!prompt) {
+                    alert('Please enter a description of the animation to create');
+                    return;
+                }
+
+                if (frameCount < 2 || frameCount > 24) {
+                    alert('Frame count must be between 2 and 24');
+                    return;
+                }
+
+                this.generateAIAnimation(prompt, style, frameCount);
+            });
+        }
+
         // CHAT GPT API Key setting
         /*if (setApiKeyBtn) {
             setApiKeyBtn.addEventListener('click', () => {
@@ -856,8 +882,16 @@ Create drawing commands for: ${prompt}`;
 
     // Add drawing command interpreter
     executeDrawingCommand(ctx, cmd, canvasSize) {
-        if (!cmd || typeof cmd !== 'object' || !cmd.type) {
+        if (!cmd || typeof cmd !== 'object') {
+            console.error('Invalid command format:', cmd);
             throw new Error('Invalid command format');
+        }
+
+        // Handle both 'type' and 'command' properties for backward compatibility
+        const commandType = cmd.type || cmd.command;
+        if (!commandType) {
+            console.error('Missing command type:', cmd);
+            throw new Error('Missing command type');
         }
 
         // Clamp coordinates to canvas bounds instead of throwing errors
@@ -880,7 +914,7 @@ Create drawing commands for: ${prompt}`;
 
         ctx.save();
 
-        switch (cmd.type) {
+        switch (commandType) {
             case 'circle':
                 const circleX = clampCoord(cmd.x, 'x');
                 const circleY = clampCoord(cmd.y, 'y');
@@ -980,7 +1014,7 @@ Create drawing commands for: ${prompt}`;
                 break;
 
             default:
-                console.warn(`Unknown command type: ${cmd.type}`);
+                console.warn(`Unknown command type: ${commandType}`);
         }
 
         ctx.restore();
@@ -992,63 +1026,61 @@ Create drawing commands for: ${prompt}`;
             return;
         }
 
+        console.log('Executing commands:', commands); // Debug log
+
         // Validate commands first
         for (const cmd of commands) {
-            if (!cmd || typeof cmd !== 'object' || !cmd.type) {
+            if (!cmd || typeof cmd !== 'object' || (!cmd.type && !cmd.command)) {
                 console.error('Invalid command format:', cmd);
                 return;
             }
         }
 
-        // Create a temporary canvas to draw the AI art
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = size;
-        tempCanvas.height = size;
-        const tempCtx = tempCanvas.getContext('2d');
+        // Get the active layer from the current frame
+        if (!this.activeLayerId) {
+            console.error('No active layer selected');
+            return;
+        }
 
-        // Clear with transparent background
-        tempCtx.clearRect(0, 0, size, size);
+        const layer = this.layers.find(l => l.id === this.activeLayerId);
+        if (!layer) {
+            console.error('Active layer not found');
+            return;
+        }
 
-        // Execute each drawing command
+        const ctx = layer.canvas.getContext('2d');
+
+        // Clear the layer first (optional - remove if you want to draw on top)
+        // ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+
+        // Execute each drawing command directly on the layer
         try {
             for (const cmd of commands) {
-                this.executeDrawingCommand(tempCtx, cmd, size);
+                console.log('Executing command:', cmd); // Debug log
+                this.executeDrawingCommand(ctx, cmd, size);
             }
 
-            // Convert the temporary canvas to pixel data
-            const imageData = tempCtx.getImageData(0, 0, size, size);
-            const pixelData = [];
-
-            // Convert ImageData to 2D array format
-            for (let y = 0; y < size; y++) {
-                const row = [];
-                for (let x = 0; x < size; x++) {
-                    const index = (y * size + x) * 4;
-                    const r = imageData.data[index];
-                    const g = imageData.data[index + 1];
-                    const b = imageData.data[index + 2];
-                    const a = imageData.data[index + 3];
-
-                    // Convert to hex color if pixel is not transparent
-                    if (a > 0) {
-                        const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
-                        row.push(hex);
-                    } else {
-                        row.push(null); // Transparent pixel
-                    }
-                }
-                pixelData.push(row);
-            }
-
-            // Draw the AI art to the active layer
-            this.drawAIPixelData(pixelData);
+            // Sync the changes to the current frame and render
+            this.syncGlobalLayersToCurrentFrame();
+            this.renderCurrentFrameToMainCanvas();
 
         } catch (error) {
             console.error('Error executing drawing commands:', error);
 
             // Create simple fallback
             const fallbackCommands = this.createFallbackCommands(size, 'AI Art');
-            this.executeDrawingCommands(fallbackCommands, size);
+            console.log('Using fallback commands:', fallbackCommands);
+
+            // Try to execute fallback commands
+            try {
+                for (const cmd of fallbackCommands) {
+                    this.executeDrawingCommand(ctx, cmd, size);
+                }
+                this.syncGlobalLayersToCurrentFrame();
+                this.renderCurrentFrameToMainCanvas();
+            } catch (fallbackError) {
+                console.error('Even fallback commands failed:', fallbackError);
+            }
         }
     }
 
@@ -1164,6 +1196,555 @@ Create drawing commands for: ${prompt}`;
         }
 
         return pixelData;
+    }
+
+    async generateAIAnimation(prompt, style, frameCount) {
+        const apiKey = localStorage.getItem('gemini_api_key');
+        if (!apiKey) {
+            alert('Please set your Gemini API key first');
+            return;
+        }
+
+        const generateBtn = document.getElementById('generateAIAnimation');
+        const originalText = generateBtn.textContent;
+        generateBtn.textContent = 'Generating Animation...';
+        generateBtn.disabled = true;
+        generateBtn.classList.remove('success', 'error');
+
+        try {
+            // Clear existing frames and start fresh
+            this.frames = [this.createEmptyFrame()];
+            this.currentFrame = 0;
+
+            const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
+
+            // Generate comprehensive animation plan with consistency rules
+            const animationPlan = await this.generateConsistentAnimationPlan(prompt, frameCount, canvasSize, style, apiKey);
+            console.log('Animation plan:', animationPlan);
+
+            // Store the visual state for consistency
+            let previousFrameDescription = null;
+            let baseObjectDescription = null;
+
+            // Generate each frame with strict consistency checks
+            for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+                generateBtn.textContent = `Generating Frame ${frameIndex + 1}/${frameCount}...`;
+
+                // Create new frame if needed
+                if (frameIndex >= this.frames.length) {
+                    this.addEmptyFrame();
+                }
+
+                // Select the frame and generate
+                this.selectFrame(frameIndex);
+
+                const frameCommands = await this.generateConsistentAnimationFrame(
+                    prompt,
+                    animationPlan,
+                    frameIndex,
+                    frameCount,
+                    previousFrameDescription,
+                    baseObjectDescription,
+                    canvasSize,
+                    style,
+                    apiKey
+                );
+
+                // Apply the drawing
+                this.executeDrawingCommands(frameCommands, canvasSize);
+
+                // Extract description for next frame consistency
+                if (frameIndex === 0) {
+                    baseObjectDescription = this.extractBaseObjectDescription(frameCommands, prompt);
+                }
+                previousFrameDescription = this.extractFrameDescription(frameCommands, frameIndex);
+
+                // Small delay to prevent API rate limiting
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+
+            // Select first frame when done
+            this.selectFrame(0);
+            this.updateFramesList();
+
+            generateBtn.textContent = '✓ Animation Complete!';
+            generateBtn.classList.add('success');
+
+        } catch (error) {
+            console.error('AI animation generation failed:', error);
+            generateBtn.textContent = 'Generation Failed';
+            generateBtn.classList.add('error');
+
+            this.showNotification('AI animation generation failed. Please try again.', 'error');
+        } finally {
+            setTimeout(() => {
+                generateBtn.textContent = originalText;
+                generateBtn.classList.remove('success', 'error');
+                generateBtn.disabled = false;
+            }, 3000);
+        }
+    }
+
+    async generateAnimationPlan(prompt, frameCount, canvasSize, style, apiKey) {
+        const planPrompt = `You are an animation director creating a plan for a ${frameCount}-frame animation.
+
+Animation Request: "${prompt}"
+Canvas Size: ${canvasSize}x${canvasSize}
+Style: ${style}
+
+Create a detailed animation plan that breaks down the movement/changes across ${frameCount} frames.
+Consider:
+- What should happen in each frame
+- How objects should move, rotate, or change
+- Timing and pacing
+- Key poses/positions
+- Secondary animation elements
+
+Return a JSON object with this structure:
+{
+  "concept": "Brief description of the overall animation",
+  "keyframes": [
+    {
+      "frame": 0,
+      "description": "Detailed description of what should be drawn in this frame",
+      "changes": "What has changed since the previous frame"
+    }
+  ],
+  "timing": "Description of the timing and pacing"
+}
+
+Focus on creating smooth, believable motion appropriate for the style.`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: planPrompt }] }],
+                generationConfig: {
+                    temperature: 0.7,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 2048,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const content = data.candidates[0].content.parts[0].text.trim();
+
+        try {
+            // Try to extract JSON from the response
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
+            }
+        } catch (e) {
+            console.warn('Could not parse animation plan JSON, using fallback');
+        }
+
+        // Fallback plan
+        return this.createFallbackAnimationPlan(prompt, frameCount);
+    }
+
+    async generateConsistentAnimationPlan(prompt, frameCount, canvasSize, style, apiKey) {
+        const planPrompt = `You are creating a CONSISTENT animation plan for: "${prompt}"
+
+CRITICAL CONSISTENCY RULES:
+1. The main object must maintain the SAME:
+   - Base colors (slight variations for lighting OK)
+   - Overall size/proportions
+   - Basic shape structure
+   - Visual style
+
+2. Canvas: ${canvasSize}x${canvasSize} pixels
+3. Frames: ${frameCount} total
+4. Style: ${style}
+
+Create a JSON plan with these requirements:
+- Define the main object's consistent properties (size, colors, basic shapes)
+- Plan smooth movement/animation that preserves object identity
+- Specify exact position changes frame by frame
+- Keep the object centered and appropriately sized for the canvas
+
+Return ONLY this JSON structure:
+{
+  "object": {
+    "type": "description of main object",
+    "baseSize": number (radius or width in pixels),
+    "primaryColor": "#hexcolor",
+    "secondaryColor": "#hexcolor",
+    "shape": "circle/ellipse/rectangle/etc"
+  },
+  "animation": {
+    "type": "bounce/rotate/slide/etc",
+    "centerX": ${Math.floor(canvasSize / 2)},
+    "centerY": ${Math.floor(canvasSize / 2)},
+    "range": number (movement range in pixels)
+  },
+  "frames": [
+    {
+      "frame": 0,
+      "x": number,
+      "y": number,
+      "description": "what happens this frame"
+    }
+  ]
+}
+
+Focus on creating predictable, smooth motion that keeps the object recognizable throughout.`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: planPrompt }] }],
+                generationConfig: {
+                    temperature: 0.3, // Low temperature for consistency
+                    topK: 20,
+                    topP: 0.8,
+                    maxOutputTokens: 2048,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const content = data.candidates[0].content.parts[0].text.trim();
+
+        try {
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
+            }
+        } catch (e) {
+            console.warn('Could not parse animation plan JSON, using fallback');
+        }
+
+        // Fallback plan with consistency
+        return this.createConsistentFallbackPlan(prompt, frameCount, canvasSize);
+    }
+
+    createConsistentFallbackPlan(prompt, frameCount, canvasSize) {
+        const centerX = Math.floor(canvasSize / 2);
+        const centerY = Math.floor(canvasSize / 2);
+        const baseSize = Math.floor(canvasSize / 8);
+
+        // Determine object type and colors based on prompt
+        let objectType = "circle";
+        let primaryColor = "#FF4444";
+        let secondaryColor = "#AA2222";
+
+        if (prompt.toLowerCase().includes('ball')) {
+            objectType = "circle";
+            primaryColor = "#FF4444";
+        } else if (prompt.toLowerCase().includes('square') || prompt.toLowerCase().includes('box')) {
+            objectType = "rectangle";
+            primaryColor = "#4444FF";
+        }
+
+        const frames = [];
+        for (let i = 0; i < frameCount; i++) {
+            const progress = i / (frameCount - 1);
+            const bounceY = centerY + Math.sin(progress * Math.PI * 4) * (canvasSize / 6);
+
+            frames.push({
+                frame: i,
+                x: centerX,
+                y: Math.floor(bounceY),
+                description: `Frame ${i + 1}: ${objectType} at position (${centerX}, ${Math.floor(bounceY)})`
+            });
+        }
+
+        return {
+            object: {
+                type: objectType,
+                baseSize: baseSize,
+                primaryColor: primaryColor,
+                secondaryColor: secondaryColor,
+                shape: objectType
+            },
+            animation: {
+                type: "bounce",
+                centerX: centerX,
+                centerY: centerY,
+                range: canvasSize / 6
+            },
+            frames: frames
+        };
+    }
+
+    async generateConsistentAnimationFrame(prompt, plan, frameIndex, totalFrames, previousFrame, baseObject, canvasSize, style, apiKey) {
+        const currentFramePlan = plan.frames[frameIndex] || plan.frames[plan.frames.length - 1];
+
+        const systemPrompt = `You are creating frame ${frameIndex + 1} of ${totalFrames} for a CONSISTENT animation.
+
+STRICT CONSISTENCY REQUIREMENTS:
+${baseObject ? `PREVIOUS OBJECT: ${baseObject}` : ''}
+${previousFrame ? `PREVIOUS FRAME: ${previousFrame}` : ''}
+
+CURRENT FRAME REQUIREMENTS:
+- Object Type: ${plan.object.type}
+- Object Shape: ${plan.object.shape}
+- Base Size: ${plan.object.baseSize}px
+- Primary Color: ${plan.object.primaryColor}
+- Secondary Color: ${plan.object.secondaryColor || plan.object.primaryColor}
+- Position: (${currentFramePlan.x}, ${currentFramePlan.y})
+- Canvas: ${canvasSize}x${canvasSize}
+
+CRITICAL RULES:
+1. Use EXACTLY the same colors as specified above
+2. Use EXACTLY the same base size (±1px tolerance only)
+3. Use the EXACT position specified: (${currentFramePlan.x}, ${currentFramePlan.y})
+4. Keep the same basic shape structure
+5. NO faces, details, or decorations unless specifically mentioned in original prompt
+6. Focus on the core animation: ${plan.animation.type}
+
+Drawing commands available:
+- circle(x, y, radius, filled, color)
+- rectangle(x, y, width, height, filled, color)  
+- ellipse(x, y, radiusX, radiusY, filled, color)
+
+Return ONLY a JSON array of 1-3 drawing commands maximum:
+[
+  {"type": "${plan.object.shape}", "x": ${currentFramePlan.x}, "y": ${currentFramePlan.y}, "radius": ${plan.object.baseSize}, "filled": true, "color": "${plan.object.primaryColor}"}
+]
+
+Keep it simple and consistent. This is frame ${frameIndex + 1}/${totalFrames} of the animation.`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: systemPrompt }] }],
+                generationConfig: {
+                    temperature: 0.1, // Very low temperature for maximum consistency
+                    topK: 10,
+                    topP: 0.7,
+                    maxOutputTokens: 512,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const content = data.candidates[0].content.parts[0].text.trim();
+
+        try {
+            const commands = JSON.parse(content);
+            return commands;
+        } catch (parseError) {
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (!jsonMatch) {
+                console.error('No valid JSON commands found, using fallback');
+                return this.createConsistentFallbackFrame(plan, frameIndex);
+            }
+            return JSON.parse(jsonMatch[0]);
+        }
+    }
+
+    createConsistentFallbackFrame(plan, frameIndex) {
+        const framePlan = plan.frames[frameIndex] || plan.frames[0];
+
+        if (plan.object.shape === 'circle') {
+            return [{
+                type: 'circle',
+                x: framePlan.x,
+                y: framePlan.y,
+                radius: plan.object.baseSize,
+                filled: true,
+                color: plan.object.primaryColor
+            }];
+        } else if (plan.object.shape === 'rectangle') {
+            return [{
+                type: 'rectangle',
+                x: framePlan.x - plan.object.baseSize,
+                y: framePlan.y - plan.object.baseSize,
+                width: plan.object.baseSize * 2,
+                height: plan.object.baseSize * 2,
+                filled: true,
+                color: plan.object.primaryColor
+            }];
+        }
+
+        // Default to circle
+        return [{
+            type: 'circle',
+            x: framePlan.x,
+            y: framePlan.y,
+            radius: plan.object.baseSize,
+            filled: true,
+            color: plan.object.primaryColor
+        }];
+    }
+
+    extractBaseObjectDescription(commands, prompt) {
+        if (!commands || commands.length === 0) return null;
+
+        const mainCommand = commands[0];
+        return `${mainCommand.type} with color ${mainCommand.color}, size ${mainCommand.radius || mainCommand.width || 'unknown'}px, for "${prompt}"`;
+    }
+
+    extractFrameDescription(commands, frameIndex) {
+        if (!commands || commands.length === 0) return null;
+
+        const mainCommand = commands[0];
+        return `Frame ${frameIndex + 1}: ${mainCommand.type} at (${mainCommand.x}, ${mainCommand.y}) with color ${mainCommand.color}`;
+    }
+
+    createFallbackAnimationPlan(prompt, frameCount) {
+        const keyframes = [];
+        for (let i = 0; i < frameCount; i++) {
+            keyframes.push({
+                frame: i,
+                description: `Frame ${i + 1} of ${frameCount} for: ${prompt}`,
+                changes: i === 0 ? "Initial frame" : "Continue animation sequence"
+            });
+        }
+
+        return {
+            concept: `${frameCount}-frame animation of: ${prompt}`,
+            keyframes: keyframes,
+            timing: "Evenly paced animation"
+        };
+    }
+
+    async describePreviousFrame(frameIndex) {
+        // Get the visual content of the previous frame for context
+        const frame = this.frames[frameIndex];
+        if (!frame || !frame.layers) return null;
+
+        // Create a simplified description of what's currently drawn
+        // This is a basic implementation - could be enhanced with actual image analysis
+        const activeLayerCount = frame.layers.filter(l => l.isVisible !== false).length;
+        const hasContent = frame.layers.some(layer => {
+            if (!layer.canvas || !layer.isVisible) return false;
+
+            // Check if canvas has any non-transparent pixels
+            const ctx = layer.canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, layer.canvas.width, layer.canvas.height);
+            const data = imageData.data;
+
+            for (let i = 3; i < data.length; i += 4) {
+                if (data[i] > 0) return true; // Found non-transparent pixel
+            }
+            return false;
+        });
+
+        return {
+            frameNumber: frameIndex,
+            hasContent: hasContent,
+            layerCount: activeLayerCount,
+            description: `Frame ${frameIndex + 1} with ${hasContent ? 'drawn content' : 'no content'}`
+        };
+    }
+
+    async generateAnimationFrame(prompt, animationPlan, frameIndex, totalFrames, previousFrame, canvasSize, style, apiKey) {
+        const currentKeyframe = animationPlan.keyframes.find(kf => kf.frame === frameIndex) ||
+            animationPlan.keyframes[Math.min(frameIndex, animationPlan.keyframes.length - 1)];
+
+        const systemPrompt = `You are creating frame ${frameIndex + 1} of ${totalFrames} for an animation.
+
+Overall Animation: ${animationPlan.concept}
+This Frame Description: ${currentKeyframe.description}
+Changes from Previous: ${currentKeyframe.changes}
+
+${previousFrame ? `Previous Frame Context: ${previousFrame.description}` : 'This is the first frame.'}
+
+Create a ${canvasSize}x${canvasSize} ${style} image using ONLY these drawing commands:
+
+Available commands:
+- circle(x, y, radius, filled, color)
+- rectangle(x, y, width, height, filled, color)  
+- line(x1, y1, x2, y2, color)
+- ellipse(x, y, radiusX, radiusY, filled, color)
+- triangle(x1, y1, x2, y2, x3, y3, filled, color)
+
+Rules:
+- Coordinates must be within 0 to ${canvasSize - 1}
+- Colors must be hex format like "#FF0000"
+- filled parameter is true/false for shapes
+- Return ONLY a JSON array of commands, no explanations
+- Use 10-25 commands for good detail
+- Consider the animation timing and progression
+- Make smooth transitions between frames
+- Keep consistent object positions/colors unless they should change
+
+${style === 'realistic' ? 'Use realistic colors, proportions, and layering for depth.' : 'Use clear, bold shapes and colors appropriate for the style.'}
+
+Progress: Frame ${frameIndex + 1}/${totalFrames} (${Math.round((frameIndex + 1) / totalFrames * 100)}% complete)
+
+Create drawing commands for this animation frame:`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: systemPrompt }] }],
+                generationConfig: {
+                    temperature: 0.4, // Lower temperature for more consistent animation
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 3072,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const content = data.candidates[0].content.parts[0].text.trim();
+
+        try {
+            // Try to parse JSON directly
+            const commands = JSON.parse(content);
+            return commands;
+        } catch (parseError) {
+            // Try to extract JSON from response
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (!jsonMatch) {
+                console.error('No valid JSON commands found in frame response');
+                return this.createFallbackFrameCommands(canvasSize, frameIndex, totalFrames);
+            }
+            return JSON.parse(jsonMatch[0]);
+        }
+    }
+
+    createFallbackFrameCommands(canvasSize, frameIndex, totalFrames) {
+        const centerX = Math.floor(canvasSize / 2);
+        const centerY = Math.floor(canvasSize / 2);
+
+        // Create a simple animated circle that moves and changes color
+        const progress = frameIndex / (totalFrames - 1);
+        const x = Math.floor(centerX + Math.sin(progress * Math.PI * 2) * canvasSize / 4);
+        const y = Math.floor(centerY + Math.cos(progress * Math.PI * 2) * canvasSize / 4);
+        const hue = Math.floor(progress * 360);
+        const color = `hsl(${hue}, 70%, 50%)`;
+
+        // Convert HSL to hex (simplified)
+        const hexColor = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+
+        return [
+            {
+                type: 'circle',
+                x: x,
+                y: y,
+                radius: Math.floor(canvasSize / 8),
+                filled: true,
+                color: hexColor
+            }
+        ];
     }
 
     showNotification(message, type = 'info') {

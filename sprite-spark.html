@@ -596,6 +596,30 @@
                     <button id="generateAIArt" class="small-btn">Generate AI Art</button>
                     <button id="setApiKey" class="small-btn">Set API Key</button>
                 </div>
+
+                <div class="property-group">
+                    <h3>AI Animation</h3>
+                    <label>
+                        Animation Description:
+                        <input type="text" id="aiAnimationPrompt" placeholder="e.g., bouncing ball, walking character, spinning star">
+                    </label>
+                    <label>
+                        Frame Count:
+                        <input type="number" id="aiAnimationFrames" value="8" min="2" max="24" step="1">
+                        <small>2-24 frames</small>
+                    </label>
+                    <label>
+                        Animation Style:
+                        <select id="aiAnimationStyle">
+                            <option value="cartoon">Cartoon</option>
+                            <option value="realistic">Realistic</option>
+                            <option value="pixel">Pixel Art</option>
+                            <option value="sketch">Sketch</option>
+                        </select>
+                    </label>
+                    <button id="generateAIAnimation" class="tool-btn">Generate AI Animation</button>
+                    <small>Generates multiple frames automatically</small>
+                </div>
             </div>
         </div>
 

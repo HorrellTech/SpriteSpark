@@ -1983,3 +1983,134 @@ select:focus {
     background: var(--success-color-hover, #45a049) !important;
     border-color: var(--success-color-hover, #45a049) !important;
 }
+
+/* AI Animation Controls */
+.ai-animation-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-control);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    margin-top: var(--spacing-md);
+}
+
+.ai-animation-controls .property-group {
+    margin-bottom: var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+}
+
+.ai-animation-controls label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    color: var(--text-secondary);
+    font-size: var(--font-size-small);
+}
+
+.ai-animation-controls textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: var(--spacing-sm);
+    background: var(--bg-control);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font-family);
+    font-size: var(--font-size-small);
+    resize: vertical;
+}
+
+.ai-animation-controls textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-color-alpha);
+}
+
+.ai-animation-controls select,
+.ai-animation-controls input[type="number"] {
+    width: 100%;
+    padding: var(--spacing-sm);
+    background: var(--bg-control);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--font-size-small);
+}
+
+.ai-animation-controls select:focus,
+.ai-animation-controls input[type="number"]:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-color-alpha);
+}
+
+/* AI Animation button styling */
+#generateAIAnimation {
+    width: 100% !important;
+    height: 36px !important;
+    background: var(--accent-color) !important;
+    border: 1px solid var(--accent-color) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--text-accent) !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: var(--font-size-normal) !important;
+    font-weight: 600 !important;
+    transition: all var(--transition-fast) !important;
+    box-shadow: var(--shadow-sm) !important;
+    margin-top: var(--spacing-sm) !important;
+}
+
+#generateAIAnimation:hover:not(:disabled) {
+    background: var(--accent-color-hover) !important;
+    border-color: var(--accent-color-hover) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+#generateAIAnimation:active {
+    transform: translateY(0) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+#generateAIAnimation:disabled {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    background: var(--bg-control) !important;
+    color: var(--text-muted) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Animation progress styling */
+.ai-animation-progress {
+    width: 100%;
+    height: 6px;
+    background: var(--bg-control);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: var(--spacing-sm);
+    border: 1px solid var(--border-color);
+}
+
+.ai-animation-progress-bar {
+    height: 100%;
+    background: var(--accent-color);
+    transition: width 0.3s ease;
+    border-radius: 3px;
+}
+
+/* Success state styling */
+#generateAIAnimation.success {
+    background: var(--success-color) !important;
+    border-color: var(--success-color) !important;
+}
+
+#generateAIAnimation.error {
+    background: var(--error-color) !important;
+    border-color: var(--error-color) !important;
+}
