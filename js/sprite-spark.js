@@ -688,95 +688,88 @@ Example format:
         try {
             console.log('Making Gemini API request with prompt:', prompt);
 
-            // Use the current canvas dimensions instead of the selected size
-            const canvasSize = Math.min(this.canvasWidth, this.canvasHeight); // Use smaller dimension for square art
+            const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
             console.log('Using canvas size:', canvasSize, 'x', canvasSize);
 
             let systemPrompt;
 
             if (style === 'realistic') {
-                // For realistic style, use a different approach - describe pixel patterns
-                systemPrompt = `You are a drawing assistant that creates realistic-looking sprites using simple drawing commands.
-Create a ${canvasSize}x${canvasSize} realistic image for the given prompt using ONLY these commands:
+                systemPrompt = `You are a drawing assistant that creates realistic-looking scenes with multiple objects using simple drawing commands.
+
+Create a ${canvasSize}x${canvasSize} realistic scene for: "${prompt}"
+
+IMPORTANT: Parse the prompt to identify ALL objects and elements that should be in the scene.
+Draw them in proper layering order (background first, foreground last).
 
 Available commands:
-- circle(x, y, radius, filled, color) - Draw a circle
-- rectangle(x, y, width, height, filled, color) - Draw a rectangle  
-- line(x1, y1, x2, y2, color) - Draw a line
-- ellipse(x, y, radiusX, radiusY, filled, color) - Draw an ellipse
-- triangle(x1, y1, x2, y2, x3, y3, filled, color) - Draw a triangle
+- circle(x, y, radius, filled, color)
+- rectangle(x, y, width, height, filled, color)  
+- line(x1, y1, x2, y2, color)
+- ellipse(x, y, radiusX, radiusY, filled, color)
+- triangle(x1, y1, x2, y2, x3, y3, filled, color)
 
 Rules:
 - Coordinates must be within 0 to ${canvasSize - 1}
 - Colors must be hex format like "#FF0000"
 - filled parameter is true/false for shapes
 - Return ONLY a JSON array of commands, no explanations
-- Use 15-30 commands for realistic detail
+- Use 20-40 commands for complex scenes with multiple objects
 - Use realistic colors and proportions
 - Layer shapes to create depth and detail
-- Think about actual object anatomy and structure
+- Draw ALL objects mentioned in the prompt
 
-For animals like cats:
-- Start with basic body shapes (oval for body, circle for head)
-- Add details like ears (triangles), eyes (small circles), nose, mouth
-- Use appropriate colors (browns, oranges, blacks, whites for cats)
-- Consider proportions (cat head is about 1/3 of body size)
+For complex scenes:
+- Start with background elements (sky, ground, grass, etc.)
+- Add middle-ground objects (trees, buildings, etc.)
+- Finish with foreground objects (characters, balls, etc.)
+- Use appropriate colors and realistic proportions
 
-For objects:
-- Break down into component shapes
-- Use realistic proportions
-- Add shadows/highlights with darker/lighter colors
-- Layer from background to foreground
-
-Create realistic drawing commands for: ${prompt}`;
+Create realistic drawing commands for the complete scene: ${prompt}`;
             } else {
-                // Original system prompt for other styles
-                systemPrompt = `You are a drawing assistant that creates pixel art using simple drawing commands. 
-Create a ${canvasSize}x${canvasSize} pixel art image for the given prompt using ONLY these commands:
+                systemPrompt = `You are a drawing assistant that creates pixel art scenes with multiple objects using simple drawing commands.
+
+Create a ${canvasSize}x${canvasSize} pixel art scene for: "${prompt}"
+
+IMPORTANT: Parse the prompt to identify ALL objects and elements that should be in the scene.
+Draw them in proper layering order (background first, foreground last).
 
 Available commands:
-- circle(x, y, radius, filled, color) - Draw a circle
-- rectangle(x, y, width, height, filled, color) - Draw a rectangle  
-- line(x1, y1, x2, y2, color) - Draw a line
-- ellipse(x, y, radiusX, radiusY, filled, color) - Draw an ellipse
-- triangle(x1, y1, x2, y2, x3, y3, filled, color) - Draw a triangle
+- circle(x, y, radius, filled, color)
+- rectangle(x, y, width, height, filled, color)  
+- line(x1, y1, x2, y2, color)
+- ellipse(x, y, radiusX, radiusY, filled, color)
+- triangle(x1, y1, x2, y2, x3, y3, filled, color)
 
 Rules:
 - Coordinates must be within 0 to ${canvasSize - 1}
 - Colors must be hex format like "#FF0000"
 - filled parameter is true/false for shapes
 - Return ONLY a JSON array of commands, no explanations
-- Keep it simple with 5-15 commands max
+- Use 10-30 commands for complete scenes
 - Think about pixel art aesthetics - simple shapes, bold colors
+- Draw ALL objects mentioned in the prompt
 
 Style: ${style}
 
-Example format (adjusted for ${canvasSize}x${canvasSize} canvas):
+Example for "red ball on green grass" (adjusted for ${canvasSize}x${canvasSize} canvas):
 [
-  {"type": "circle", "x": ${Math.floor(canvasSize / 2)}, "y": ${Math.floor(canvasSize / 2)}, "radius": ${Math.floor(canvasSize / 8)}, "filled": true, "color": "#FF0000"},
-  {"type": "line", "x1": 0, "y1": 0, "x2": ${canvasSize - 1}, "y2": ${canvasSize - 1}, "color": "#0000FF"},
-  {"type": "rectangle", "x": ${Math.floor(canvasSize / 4)}, "y": ${Math.floor(canvasSize / 4)}, "width": ${Math.floor(canvasSize / 2)}, "height": ${Math.floor(canvasSize / 2)}, "filled": false, "color": "#00FF00"}
+  {"type": "rectangle", "x": 0, "y": ${Math.floor(canvasSize * 0.8)}, "width": ${canvasSize}, "height": ${Math.floor(canvasSize * 0.2)}, "filled": true, "color": "#228B22"},
+  {"type": "circle", "x": ${Math.floor(canvasSize / 2)}, "y": ${Math.floor(canvasSize / 2)}, "radius": ${Math.floor(canvasSize / 8)}, "filled": true, "color": "#FF0000"}
 ]
 
-Create drawing commands for: ${prompt}`;
+Create drawing commands for the complete scene: ${prompt}`;
             }
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: systemPrompt
-                        }]
-                    }],
+                    contents: [{ parts: [{ text: systemPrompt }] }],
                     generationConfig: {
-                        temperature: style === 'realistic' ? 0.3 : 0.7, // Lower temperature for more consistent realistic results
+                        temperature: style === 'realistic' ? 0.3 : 0.7,
                         topK: 40,
                         topP: 0.95,
-                        maxOutputTokens: style === 'realistic' ? 4096 : 2048, // More tokens for complex realistic drawings
+                        maxOutputTokens: style === 'realistic' ? 4096 : 2048,
                     }
                 })
             });
@@ -787,8 +780,6 @@ Create drawing commands for: ${prompt}`;
             }
 
             const data = await response.json();
-
-            // Add console output for the full API response
             console.log('Full Gemini API response:', JSON.stringify(data, null, 2));
 
             if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
@@ -796,18 +787,14 @@ Create drawing commands for: ${prompt}`;
             }
 
             const content = data.candidates[0].content.parts[0].text.trim();
-
-            // Add console output for the raw text content
             console.log('Raw Gemini response text:', content);
 
             let commands;
             try {
-                // Try to parse JSON directly
                 commands = JSON.parse(content);
                 console.log('Successfully parsed JSON commands:', commands);
             } catch (parseError) {
                 console.log('Failed to parse JSON directly, trying to extract from text');
-                // Try to extract JSON from response
                 const jsonMatch = content.match(/\[[\s\S]*\]/);
                 if (!jsonMatch) {
                     console.error('No valid JSON commands found in Gemini response');
@@ -818,24 +805,93 @@ Create drawing commands for: ${prompt}`;
                 console.log('Successfully parsed extracted JSON commands:', commands);
             }
 
-            // Validate and execute commands using the canvas size
             this.executeDrawingCommands(commands, canvasSize);
 
         } catch (error) {
             console.error('Gemini AI generation failed:', error);
-
-            // Create simple fallback using canvas size
             const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
-            const fallbackCommands = this.createRealisticFallbackCommands(canvasSize, prompt, style);
-            console.log('Using fallback commands:', fallbackCommands);
+            const fallbackCommands = this.createComplexFallbackCommands(canvasSize, prompt, style);
+            console.log('Using complex fallback commands:', fallbackCommands);
             this.executeDrawingCommands(fallbackCommands, canvasSize);
-
             this.showNotification('AI response failed. Created a simple fallback design.', 'warning');
-
         } finally {
             generateBtn.textContent = originalText;
             generateBtn.disabled = false;
         }
+    }
+
+    createComplexFallbackCommands(size, prompt, style) {
+        const commands = [];
+        const lowerPrompt = prompt.toLowerCase();
+
+        // Add background elements first
+        if (lowerPrompt.includes('grass') || lowerPrompt.includes('ground')) {
+            commands.push({
+                type: 'rectangle',
+                x: 0,
+                y: Math.floor(size * 0.8),
+                width: size,
+                height: Math.floor(size * 0.2),
+                filled: true,
+                color: '#228B22'
+            });
+        }
+
+        if (lowerPrompt.includes('sky')) {
+            commands.push({
+                type: 'rectangle',
+                x: 0,
+                y: 0,
+                width: size,
+                height: Math.floor(size * 0.6),
+                filled: true,
+                color: '#87CEEB'
+            });
+        }
+
+        // Add main objects
+        const centerX = Math.floor(size / 2);
+        const centerY = Math.floor(size / 2);
+        let mainColor = '#FF0000';
+
+        if (lowerPrompt.includes('blue')) mainColor = '#0000FF';
+        else if (lowerPrompt.includes('green')) mainColor = '#00FF00';
+        else if (lowerPrompt.includes('yellow')) mainColor = '#FFFF00';
+        else if (lowerPrompt.includes('red')) mainColor = '#FF0000';
+
+        if (lowerPrompt.includes('ball') || lowerPrompt.includes('circle')) {
+            commands.push({
+                type: 'circle',
+                x: centerX,
+                y: centerY,
+                radius: Math.floor(size / 8),
+                filled: true,
+                color: mainColor
+            });
+        }
+
+        if (lowerPrompt.includes('tree')) {
+            // Simple tree
+            commands.push({
+                type: 'rectangle',
+                x: centerX + size / 4 - 5,
+                y: centerY,
+                width: 10,
+                height: size / 4,
+                filled: true,
+                color: '#8B4513'
+            });
+            commands.push({
+                type: 'circle',
+                x: centerX + size / 4,
+                y: centerY - size / 8,
+                radius: size / 12,
+                filled: true,
+                color: '#228B22'
+            });
+        }
+
+        return commands;
     }
 
     // Add a new method for realistic fallback commands
@@ -1351,51 +1407,68 @@ Focus on creating smooth, believable motion appropriate for the style.`;
     }
 
     async generateConsistentAnimationPlan(prompt, frameCount, canvasSize, style, apiKey) {
-        const planPrompt = `You are creating a CONSISTENT animation plan for: "${prompt}"
+        const planPrompt = `You are creating a CONSISTENT multi-object animation plan for: "${prompt}"
 
 CRITICAL CONSISTENCY RULES:
-1. The main object must maintain the SAME:
-   - Base colors (slight variations for lighting OK)
-   - Overall size/proportions
-   - Basic shape structure
-   - Visual style
+1. Parse the prompt to identify ALL objects/elements that should be in the scene
+2. Each object must maintain consistent properties across all frames
+3. Background elements should be drawn first, then foreground objects
+4. Plan object interactions and relationships
 
-2. Canvas: ${canvasSize}x${canvasSize} pixels
-3. Frames: ${frameCount} total
-4. Style: ${style}
+Canvas: ${canvasSize}x${canvasSize} pixels
+Frames: ${frameCount} total
+Style: ${style}
 
-Create a JSON plan with these requirements:
-- Define the main object's consistent properties (size, colors, basic shapes)
-- Plan smooth movement/animation that preserves object identity
-- Specify exact position changes frame by frame
-- Keep the object centered and appropriately sized for the canvas
+Analyze the prompt and identify:
+- Background elements (grass, sky, buildings, etc.)
+- Main animated objects (balls, characters, etc.)
+- Static objects (trees, houses, etc.)
+- Environmental effects (clouds, particles, etc.)
 
 Return ONLY this JSON structure:
 {
-  "object": {
-    "type": "description of main object",
-    "baseSize": number (radius or width in pixels),
-    "primaryColor": "#hexcolor",
-    "secondaryColor": "#hexcolor",
-    "shape": "circle/ellipse/rectangle/etc"
-  },
-  "animation": {
-    "type": "bounce/rotate/slide/etc",
-    "centerX": ${Math.floor(canvasSize / 2)},
-    "centerY": ${Math.floor(canvasSize / 2)},
-    "range": number (movement range in pixels)
-  },
+  "sceneElements": [
+    {
+      "type": "background|static|animated",
+      "name": "descriptive name",
+      "shape": "circle|rectangle|ellipse|triangle|line",
+      "primaryColor": "#hexcolor",
+      "secondaryColor": "#hexcolor",
+      "baseSize": number,
+      "layer": number (0=back, higher=front),
+      "animation": {
+        "type": "none|bounce|slide|rotate|sway",
+        "startX": number,
+        "startY": number,
+        "endX": number,
+        "endY": number,
+        "amplitude": number
+      }
+    }
+  ],
   "frames": [
     {
       "frame": 0,
-      "x": number,
-      "y": number,
-      "description": "what happens this frame"
+      "elements": [
+        {
+          "name": "element name matching above",
+          "x": number,
+          "y": number,
+          "width": number,
+          "height": number,
+          "rotation": number
+        }
+      ]
     }
   ]
 }
 
-Focus on creating predictable, smooth motion that keeps the object recognizable throughout.`;
+Example for "bouncing red ball on green grass":
+- Background: green grass (rectangle at bottom)
+- Animated: red ball (circle that bounces)
+- Static: maybe some flowers or trees
+
+Focus on creating a complete scene with all requested elements.`;
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
@@ -1403,10 +1476,10 @@ Focus on creating predictable, smooth motion that keeps the object recognizable 
             body: JSON.stringify({
                 contents: [{ parts: [{ text: planPrompt }] }],
                 generationConfig: {
-                    temperature: 0.3, // Low temperature for consistency
+                    temperature: 0.3,
                     topK: 20,
                     topP: 0.8,
-                    maxOutputTokens: 2048,
+                    maxOutputTokens: 3072,
                 }
             })
         });
@@ -1427,8 +1500,119 @@ Focus on creating predictable, smooth motion that keeps the object recognizable 
             console.warn('Could not parse animation plan JSON, using fallback');
         }
 
-        // Fallback plan with consistency
-        return this.createConsistentFallbackPlan(prompt, frameCount, canvasSize);
+        // Enhanced fallback plan with multiple elements
+        return this.createComplexFallbackPlan(prompt, frameCount, canvasSize);
+    }
+
+    createComplexFallbackPlan(prompt, frameCount, canvasSize) {
+        const centerX = Math.floor(canvasSize / 2);
+        const centerY = Math.floor(canvasSize / 2);
+
+        const sceneElements = [];
+        const frames = [];
+
+        // Analyze prompt for common elements
+        const lowerPrompt = prompt.toLowerCase();
+
+        // Add background if mentioned
+        if (lowerPrompt.includes('grass') || lowerPrompt.includes('ground')) {
+            sceneElements.push({
+                type: "background",
+                name: "grass",
+                shape: "rectangle",
+                primaryColor: "#228B22",
+                secondaryColor: "#32CD32",
+                baseSize: canvasSize / 4,
+                layer: 0,
+                animation: { type: "none", startX: 0, startY: canvasSize * 0.75, endX: 0, endY: canvasSize * 0.75, amplitude: 0 }
+            });
+        }
+
+        if (lowerPrompt.includes('sky')) {
+            sceneElements.push({
+                type: "background",
+                name: "sky",
+                shape: "rectangle",
+                primaryColor: "#87CEEB",
+                secondaryColor: "#4169E1",
+                baseSize: canvasSize,
+                layer: 0,
+                animation: { type: "none", startX: 0, startY: 0, endX: 0, endY: 0, amplitude: 0 }
+            });
+        }
+
+        // Add main animated object
+        let mainColor = "#FF4444";
+        let mainShape = "circle";
+
+        if (lowerPrompt.includes('red')) mainColor = "#FF0000";
+        if (lowerPrompt.includes('blue')) mainColor = "#0000FF";
+        if (lowerPrompt.includes('green')) mainColor = "#00FF00";
+        if (lowerPrompt.includes('yellow')) mainColor = "#FFFF00";
+
+        if (lowerPrompt.includes('square') || lowerPrompt.includes('box')) mainShape = "rectangle";
+
+        sceneElements.push({
+            type: "animated",
+            name: "main_object",
+            shape: mainShape,
+            primaryColor: mainColor,
+            secondaryColor: mainColor,
+            baseSize: Math.floor(canvasSize / 8),
+            layer: 2,
+            animation: {
+                type: "bounce",
+                startX: centerX,
+                startY: centerY - canvasSize / 4,
+                endX: centerX,
+                endY: centerY + canvasSize / 4,
+                amplitude: canvasSize / 4
+            }
+        });
+
+        // Generate frame data
+        for (let i = 0; i < frameCount; i++) {
+            const progress = i / (frameCount - 1);
+            const frameElements = [];
+
+            sceneElements.forEach(element => {
+                let x = element.animation.startX;
+                let y = element.animation.startY;
+                let width = element.baseSize;
+                let height = element.baseSize;
+
+                if (element.animation.type === "bounce") {
+                    y = element.animation.startY + Math.sin(progress * Math.PI * 2) * element.animation.amplitude;
+                } else if (element.animation.type === "slide") {
+                    x = element.animation.startX + (element.animation.endX - element.animation.startX) * progress;
+                }
+
+                // Adjust for shape
+                if (element.shape === "rectangle" && element.name === "grass") {
+                    width = canvasSize;
+                    height = canvasSize / 4;
+                } else if (element.shape === "rectangle" && element.name === "sky") {
+                    width = canvasSize;
+                    height = canvasSize * 0.75;
+                }
+
+                frameElements.push({
+                    name: element.name,
+                    x: Math.floor(x),
+                    y: Math.floor(y),
+                    width: Math.floor(width),
+                    height: Math.floor(height),
+                    rotation: 0
+                });
+            });
+
+            frames.push({
+                frame: i,
+                elements: frameElements
+            });
+        }
+
+        return { sceneElements, frames };
     }
 
     createConsistentFallbackPlan(prompt, frameCount, canvasSize) {
@@ -1483,40 +1667,37 @@ Focus on creating predictable, smooth motion that keeps the object recognizable 
     async generateConsistentAnimationFrame(prompt, plan, frameIndex, totalFrames, previousFrame, baseObject, canvasSize, style, apiKey) {
         const currentFramePlan = plan.frames[frameIndex] || plan.frames[plan.frames.length - 1];
 
-        const systemPrompt = `You are creating frame ${frameIndex + 1} of ${totalFrames} for a CONSISTENT animation.
+        const systemPrompt = `You are creating frame ${frameIndex + 1} of ${totalFrames} for a CONSISTENT multi-element animation.
 
-STRICT CONSISTENCY REQUIREMENTS:
-${baseObject ? `PREVIOUS OBJECT: ${baseObject}` : ''}
-${previousFrame ? `PREVIOUS FRAME: ${previousFrame}` : ''}
+SCENE PLAN:
+${JSON.stringify(plan.sceneElements, null, 2)}
 
-CURRENT FRAME REQUIREMENTS:
-- Object Type: ${plan.object.type}
-- Object Shape: ${plan.object.shape}
-- Base Size: ${plan.object.baseSize}px
-- Primary Color: ${plan.object.primaryColor}
-- Secondary Color: ${plan.object.secondaryColor || plan.object.primaryColor}
-- Position: (${currentFramePlan.x}, ${currentFramePlan.y})
-- Canvas: ${canvasSize}x${canvasSize}
+FRAME ${frameIndex + 1} POSITIONS:
+${JSON.stringify(currentFramePlan.elements, null, 2)}
 
 CRITICAL RULES:
-1. Use EXACTLY the same colors as specified above
-2. Use EXACTLY the same base size (±1px tolerance only)
-3. Use the EXACT position specified: (${currentFramePlan.x}, ${currentFramePlan.y})
-4. Keep the same basic shape structure
-5. NO faces, details, or decorations unless specifically mentioned in original prompt
-6. Focus on the core animation: ${plan.animation.type}
+1. Draw ALL elements in the scene, in layer order (0=back, higher=front)
+2. Use EXACTLY the colors and shapes specified in the scene plan
+3. Use EXACTLY the positions specified for this frame
+4. Keep consistent sizing and appearance
+5. Canvas: ${canvasSize}x${canvasSize}
 
 Drawing commands available:
 - circle(x, y, radius, filled, color)
 - rectangle(x, y, width, height, filled, color)  
 - ellipse(x, y, radiusX, radiusY, filled, color)
+- triangle(x1, y1, x2, y2, x3, y3, filled, color)
+- line(x1, y1, x2, y2, color)
 
-Return ONLY a JSON array of 1-3 drawing commands maximum:
+Return ONLY a JSON array of drawing commands for ALL scene elements:
 [
-  {"type": "${plan.object.shape}", "x": ${currentFramePlan.x}, "y": ${currentFramePlan.y}, "radius": ${plan.object.baseSize}, "filled": true, "color": "${plan.object.primaryColor}"}
+  // Background elements first (layer 0)
+  {"type": "rectangle", "x": 0, "y": 200, "width": 320, "height": 40, "filled": true, "color": "#228B22"},
+  // Foreground elements last (higher layers)
+  {"type": "circle", "x": 160, "y": 120, "radius": 20, "filled": true, "color": "#FF0000"}
 ]
 
-Keep it simple and consistent. This is frame ${frameIndex + 1}/${totalFrames} of the animation.`;
+Draw frame ${frameIndex + 1}/${totalFrames} with all ${plan.sceneElements.length} scene elements.`;
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
@@ -1524,10 +1705,10 @@ Keep it simple and consistent. This is frame ${frameIndex + 1}/${totalFrames} of
             body: JSON.stringify({
                 contents: [{ parts: [{ text: systemPrompt }] }],
                 generationConfig: {
-                    temperature: 0.1, // Very low temperature for maximum consistency
+                    temperature: 0.1,
                     topK: 10,
                     topP: 0.7,
-                    maxOutputTokens: 512,
+                    maxOutputTokens: 1024,
                 }
             })
         });
@@ -1546,10 +1727,56 @@ Keep it simple and consistent. This is frame ${frameIndex + 1}/${totalFrames} of
             const jsonMatch = content.match(/\[[\s\S]*\]/);
             if (!jsonMatch) {
                 console.error('No valid JSON commands found, using fallback');
-                return this.createConsistentFallbackFrame(plan, frameIndex);
+                return this.createComplexFallbackFrame(plan, frameIndex, canvasSize);
             }
             return JSON.parse(jsonMatch[0]);
         }
+    }
+
+    createComplexFallbackFrame(plan, frameIndex, canvasSize) {
+        const commands = [];
+        const framePlan = plan.frames[frameIndex] || plan.frames[0];
+
+        // Sort elements by layer (background first)
+        const sortedElements = [...plan.sceneElements].sort((a, b) => a.layer - b.layer);
+
+        sortedElements.forEach(element => {
+            const frameElement = framePlan.elements.find(e => e.name === element.name);
+            if (!frameElement) return;
+
+            if (element.shape === 'circle') {
+                commands.push({
+                    type: 'circle',
+                    x: frameElement.x,
+                    y: frameElement.y,
+                    radius: element.baseSize,
+                    filled: true,
+                    color: element.primaryColor
+                });
+            } else if (element.shape === 'rectangle') {
+                commands.push({
+                    type: 'rectangle',
+                    x: frameElement.x,
+                    y: frameElement.y,
+                    width: frameElement.width,
+                    height: frameElement.height,
+                    filled: true,
+                    color: element.primaryColor
+                });
+            } else if (element.shape === 'ellipse') {
+                commands.push({
+                    type: 'ellipse',
+                    x: frameElement.x,
+                    y: frameElement.y,
+                    radiusX: frameElement.width / 2,
+                    radiusY: frameElement.height / 2,
+                    filled: true,
+                    color: element.primaryColor
+                });
+            }
+        });
+
+        return commands;
     }
 
     createConsistentFallbackFrame(plan, frameIndex) {
