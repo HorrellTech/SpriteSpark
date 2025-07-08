@@ -82,6 +82,20 @@ class SpriteSpark {
         this.splineShowControlLines = true; // Show connection lines between points
         this.splineShowNumbers = true; // Show point numbers
 
+        // Vector tool properties
+        this.vectorPoints = [];
+        this.vectorActive = false;
+        this.vectorMode = 'path'; // 'path', 'shape', 'bezier'
+        this.vectorFill = false;
+        this.vectorStroke = 2;
+        this.vectorShowPoints = true;
+        this.vectorShowHandles = true;
+        this.vectorSnapToGrid = false;
+        this.isDraggingVectorPoint = false;
+        this.draggingVectorPointIndex = -1;
+        this.draggingVectorHandle = null; // { pointIndex, handleType: 'in'|'out' }
+        this.vectorApplyButton = null;
+
         // Selection properties
         this.selectionActive = false;
         this.selectionBounds = { x: 0, y: 0, width: 0, height: 0 };
@@ -222,6 +236,12 @@ class SpriteSpark {
                 } else {
                     this.swapPrimaryAndSecondaryColors();
                 }
+
+                if (this.currentTool === 'vector') {
+                    this.handleVectorRightClick(e);
+                } else {
+                    this.swapPrimaryAndSecondaryColors();
+                }
             });
 
 
@@ -242,6 +262,11 @@ class SpriteSpark {
             this.mainCanvas.addEventListener('mousedown', this.handleSplineMouseDown.bind(this));
             this.mainCanvas.addEventListener('mousemove', this.handleSplineMouseMove.bind(this));
             this.mainCanvas.addEventListener('mouseup', this.handleSplineMouseUp.bind(this));
+
+            // Vector tool events
+            this.mainCanvas.addEventListener('mousedown', this.handleVectorMouseDown.bind(this));
+            this.mainCanvas.addEventListener('mousemove', this.handleVectorMouseMove.bind(this));
+            this.mainCanvas.addEventListener('mouseup', this.handleVectorMouseUp.bind(this));
         }
 
         // Panel resizing
@@ -249,6 +274,9 @@ class SpriteSpark {
 
         // Keyboard shortcuts
         document.addEventListener('keydown', this.handleKeyboard.bind(this));
+
+        // Add keyboard handler for vector tool
+        document.addEventListener('keydown', this.handleVectorKeyboard.bind(this));
 
         // Window resize
         window.addEventListener('resize', this.handleResize.bind(this));
@@ -544,6 +572,361 @@ class SpriteSpark {
         this.initializeCanvasResizeControls();
     }
 
+    handleVectorMouseDown(e) {
+        if (this.currentTool !== 'vector') return;
+        e.preventDefault();
+
+        const rect = this.mainCanvas.getBoundingClientRect();
+        let x = Math.floor((e.clientX - rect.left) / this.zoom);
+        let y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+        // Snap to grid if enabled
+        if (this.vectorSnapToGrid) {
+            const gridSize = 10;
+            x = Math.round(x / gridSize) * gridSize;
+            y = Math.round(y / gridSize) * gridSize;
+        }
+
+        // Check if clicking on apply button
+        if (this.vectorApplyButton && this.isPointInVectorApplyButton(x, y)) {
+            this.applyVector();
+            return;
+        }
+
+        // Check if clicking on existing point or handle
+        for (let i = 0; i < this.vectorPoints.length; i++) {
+            const point = this.vectorPoints[i];
+
+            // Check main point
+            if (Math.hypot(point.x - x, point.y - y) < 12) {
+                this.isDraggingVectorPoint = true;
+                this.draggingVectorPointIndex = i;
+                return;
+            }
+
+            // Check bezier handles if in bezier mode
+            if (this.vectorMode === 'bezier' && this.vectorShowHandles) {
+                if (point.handleIn && Math.hypot(point.handleIn.x - x, point.handleIn.y - y) < 8) {
+                    this.draggingVectorHandle = { pointIndex: i, handleType: 'in' };
+                    this.isDraggingVectorPoint = true;
+                    return;
+                }
+                if (point.handleOut && Math.hypot(point.handleOut.x - x, point.handleOut.y - y) < 8) {
+                    this.draggingVectorHandle = { pointIndex: i, handleType: 'out' };
+                    this.isDraggingVectorPoint = true;
+                    return;
+                }
+            }
+        }
+
+        // Add new point
+        const newPoint = { x, y };
+
+        // Add bezier handles if in bezier mode
+        if (this.vectorMode === 'bezier') {
+            newPoint.handleIn = { x: x - 30, y: y };
+            newPoint.handleOut = { x: x + 30, y: y };
+        }
+
+        this.vectorPoints.push(newPoint);
+        this.vectorActive = true;
+        this.renderCurrentFrameToMainCanvas();
+        this.drawVectorPreview();
+    }
+
+    handleVectorMouseMove(e) {
+        if (this.currentTool !== 'vector') return;
+
+        if (this.isDraggingVectorPoint && this.draggingVectorPointIndex >= 0) {
+            const rect = this.mainCanvas.getBoundingClientRect();
+            let x = Math.floor((e.clientX - rect.left) / this.zoom);
+            let y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+            // Snap to grid if enabled
+            if (this.vectorSnapToGrid) {
+                const gridSize = 10;
+                x = Math.round(x / gridSize) * gridSize;
+                y = Math.round(y / gridSize) * gridSize;
+            }
+
+            if (this.draggingVectorHandle) {
+                // Moving a bezier handle
+                const point = this.vectorPoints[this.draggingVectorHandle.pointIndex];
+                if (this.draggingVectorHandle.handleType === 'in') {
+                    point.handleIn = { x, y };
+                } else {
+                    point.handleOut = { x, y };
+                }
+            } else {
+                // Moving a main point
+                this.vectorPoints[this.draggingVectorPointIndex] = {
+                    ...this.vectorPoints[this.draggingVectorPointIndex],
+                    x, y
+                };
+            }
+
+            this.renderCurrentFrameToMainCanvas();
+            this.drawVectorPreview();
+        }
+    }
+
+    handleVectorMouseUp(e) {
+        if (this.currentTool !== 'vector') return;
+
+        this.isDraggingVectorPoint = false;
+        this.draggingVectorPointIndex = -1;
+        this.draggingVectorHandle = null;
+    }
+
+    handleVectorRightClick(e) {
+        if (this.currentTool !== 'vector') return;
+
+        const rect = this.mainCanvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / this.zoom);
+        const y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+        // Remove point if right-clicking near one
+        for (let i = 0; i < this.vectorPoints.length; i++) {
+            const point = this.vectorPoints[i];
+            if (Math.hypot(point.x - x, point.y - y) < 12) {
+                this.vectorPoints.splice(i, 1);
+                if (this.vectorPoints.length === 0) {
+                    this.vectorActive = false;
+                    this.vectorApplyButton = null;
+                }
+                this.renderCurrentFrameToMainCanvas();
+                this.drawVectorPreview();
+                return;
+            }
+        }
+    }
+
+    handleVectorKeyboard(e) {
+        if (this.currentTool !== 'vector' || !this.vectorActive) return;
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this.applyVector();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            this.cancelVector();
+        }
+    }
+
+    drawVectorPreview() {
+        if (!this.ctx || this.vectorPoints.length === 0) return;
+
+        this.ctx.save();
+        this.ctx.globalAlpha = 0.8;
+        this.ctx.strokeStyle = this.primaryColor;
+        this.ctx.lineWidth = this.vectorStroke;
+        this.ctx.setLineDash([6, 4]);
+
+        // Draw the vector path
+        this.drawVectorPath(this.ctx, this.vectorPoints, false);
+
+        this.ctx.setLineDash([]);
+        this.ctx.restore();
+
+        // Draw control points and handles
+        if (this.vectorShowPoints) {
+            this.drawVectorControlPoints();
+        }
+
+        // Draw apply button
+        if (this.vectorPoints.length > 1) {
+            this.drawVectorApplyButton();
+        } else {
+            this.vectorApplyButton = null;
+        }
+    }
+
+    drawVectorPath(ctx, points, final = false) {
+        if (points.length < 2) return;
+
+        ctx.beginPath();
+
+        if (this.vectorMode === 'bezier' && points.length > 1) {
+            // Bezier curve path
+            ctx.moveTo(points[0].x, points[0].y);
+
+            for (let i = 1; i < points.length; i++) {
+                const prevPoint = points[i - 1];
+                const currPoint = points[i];
+
+                ctx.bezierCurveTo(
+                    prevPoint.handleOut.x, prevPoint.handleOut.y,
+                    currPoint.handleIn.x, currPoint.handleIn.y,
+                    currPoint.x, currPoint.y
+                );
+            }
+        } else {
+            // Linear path
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+        }
+
+        // Close path if shape mode
+        if (this.vectorMode === 'shape' && points.length > 2) {
+            ctx.closePath();
+        }
+
+        // Fill if enabled
+        if (this.vectorFill && this.vectorMode === 'shape' && points.length > 2) {
+            ctx.fillStyle = this.primaryColor;
+            ctx.fill();
+        }
+
+        // Always stroke
+        ctx.stroke();
+    }
+
+    drawVectorControlPoints() {
+        for (let i = 0; i < this.vectorPoints.length; i++) {
+            const point = this.vectorPoints[i];
+
+            // Draw main point
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.arc(point.x, point.y, 8, 0, 2 * Math.PI);
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.globalAlpha = 0.9;
+            this.ctx.fill();
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeStyle = this.isDraggingVectorPoint && this.draggingVectorPointIndex === i ?
+                this.primaryColor : '#333333';
+            this.ctx.globalAlpha = 1;
+            this.ctx.stroke();
+
+            // Point number
+            this.ctx.fillStyle = '#333333';
+            this.ctx.font = 'bold 10px sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText((i + 1).toString(), point.x, point.y);
+            this.ctx.restore();
+
+            // Draw bezier handles if in bezier mode
+            if (this.vectorMode === 'bezier' && this.vectorShowHandles && point.handleIn && point.handleOut) {
+                this.ctx.save();
+                this.ctx.strokeStyle = '#888888';
+                this.ctx.lineWidth = 1;
+                this.ctx.setLineDash([2, 2]);
+
+                // Handle lines
+                this.ctx.beginPath();
+                this.ctx.moveTo(point.x, point.y);
+                this.ctx.lineTo(point.handleIn.x, point.handleIn.y);
+                this.ctx.moveTo(point.x, point.y);
+                this.ctx.lineTo(point.handleOut.x, point.handleOut.y);
+                this.ctx.stroke();
+
+                this.ctx.setLineDash([]);
+
+                // Handle points
+                [point.handleIn, point.handleOut].forEach(handle => {
+                    this.ctx.beginPath();
+                    this.ctx.arc(handle.x, handle.y, 4, 0, 2 * Math.PI);
+                    this.ctx.fillStyle = '#4CAF50';
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = '#333333';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.stroke();
+                });
+
+                this.ctx.restore();
+            }
+        }
+    }
+
+    drawVectorApplyButton() {
+        const buttonSize = 32;
+        const margin = 16;
+        const buttonX = this.canvasWidth - buttonSize - margin;
+        const buttonY = margin;
+
+        this.vectorApplyButton = {
+            x: buttonX,
+            y: buttonY,
+            size: buttonSize
+        };
+
+        this.ctx.save();
+
+        // Button background
+        this.ctx.fillStyle = '#4CAF50';
+        this.ctx.globalAlpha = 0.9;
+        this.ctx.fillRect(buttonX, buttonY, buttonSize, buttonSize);
+
+        // Button border
+        this.ctx.strokeStyle = '#333333';
+        this.ctx.lineWidth = 2;
+        this.ctx.globalAlpha = 1;
+        this.ctx.strokeRect(buttonX, buttonY, buttonSize, buttonSize);
+
+        // Check mark icon
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 3;
+        this.ctx.lineCap = 'round';
+        this.ctx.beginPath();
+        this.ctx.moveTo(buttonX + 8, buttonY + 16);
+        this.ctx.lineTo(buttonX + 14, buttonY + 22);
+        this.ctx.lineTo(buttonX + 24, buttonY + 10);
+        this.ctx.stroke();
+
+        // "Apply" text
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 8px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'bottom';
+        this.ctx.fillText('Apply', buttonX + buttonSize / 2, buttonY + buttonSize - 2);
+
+        this.ctx.restore();
+    }
+
+    isPointInVectorApplyButton(x, y) {
+        if (!this.vectorApplyButton) return false;
+        const btn = this.vectorApplyButton;
+        return x >= btn.x && x <= btn.x + btn.size &&
+            y >= btn.y && y <= btn.y + btn.size;
+    }
+
+    applyVector() {
+        if (!this.activeLayerId || this.vectorPoints.length < 2) return;
+
+        this.undoAdd();
+        const layer = this.layers.find(l => l.id === this.activeLayerId);
+        if (layer) {
+            const ctx = layer.canvas.getContext('2d');
+            ctx.save();
+            ctx.globalAlpha = this.opacity / 100;
+            ctx.strokeStyle = this.primaryColor;
+            ctx.lineWidth = this.vectorStroke;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            this.drawVectorPath(ctx, this.vectorPoints, true);
+
+            ctx.restore();
+        }
+
+        // Clear vector state
+        this.vectorPoints = [];
+        this.vectorActive = false;
+        this.vectorApplyButton = null;
+        this.renderCurrentFrameToMainCanvas();
+        this.syncGlobalLayersToCurrentFrame();
+    }
+
+    cancelVector() {
+        this.vectorPoints = [];
+        this.vectorActive = false;
+        this.vectorApplyButton = null;
+        this.renderCurrentFrameToMainCanvas();
+    }
+
     /*updateApiKeyButton() {
         const setApiKeyBtn = document.getElementById('setApiKey');
         const hasApiKey = localStorage.getItem('openai_api_key');
@@ -673,7 +1056,7 @@ Example format:
         }
     }*/
 
-    async generateAIDrawing(prompt, size, style) {
+    /*async generateAIDrawing(prompt, size, style) {
         const apiKey = localStorage.getItem('gemini_api_key');
         if (!apiKey) {
             alert('Please set your Gemini API key first');
@@ -814,6 +1197,102 @@ Create drawing commands for the complete scene: ${prompt}`;
             console.log('Using complex fallback commands:', fallbackCommands);
             this.executeDrawingCommands(fallbackCommands, canvasSize);
             this.showNotification('AI response failed. Created a simple fallback design.', 'warning');
+        } finally {
+            generateBtn.textContent = originalText;
+            generateBtn.disabled = false;
+        }
+    }*/
+
+    async generateAIDrawing(prompt, size, style) {
+        const apiKey = localStorage.getItem('gemini_api_key');
+        if (!apiKey) {
+            alert('Please set your Gemini API key first');
+            return;
+        }
+
+        const generateBtn = document.getElementById('generateAIArt');
+        const originalText = generateBtn.textContent;
+        generateBtn.textContent = 'Generating...';
+        generateBtn.disabled = true;
+
+        try {
+            const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
+
+            const systemPrompt = `You are a drawing assistant that creates images using vector and shape commands.
+
+Create a ${canvasSize}x${canvasSize} image for: "${prompt}"
+
+Available commands:
+- circle(x, y, radius, filled, color) - Draw a circle
+- rectangle(x, y, width, height, filled, color) - Draw a rectangle  
+- line(x1, y1, x2, y2, color) - Draw a line
+- ellipse(x, y, radiusX, radiusY, filled, color) - Draw an ellipse
+- triangle(x1, y1, x2, y2, x3, y3, filled, color) - Draw a triangle with THREE different points
+- vector(points, mode, filled, color, strokeWidth) - Draw vector path
+  * points: array of {x, y} coordinates
+  * mode: "path" (connected lines), "shape" (closed), or "bezier" (smooth curves)
+  * filled: true/false
+  * color: hex color
+  * strokeWidth: line thickness
+
+IMPORTANT TRIANGLE RULES:
+- ALL triangle coordinates (x1,y1,x2,y2,x3,y3) MUST be provided
+- The three points MUST be significantly different to form a visible triangle
+- Minimum triangle size should be at least 20x20 pixels
+- Example: {"type": "triangle", "x1": 50, "y1": 20, "x2": 20, "y2": 80, "x3": 80, "y3": 80, "filled": true, "color": "#FF0000"}
+
+Rules:
+- Coordinates must be within 0 to ${canvasSize - 1}
+- Colors must be hex format like "#FF0000"
+- Use vectors for complex shapes, curves, and organic forms
+- Use basic shapes for simple geometric elements
+- Combine both for best results
+- Return ONLY a JSON array of commands
+
+Style: ${style}
+
+Create drawing commands for: ${prompt}`;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: systemPrompt }] }],
+                    generationConfig: {
+                        temperature: 0.7,
+                        topK: 40,
+                        topP: 0.95,
+                        maxOutputTokens: 3072,
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Gemini API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const content = data.candidates[0].content.parts[0].text.trim();
+
+            let commands;
+            try {
+                commands = JSON.parse(content);
+            } catch (parseError) {
+                const jsonMatch = content.match(/\[[\s\S]*\]/);
+                if (!jsonMatch) {
+                    throw new Error('No valid JSON commands found');
+                }
+                commands = JSON.parse(jsonMatch[0]);
+            }
+
+            this.executeDrawingCommands(commands, canvasSize);
+
+        } catch (error) {
+            console.error('AI generation failed:', error);
+            const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
+            const fallbackCommands = this.createVectorFallbackCommands(canvasSize, prompt, style);
+            this.executeDrawingCommands(fallbackCommands, canvasSize);
+            this.showNotification('AI response failed. Created a vector fallback design.', 'warning');
         } finally {
             generateBtn.textContent = originalText;
             generateBtn.disabled = false;
@@ -1044,14 +1523,33 @@ Create drawing commands for the complete scene: ${prompt}`;
                 break;
 
             case 'triangle':
-                // Provide default values for missing coordinates
-                const triX1 = clampCoord(cmd.x1 !== undefined ? cmd.x1 : cmd.x || 0, 'x1');
-                const triY1 = clampCoord(cmd.y1 !== undefined ? cmd.y1 : cmd.y || 0, 'y1');
-                const triX2 = clampCoord(cmd.x2 !== undefined ? cmd.x2 : (cmd.x || 0) + 10, 'x2');
-                const triY2 = clampCoord(cmd.y2 !== undefined ? cmd.y2 : (cmd.y || 0) + 10, 'y2');
-                const triX3 = clampCoord(cmd.x3 !== undefined ? cmd.x3 : (cmd.x || 0) + 5, 'x3');
-                const triY3 = clampCoord(cmd.y3 !== undefined ? cmd.y3 : (cmd.y || 0) + 15, 'y3');
+                // Validate that we have all required coordinates
+                if (cmd.x1 === undefined || cmd.y1 === undefined ||
+                    cmd.x2 === undefined || cmd.y2 === undefined ||
+                    cmd.x3 === undefined || cmd.y3 === undefined) {
+                    console.warn('Invalid triangle coordinates, skipping:', cmd);
+                    return;
+                }
+
+                const triX1 = clampCoord(cmd.x1, 'x1');
+                const triY1 = clampCoord(cmd.y1, 'y1');
+                const triX2 = clampCoord(cmd.x2, 'x2');
+                const triY2 = clampCoord(cmd.y2, 'y2');
+                const triX3 = clampCoord(cmd.x3, 'x3');
+                const triY3 = clampCoord(cmd.y3, 'y3');
                 const triColor = validateColor(cmd.color);
+
+                // Validate that the triangle has reasonable size
+                const minSize = 5; // Minimum triangle size
+                const maxX = Math.max(triX1, triX2, triX3);
+                const minX = Math.min(triX1, triX2, triX3);
+                const maxY = Math.max(triY1, triY2, triY3);
+                const minY = Math.min(triY1, triY2, triY3);
+
+                if ((maxX - minX) < minSize || (maxY - minY) < minSize) {
+                    console.warn('Triangle too small, skipping:', cmd);
+                    return;
+                }
 
                 ctx.beginPath();
                 ctx.moveTo(triX1, triY1);
@@ -1068,7 +1566,65 @@ Create drawing commands for the complete scene: ${prompt}`;
                     ctx.stroke();
                 }
                 break;
+            case 'vector':
+                if (!cmd.points || !Array.isArray(cmd.points) || cmd.points.length < 2) {
+                    console.warn('Invalid vector points:', cmd.points);
+                    return;
+                }
 
+                const mode = cmd.mode || 'path';
+                const filled = cmd.filled || false;
+                const color = validateColor(cmd.color);
+                const strokeWidth = Math.max(1, Math.min(cmd.strokeWidth || 2, 20));
+
+                ctx.save();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = strokeWidth;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                ctx.beginPath();
+
+                if (mode === 'bezier' && cmd.points.length > 2) {
+                    // Draw smooth bezier curve through points
+                    ctx.moveTo(cmd.points[0].x, cmd.points[0].y);
+
+                    for (let i = 1; i < cmd.points.length; i++) {
+                        const prev = cmd.points[i - 1];
+                        const curr = cmd.points[i];
+                        const next = cmd.points[i + 1] || curr;
+
+                        // Calculate control points for smooth curve
+                        const cp1x = prev.x + (curr.x - (cmd.points[i - 2] || prev).x) * 0.2;
+                        const cp1y = prev.y + (curr.y - (cmd.points[i - 2] || prev).y) * 0.2;
+                        const cp2x = curr.x - (next.x - prev.x) * 0.2;
+                        const cp2y = curr.y - (next.y - prev.y) * 0.2;
+
+                        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, curr.x, curr.y);
+                    }
+                } else {
+                    // Draw straight lines
+                    ctx.moveTo(cmd.points[0].x, cmd.points[0].y);
+                    for (let i = 1; i < cmd.points.length; i++) {
+                        ctx.lineTo(cmd.points[i].x, cmd.points[i].y);
+                    }
+                }
+
+                // Close path if shape mode
+                if (mode === 'shape') {
+                    ctx.closePath();
+                }
+
+                // Fill if requested
+                if (filled && mode === 'shape') {
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                }
+
+                // Always stroke
+                ctx.stroke();
+                ctx.restore();
+                break;
             default:
                 console.warn(`Unknown command type: ${commandType}`);
         }
@@ -1192,6 +1748,111 @@ Create drawing commands for the complete scene: ${prompt}`;
         }
     }
 
+    createVectorFallbackCommands(size, prompt, style) {
+        const centerX = Math.floor(size / 2);
+        const centerY = Math.floor(size / 2);
+        const lowerPrompt = prompt.toLowerCase();
+
+        const commands = [];
+
+        if (lowerPrompt.includes('star')) {
+            // Create a star using vector
+            const points = [];
+            const outerRadius = size / 3;
+            const innerRadius = size / 6;
+
+            for (let i = 0; i < 10; i++) {
+                const angle = (i * Math.PI) / 5;
+                const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                points.push({
+                    x: centerX + Math.cos(angle) * radius,
+                    y: centerY + Math.sin(angle) * radius
+                });
+            }
+
+            commands.push({
+                type: 'vector',
+                points: points,
+                mode: 'shape',
+                filled: true,
+                color: '#FFD700',
+                strokeWidth: 2
+            });
+        } else if (lowerPrompt.includes('triangle')) {
+            // Create a proper triangle
+            const triangleSize = size / 3;
+            commands.push({
+                type: 'triangle',
+                x1: centerX,
+                y1: centerY - triangleSize,
+                x2: centerX - triangleSize,
+                y2: centerY + triangleSize,
+                x3: centerX + triangleSize,
+                y3: centerY + triangleSize,
+                filled: true,
+                color: '#FF6B6B'
+            });
+        } else if (lowerPrompt.includes('wave') || lowerPrompt.includes('curve')) {
+            // Create a wave using bezier
+            const points = [];
+            for (let i = 0; i <= 4; i++) {
+                points.push({
+                    x: (i * size) / 4,
+                    y: centerY + Math.sin(i * Math.PI / 2) * size / 4
+                });
+            }
+
+            commands.push({
+                type: 'vector',
+                points: points,
+                mode: 'bezier',
+                filled: false,
+                color: '#0066CC',
+                strokeWidth: 3
+            });
+        } else if (lowerPrompt.includes('house')) {
+            // Create a house using vectors
+            commands.push({
+                type: 'vector',
+                points: [
+                    { x: centerX - size / 4, y: centerY + size / 4 },
+                    { x: centerX - size / 4, y: centerY },
+                    { x: centerX, y: centerY - size / 4 },
+                    { x: centerX + size / 4, y: centerY },
+                    { x: centerX + size / 4, y: centerY + size / 4 }
+                ],
+                mode: 'shape',
+                filled: true,
+                color: '#8B4513',
+                strokeWidth: 2
+            });
+        } else {
+            // Generic vector shape
+            const points = [];
+            const radius = size / 3;
+            const numPoints = 6;
+
+            for (let i = 0; i < numPoints; i++) {
+                const angle = (i * 2 * Math.PI) / numPoints;
+                points.push({
+                    x: centerX + Math.cos(angle) * radius,
+                    y: centerY + Math.sin(angle) * radius
+                });
+            }
+
+            commands.push({
+                type: 'vector',
+                points: points,
+                mode: 'shape',
+                filled: true,
+                color: '#FF6B6B',
+                strokeWidth: 2
+            });
+        }
+
+        return commands;
+    }
+
     // Add this simple fallback method
     createSimpleFallback(width, height, prompt) {
         const pixelData = [];
@@ -1263,7 +1924,7 @@ Create drawing commands for the complete scene: ${prompt}`;
 
         const generateBtn = document.getElementById('generateAIAnimation');
         const originalText = generateBtn.textContent;
-        generateBtn.textContent = 'Generating Animation...';
+        generateBtn.textContent = 'Analyzing Animation...';
         generateBtn.disabled = true;
         generateBtn.classList.remove('success', 'error');
 
@@ -1274,50 +1935,12 @@ Create drawing commands for the complete scene: ${prompt}`;
 
             const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
 
-            // Generate comprehensive animation plan with consistency rules
-            const animationPlan = await this.generateConsistentAnimationPlan(prompt, frameCount, canvasSize, style, apiKey);
-            console.log('Animation plan:', animationPlan);
+            // IMPROVED: More specific animation analysis
+            const animationAnalysis = await this.analyzeAnimationPrompt(prompt, canvasSize, style, frameCount, apiKey);
+            console.log('Animation analysis:', animationAnalysis);
 
-            // Store the visual state for consistency
-            let previousFrameDescription = null;
-            let baseObjectDescription = null;
-
-            // Generate each frame with strict consistency checks
-            for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
-                generateBtn.textContent = `Generating Frame ${frameIndex + 1}/${frameCount}...`;
-
-                // Create new frame if needed
-                if (frameIndex >= this.frames.length) {
-                    this.addEmptyFrame();
-                }
-
-                // Select the frame and generate
-                this.selectFrame(frameIndex);
-
-                const frameCommands = await this.generateConsistentAnimationFrame(
-                    prompt,
-                    animationPlan,
-                    frameIndex,
-                    frameCount,
-                    previousFrameDescription,
-                    baseObjectDescription,
-                    canvasSize,
-                    style,
-                    apiKey
-                );
-
-                // Apply the drawing
-                this.executeDrawingCommands(frameCommands, canvasSize);
-
-                // Extract description for next frame consistency
-                if (frameIndex === 0) {
-                    baseObjectDescription = this.extractBaseObjectDescription(frameCommands, prompt);
-                }
-                previousFrameDescription = this.extractFrameDescription(frameCommands, frameIndex);
-
-                // Small delay to prevent API rate limiting
-                await new Promise(resolve => setTimeout(resolve, 300));
-            }
+            // Generate the complete animation based on analysis
+            await this.generateSpecificAnimation(animationAnalysis, frameCount, canvasSize, style, apiKey, generateBtn);
 
             // Select first frame when done
             this.selectFrame(0);
@@ -1330,7 +1953,6 @@ Create drawing commands for the complete scene: ${prompt}`;
             console.error('AI animation generation failed:', error);
             generateBtn.textContent = 'Generation Failed';
             generateBtn.classList.add('error');
-
             this.showNotification('AI animation generation failed. Please try again.', 'error');
         } finally {
             setTimeout(() => {
@@ -1339,6 +1961,638 @@ Create drawing commands for the complete scene: ${prompt}`;
                 generateBtn.disabled = false;
             }, 3000);
         }
+    }
+
+    async analyzeAnimationPrompt(prompt, canvasSize, style, frameCount, apiKey) {
+        const analysisPrompt = `You are an expert animation director. Analyze this animation request: "${prompt}"
+
+TASK: Create a detailed animation plan for ${frameCount} frames on a ${canvasSize}x${canvasSize} canvas.
+
+CRITICAL REQUIREMENTS:
+1. Identify the MAIN OBJECT that should animate (ball, character, car, etc.)
+2. Define clear START and END positions for smooth motion
+3. Choose appropriate animation type (bounce, slide, rotate, etc.)
+4. Plan consistent object properties (size, color, shape)
+
+Return ONLY this JSON structure:
+{
+  "mainObject": {
+    "type": "ball|character|car|bird|etc",
+    "description": "detailed visual description",
+    "shape": "circle|rectangle|ellipse|complex",
+    "size": number (radius or width in pixels),
+    "color": "#hexcolor",
+    "startPosition": {"x": number, "y": number},
+    "endPosition": {"x": number, "y": number}
+  },
+  "animation": {
+    "type": "bounce|slide|rotate|orbit|wave|fall",
+    "physics": "gravity|momentum|spring|linear",
+    "details": "specific movement description",
+    "speed": "slow|medium|fast"
+  },
+  "background": {
+    "type": "ground|sky|none|simple",
+    "color": "#hexcolor"
+  }
+}
+
+EXAMPLES:
+- "red ball bouncing" → ball moves in arc with gravity
+- "car driving" → car slides horizontally across screen  
+- "bird flying" → bird moves in wave pattern
+- "spinning wheel" → wheel rotates in place
+- "falling leaf" → leaf falls with gentle sway
+
+Focus on ONE main animated object with clear, smooth motion.`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: analysisPrompt }] }],
+                generationConfig: {
+                    temperature: 0.2,
+                    topK: 20,
+                    topP: 0.8,
+                    maxOutputTokens: 1024,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const content = data.candidates[0].content.parts[0].text.trim();
+
+        try {
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
+            }
+        } catch (e) {
+            console.warn('Could not parse animation analysis, using fallback');
+        }
+
+        // Enhanced fallback analysis
+        return this.createEnhancedFallbackAnalysis(prompt, canvasSize);
+    }
+
+    createEnhancedFallbackAnalysis(prompt, canvasSize) {
+        const lowerPrompt = prompt.toLowerCase();
+        const centerX = Math.floor(canvasSize / 2);
+        const centerY = Math.floor(canvasSize / 2);
+
+        let analysis = {
+            mainObject: {
+                type: "object",
+                description: "animated object",
+                shape: "circle",
+                size: Math.floor(canvasSize / 8),
+                color: "#FF6B6B",
+                startPosition: { x: centerX, y: centerY },
+                endPosition: { x: centerX, y: centerY }
+            },
+            animation: {
+                type: "slide",
+                physics: "linear",
+                details: "smooth movement",
+                speed: "medium"
+            },
+            background: {
+                type: "none",
+                color: "#ffffff"
+            }
+        };
+
+        // Detect specific objects and animations
+        if (lowerPrompt.includes('ball') && lowerPrompt.includes('bounce')) {
+            analysis.mainObject = {
+                type: "ball",
+                description: "bouncing ball",
+                shape: "circle",
+                size: Math.floor(canvasSize / 10),
+                color: "#FF4444",
+                startPosition: { x: canvasSize * 0.2, y: canvasSize * 0.3 },
+                endPosition: { x: canvasSize * 0.8, y: canvasSize * 0.3 }
+            };
+            analysis.animation = {
+                type: "bounce",
+                physics: "gravity",
+                details: "arc motion with decreasing bounce height",
+                speed: "medium"
+            };
+            analysis.background = {
+                type: "ground",
+                color: "#228B22"
+            };
+        } else if (lowerPrompt.includes('car') || lowerPrompt.includes('drive')) {
+            analysis.mainObject = {
+                type: "car",
+                description: "simple car",
+                shape: "rectangle",
+                size: Math.floor(canvasSize / 8),
+                color: "#0066CC",
+                startPosition: { x: -canvasSize * 0.1, y: canvasSize * 0.7 },
+                endPosition: { x: canvasSize * 1.1, y: canvasSize * 0.7 }
+            };
+            analysis.animation = {
+                type: "slide",
+                physics: "linear",
+                details: "horizontal movement across screen",
+                speed: "medium"
+            };
+            analysis.background = {
+                type: "ground",
+                color: "#666666"
+            };
+        } else if (lowerPrompt.includes('bird') || lowerPrompt.includes('fly')) {
+            analysis.mainObject = {
+                type: "bird",
+                description: "flying bird",
+                shape: "ellipse",
+                size: Math.floor(canvasSize / 12),
+                color: "#4169E1",
+                startPosition: { x: canvasSize * 0.1, y: canvasSize * 0.3 },
+                endPosition: { x: canvasSize * 0.9, y: canvasSize * 0.4 }
+            };
+            analysis.animation = {
+                type: "wave",
+                physics: "momentum",
+                details: "wavy flight pattern with gentle up-down motion",
+                speed: "medium"
+            };
+            analysis.background = {
+                type: "sky",
+                color: "#87CEEB"
+            };
+        }
+
+        return analysis;
+    }
+
+    createFallbackAnalysis(prompt, canvasSize) {
+        const lowerPrompt = prompt.toLowerCase();
+        const centerX = Math.floor(canvasSize / 2);
+        const centerY = Math.floor(canvasSize / 2);
+
+        if (lowerPrompt.includes('person') || lowerPrompt.includes('walking') || lowerPrompt.includes('human')) {
+            return {
+                objects: [{
+                    type: "person",
+                    name: "walking person",
+                    bodyParts: [
+                        { name: "head", shape: "circle", relativeSize: 0.15, attachPoint: "center", color: "#FFDBAC" },
+                        { name: "torso", shape: "rectangle", relativeSize: 0.4, attachPoint: "center", color: "#4169E1" },
+                        { name: "leftArm", shape: "line", relativeSize: 0.3, attachPoint: "top", color: "#FFDBAC" },
+                        { name: "rightArm", shape: "line", relativeSize: 0.3, attachPoint: "top", color: "#FFDBAC" },
+                        { name: "leftLeg", shape: "line", relativeSize: 0.4, attachPoint: "bottom", color: "#4169E1" },
+                        { name: "rightLeg", shape: "line", relativeSize: 0.4, attachPoint: "bottom", color: "#4169E1" }
+                    ],
+                    startPosition: { x: canvasSize * 0.2, y: centerY },
+                    endPosition: { x: canvasSize * 0.8, y: centerY },
+                    animation: {
+                        type: "walk",
+                        speed: "medium",
+                        physics: "momentum",
+                        details: "alternating leg movement with arm swing"
+                    }
+                }],
+                scene: {
+                    background: "simple ground",
+                    environment: "ground"
+                }
+            };
+        } else if (lowerPrompt.includes('ball') || lowerPrompt.includes('bounce')) {
+            return {
+                objects: [{
+                    type: "ball",
+                    name: "bouncing ball",
+                    bodyParts: [
+                        { name: "sphere", shape: "circle", relativeSize: 1.0, attachPoint: "center", color: "#FF4444" }
+                    ],
+                    startPosition: { x: canvasSize * 0.2, y: canvasSize * 0.3 },
+                    endPosition: { x: canvasSize * 0.8, y: canvasSize * 0.3 },
+                    animation: {
+                        type: "bounce",
+                        speed: "medium",
+                        physics: "gravity",
+                        details: "decreasing bounce height with forward movement"
+                    }
+                }],
+                scene: {
+                    background: "ground",
+                    environment: "ground"
+                }
+            };
+        }
+
+        // Generic fallback
+        return {
+            objects: [{
+                type: "object",
+                name: "animated object",
+                bodyParts: [
+                    { name: "body", shape: "circle", relativeSize: 1.0, attachPoint: "center", color: "#FF6B6B" }
+                ],
+                startPosition: { x: centerX, y: centerY },
+                endPosition: { x: centerX, y: centerY },
+                animation: {
+                    type: "simple",
+                    speed: "medium",
+                    physics: "none",
+                    details: "basic movement"
+                }
+            }],
+            scene: {
+                background: "none",
+                environment: "none"
+            }
+        };
+    }
+
+    async generateSpecificAnimation(analysis, frameCount, canvasSize, style, apiKey, generateBtn) {
+        let previousFrameDescription = null;
+        let previousFrameCommands = null;
+
+        // Generate each frame based on the analysis AND previous frame
+        for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+            generateBtn.textContent = `Generating Frame ${frameIndex + 1}/${frameCount}...`;
+
+            // Create new frame if needed
+            if (frameIndex >= this.frames.length) {
+                this.addEmptyFrame();
+            }
+
+            // Select the frame and generate
+            this.selectFrame(frameIndex);
+
+            const frameCommands = await this.generateFrameFromAnalysisWithContext(
+                analysis,
+                frameIndex,
+                frameCount,
+                canvasSize,
+                style,
+                apiKey,
+                previousFrameDescription,
+                previousFrameCommands
+            );
+
+            // Apply the drawing
+            this.executeDrawingCommands(frameCommands, canvasSize);
+
+            // Store this frame's info for the next frame
+            previousFrameDescription = this.createFrameDescription(frameCommands, frameIndex, analysis);
+            previousFrameCommands = frameCommands;
+
+            // Small delay to prevent API rate limiting
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+    }
+
+    async generateFrameFromAnalysisWithContext(analysis, frameIndex, totalFrames, canvasSize, style, apiKey, previousFrameDescription, previousFrameCommands) {
+        const progress = frameIndex / (totalFrames - 1);
+
+        // IMPROVED: Much more specific frame generation prompt
+        const framePrompt = `Generate frame ${frameIndex + 1} of ${totalFrames} for this animation:
+
+OBJECT TO ANIMATE:
+- Type: ${analysis.mainObject.type}
+- Shape: ${analysis.mainObject.shape} 
+- Size: ${analysis.mainObject.size}px
+- Color: ${analysis.mainObject.color}
+- Animation: ${analysis.animation.type} (${analysis.animation.details})
+
+FRAME PROGRESS: ${Math.round(progress * 100)}% complete
+Canvas: ${canvasSize}x${canvasSize}
+
+POSITION CALCULATION:
+Start: (${analysis.mainObject.startPosition.x}, ${analysis.mainObject.startPosition.y})
+End: (${analysis.mainObject.endPosition.x}, ${analysis.mainObject.endPosition.y})
+
+${this.getAnimationPositionInstructions(analysis.animation.type, progress)}
+
+BACKGROUND:
+${analysis.background.type !== 'none' ? `Add ${analysis.background.type} background with color ${analysis.background.color}` : 'No background needed'}
+
+CONSISTENCY RULES:
+- Use EXACT same object size and color as specified
+- Keep object properties identical across all frames
+- Only change position/rotation based on animation type
+
+Return JSON array of drawing commands:
+[
+  ${analysis.background.type !== 'none' ? '{"type": "rectangle", "x": 0, "y": 200, "width": ' + canvasSize + ', "height": 40, "filled": true, "color": "' + analysis.background.color + '"},' : ''}
+  {"type": "${analysis.mainObject.shape}", "x": CALCULATED_X, "y": CALCULATED_Y, ${analysis.mainObject.shape === 'circle' ? '"radius"' : '"width"'}: ${analysis.mainObject.size}, "filled": true, "color": "${analysis.mainObject.color}"}
+]
+
+Calculate the exact position for this frame based on progress ${Math.round(progress * 100)}%:`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: framePrompt }] }],
+                generationConfig: {
+                    temperature: 0.1,
+                    topK: 5,
+                    topP: 0.5,
+                    maxOutputTokens: 512,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const content = data.candidates[0].content.parts[0].text.trim();
+
+        try {
+            const commands = JSON.parse(content);
+            return commands;
+        } catch (parseError) {
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (!jsonMatch) {
+                console.error('No valid JSON commands found, using fallback');
+                return this.createFrameFromAnalysisFallback(analysis, frameIndex, totalFrames, canvasSize, previousFrameCommands);
+            }
+            return JSON.parse(jsonMatch[0]);
+        }
+    }
+
+    getAnimationPositionInstructions(animationType, progress) {
+        switch (animationType) {
+            case 'bounce':
+                return `BOUNCE MOTION:
+- X position: linear interpolation from start to end
+- Y position: Add parabolic arc (use sine wave for bounce)
+- Formula: Y = startY + sin(progress * π * bounces) * bounceHeight
+- Decrease bounce height as ball moves forward`;
+
+            case 'slide':
+                return `SLIDE MOTION:
+- Linear interpolation from start to end position
+- X = startX + (endX - startX) * progress
+- Y = startY + (endY - startY) * progress`;
+
+            case 'wave':
+                return `WAVE MOTION:
+- X position: linear interpolation from start to end
+- Y position: Add sine wave for up-down motion
+- Formula: Y = baseY + sin(progress * π * 4) * waveHeight`;
+
+            case 'rotate':
+                return `ROTATION MOTION:
+- Keep object at center position
+- Add rotation property or draw rotated shape
+- Rotation = progress * 360 degrees`;
+
+            case 'orbit':
+                return `ORBITAL MOTION:
+- X = centerX + cos(progress * 2π) * orbitRadius
+- Y = centerY + sin(progress * 2π) * orbitRadius`;
+
+            case 'fall':
+                return `FALLING MOTION:
+- X position: may sway slightly (sin wave)
+- Y position: accelerating downward
+- Use gravity physics: Y = startY + 0.5 * gravity * time²`;
+
+            default:
+                return `LINEAR MOTION:
+- Simple linear interpolation from start to end position`;
+        }
+    }
+
+    createFrameDescription(commands, frameIndex, analysis) {
+        if (!commands || commands.length === 0) return 'Empty frame';
+
+        // Create a concise description of what's in this frame
+        const objectPositions = {};
+
+        commands.forEach(cmd => {
+            if (cmd.type === 'circle' && cmd.radius > 5) {
+                objectPositions['main_object'] = `${cmd.type} at (${cmd.x},${cmd.y}) radius ${cmd.radius} color ${cmd.color}`;
+            } else if (cmd.type === 'rectangle' && cmd.width > 10) {
+                objectPositions['object'] = `${cmd.type} at (${cmd.x},${cmd.y}) size ${cmd.width}x${cmd.height} color ${cmd.color}`;
+            }
+        });
+
+        const positions = Object.values(objectPositions).join(', ');
+        return `Frame ${frameIndex + 1}: ${positions}`;
+    }
+
+    findMainObjectInCommands(commands, objectIndex = 0) {
+        // Find the main object (largest circle or rectangle) from previous commands
+        const objects = commands.filter(cmd =>
+            (cmd.type === 'circle' && cmd.radius > 5) ||
+            (cmd.type === 'rectangle' && cmd.width > 10)
+        );
+
+        if (objects.length > objectIndex) {
+            return objects[objectIndex];
+        }
+
+        return objects[0] || null;
+    }
+
+    async generateFrameFromAnalysis(analysis, frameIndex, totalFrames, canvasSize, style, apiKey) {
+        const progress = frameIndex / (totalFrames - 1);
+
+        // MUCH SHORTER frame prompt - cut from ~800 to ~300 tokens
+        const framePrompt = `Frame ${frameIndex + 1}/${totalFrames} (${Math.round(progress * 100)}%):
+
+Objects: ${JSON.stringify(analysis.objects)}
+Canvas: ${canvasSize}x${canvasSize}
+
+Draw ALL body parts for each object at correct positions for this frame.
+Rules: Use realistic physics, smooth movement between start/end positions.
+
+Commands: circle(x,y,radius,filled,color), rectangle(x,y,w,h,filled,color), line(x1,y1,x2,y2,color)
+
+Return JSON array of drawing commands:`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: framePrompt }] }],
+                generationConfig: {
+                    temperature: 0.2, // Lower for more consistent animation
+                    topK: 20,
+                    topP: 0.8,
+                    maxOutputTokens: 1024,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const content = data.candidates[0].content.parts[0].text.trim();
+
+        try {
+            const commands = JSON.parse(content);
+            return commands;
+        } catch (parseError) {
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (!jsonMatch) {
+                console.error('No valid JSON commands found, using fallback');
+                return this.createFrameFromAnalysisFallback(analysis, frameIndex, totalFrames, canvasSize);
+            }
+            return JSON.parse(jsonMatch[0]);
+        }
+    }
+
+    // ALTERNATIVE: Single-call approach to reduce API calls
+    async generateAIAnimationOptimized(prompt, style, frameCount) {
+        const apiKey = localStorage.getItem('gemini_api_key');
+        if (!apiKey) {
+            alert('Please set your Gemini API key first');
+            return;
+        }
+
+        // Much simpler prompt
+        const allFramesPrompt = `Create ${frameCount} frames of "${prompt}" animation.
+Canvas: ${Math.min(this.canvasWidth, this.canvasHeight)}x${Math.min(this.canvasWidth, this.canvasHeight)}
+
+KEEP OBJECTS IDENTICAL between frames - only change x,y positions.
+
+Return JSON:
+{
+  "frames": [
+    [{"type": "circle", "x": 100, "y": 100, "radius": 10, "filled": true, "color": "#FF0000"}],
+    [{"type": "circle", "x": 110, "y": 100, "radius": 10, "filled": true, "color": "#FF0000"}]
+  ]
+}
+
+Make ${frameCount} frames with smooth movement.`;
+
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: allFramesPrompt }] }],
+                    generationConfig: {
+                        temperature: 0.2,
+                        topK: 20,
+                        topP: 0.8,
+                        maxOutputTokens: 2048,
+                    }
+                })
+            });
+
+            if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+            const data = await response.json();
+            const content = data.candidates[0].content.parts[0].text.trim();
+
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const result = JSON.parse(jsonMatch[0]);
+
+                // Apply frames sequentially
+                for (let i = 0; i < Math.min(result.frames.length, frameCount); i++) {
+                    if (i >= this.frames.length) this.addEmptyFrame();
+                    this.selectFrame(i);
+                    this.executeDrawingCommands(result.frames[i], Math.min(this.canvasWidth, this.canvasHeight));
+                }
+
+                this.selectFrame(0);
+                this.updateFramesList();
+                return;
+            }
+        } catch (error) {
+            console.error('Optimized AI animation failed:', error);
+            return this.generateAIAnimation(prompt, style, frameCount);
+        }
+    }
+
+    createFrameFromAnalysisFallback(analysis, frameIndex, totalFrames, canvasSize, previousCommands = null) {
+        const progress = frameIndex / (totalFrames - 1);
+        const commands = [];
+
+        // Draw scene background if specified
+        if (analysis.scene.environment === 'ground') {
+            commands.push({
+                type: 'rectangle',
+                x: 0,
+                y: canvasSize * 0.8,
+                width: canvasSize,
+                height: canvasSize * 0.2,
+                filled: true,
+                color: '#228B22'
+            });
+        }
+
+        // Animate each object with consistency
+        analysis.objects.forEach((obj, objIndex) => {
+            let currentX = obj.startPosition.x + (obj.endPosition.x - obj.startPosition.x) * progress;
+            let currentY = obj.startPosition.y;
+
+            // If we have previous commands, try to maintain consistency
+            if (previousCommands && frameIndex > 0) {
+                const prevMainObject = this.findMainObjectInCommands(previousCommands, objIndex);
+                if (prevMainObject) {
+                    // Use previous object's properties for consistency
+                    obj.bodyParts.forEach((part, partIndex) => {
+                        const baseSize = prevMainObject.radius || prevMainObject.width || canvasSize / 8;
+
+                        // Apply animation movement
+                        if (obj.animation.type === 'bounce') {
+                            const bouncePhase = (frameIndex % (totalFrames / 3)) / (totalFrames / 3);
+                            const bounceHeight = Math.sin(bouncePhase * Math.PI) * (canvasSize / 4) * (1 - progress * 0.5);
+                            currentY = obj.startPosition.y + bounceHeight;
+                        }
+
+                        // Create drawing command with consistent properties
+                        if (part.shape === 'circle') {
+                            commands.push({
+                                type: 'circle',
+                                x: Math.round(currentX),
+                                y: Math.round(currentY),
+                                radius: Math.round(baseSize / 2),
+                                filled: true,
+                                color: prevMainObject.color || part.color
+                            });
+                        }
+                    });
+                    return; // Skip the default generation below
+                }
+            }
+
+            // Default generation if no previous frame context
+            if (obj.animation.type === 'bounce') {
+                const bouncePhase = (frameIndex % (totalFrames / 3)) / (totalFrames / 3);
+                const bounceHeight = Math.sin(bouncePhase * Math.PI) * (canvasSize / 4) * (1 - progress * 0.5);
+                currentY = obj.startPosition.y + bounceHeight;
+            }
+
+            obj.bodyParts.forEach((part, partIndex) => {
+                const baseSize = canvasSize / 8;
+                const partSize = baseSize * part.relativeSize;
+
+                if (part.shape === 'circle') {
+                    commands.push({
+                        type: 'circle',
+                        x: Math.round(currentX),
+                        y: Math.round(currentY),
+                        radius: Math.round(partSize / 2),
+                        filled: true,
+                        color: part.color
+                    });
+                }
+            });
+        });
+
+        return commands;
     }
 
     async generateAnimationPlan(prompt, frameCount, canvasSize, style, apiKey) {
@@ -2335,6 +3589,79 @@ Create drawing commands for this animation frame:`;
             });
         }
 
+        // Vector tool controls
+        const vectorMode = document.getElementById('vectorMode');
+        const vectorFill = document.getElementById('vectorFill');
+        const vectorStroke = document.getElementById('vectorStroke');
+        const vectorStrokeValue = document.getElementById('vectorStrokeValue');
+        const vectorShowPoints = document.getElementById('vectorShowPoints');
+        const vectorShowHandles = document.getElementById('vectorShowHandles');
+        const vectorSnapToGrid = document.getElementById('vectorSnapToGrid');
+
+        if (vectorMode) {
+            vectorMode.value = this.vectorMode;
+            vectorMode.addEventListener('change', (e) => {
+                this.vectorMode = e.target.value;
+                if (this.vectorActive) {
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawVectorPreview();
+                }
+            });
+        }
+
+        if (vectorFill) {
+            vectorFill.checked = this.vectorFill;
+            vectorFill.addEventListener('change', (e) => {
+                this.vectorFill = e.target.checked;
+                if (this.vectorActive) {
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawVectorPreview();
+                }
+            });
+        }
+
+        if (vectorStroke && vectorStrokeValue) {
+            vectorStroke.value = this.vectorStroke;
+            vectorStrokeValue.textContent = this.vectorStroke;
+            vectorStroke.addEventListener('input', (e) => {
+                this.vectorStroke = parseInt(e.target.value, 10);
+                vectorStrokeValue.textContent = this.vectorStroke;
+                if (this.vectorActive) {
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawVectorPreview();
+                }
+            });
+        }
+
+        if (vectorShowPoints) {
+            vectorShowPoints.checked = this.vectorShowPoints;
+            vectorShowPoints.addEventListener('change', (e) => {
+                this.vectorShowPoints = e.target.checked;
+                if (this.vectorActive) {
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawVectorPreview();
+                }
+            });
+        }
+
+        if (vectorShowHandles) {
+            vectorShowHandles.checked = this.vectorShowHandles;
+            vectorShowHandles.addEventListener('change', (e) => {
+                this.vectorShowHandles = e.target.checked;
+                if (this.vectorActive) {
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawVectorPreview();
+                }
+            });
+        }
+
+        if (vectorSnapToGrid) {
+            vectorSnapToGrid.checked = this.vectorSnapToGrid;
+            vectorSnapToGrid.addEventListener('change', (e) => {
+                this.vectorSnapToGrid = e.target.checked;
+            });
+        }
+
         if (showBrushGhost) {
             showBrushGhost.checked = this.showBrushGhost;
             showBrushGhost.addEventListener('change', (e) => {
@@ -2400,6 +3727,7 @@ Create drawing commands for this animation frame:`;
                 // Show/hide tool-specific options
                 const floodFillOptions = document.getElementById('floodFillOptions');
                 const splineOptions = document.getElementById('splineOptions');
+                const vectorOptions = document.getElementById('vectorOptions');
 
                 if (floodFillOptions) {
                     floodFillOptions.style.display = (this.currentTool === 'bucket') ? 'block' : 'none';
@@ -2407,12 +3735,21 @@ Create drawing commands for this animation frame:`;
                 if (splineOptions) {
                     splineOptions.style.display = (this.currentTool === 'spline') ? 'block' : 'none';
                 }
+                if (vectorOptions) {
+                    vectorOptions.style.display = (this.currentTool === 'vector') ? 'block' : 'none';
+                }
 
                 // Clear spline state when switching tools
                 if (this.currentTool !== 'spline' && this.splineActive) {
                     this.splinePoints = [];
                     this.splineActive = false;
                     this.splineApplyButton = null;
+                    this.renderCurrentFrameToMainCanvas();
+                }
+                if (this.currentTool !== 'vector' && this.vectorActive) {
+                    this.vectorPoints = [];
+                    this.vectorActive = false;
+                    this.vectorApplyButton = null;
                     this.renderCurrentFrameToMainCanvas();
                 }
             });
@@ -4184,6 +5521,10 @@ Create drawing commands for this animation frame:`;
             this.drawSplinePreview();
         }
 
+        if (this.currentTool === 'vector' && this.vectorPoints.length > 0) {
+            this.drawVectorPreview();
+        }
+
         this.ctx.globalAlpha = 1.0;
         this.ctx.globalCompositeOperation = 'source-over';
     }
@@ -4674,6 +6015,11 @@ Create drawing commands for this animation frame:`;
                 this.smoothBrushPoints = [{ x, y }];
             }
             this.isDrawing = true;
+            return;
+        }
+
+        if (this.currentTool === 'vector') {
+            // Vector tool is handled in its own event handlers, don't draw
             return;
         }
 
@@ -6887,8 +8233,10 @@ Create drawing commands for this animation frame:`;
     }
 
     startDraggingSelection(x, y) {
-        // Add undo state before starting to drag
-        this.undoAdd();
+        // Add undo state before starting to drag - but only once per drag operation
+        if (!this.isDraggingSelection) {
+            this.undoAdd();
+        }
 
         this.isDraggingSelection = true;
         const bounds = this.getAdjustedSelectionBounds();
@@ -6997,20 +8345,31 @@ Create drawing commands for this animation frame:`;
 
         this.selectionData = ctx.getImageData(0, 0, bounds.width, bounds.height);
 
-        // Clear the selected area from the original layer
+        // Clear the selected area from the original layer AND sync to global layer
         const layerCtx = layer.canvas.getContext('2d');
         layerCtx.globalCompositeOperation = 'destination-out';
         layerCtx.drawImage(maskCanvas, 0, 0);
         layerCtx.globalCompositeOperation = 'source-over';
+
+        // IMPORTANT: Also clear from the global layer immediately
+        const globalLayer = this.layers.find(l => l.id === this.activeLayerId);
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.globalCompositeOperation = 'destination-out';
+            globalCtx.drawImage(maskCanvas, 0, 0);
+            globalCtx.globalCompositeOperation = 'source-over';
+        }
     }
 
     applySelectionToLayer() {
         if (!this.selectionData || !this.selectionActive) return;
 
-        // Use the current frame's layers, not global layers!
+        // Apply to BOTH the current frame's layer AND the global layer
         const frame = this.frames[this.currentFrame];
-        const layer = frame.layers.find(l => l.id === this.activeLayerId);
-        if (!layer) return;
+        const frameLayer = frame.layers.find(l => l.id === this.activeLayerId);
+        const globalLayer = this.layers.find(l => l.id === this.activeLayerId);
+
+        if (!frameLayer || !globalLayer) return;
 
         const bounds = this.getAdjustedSelectionBounds();
         const tempCanvas = document.createElement('canvas');
@@ -7020,23 +8379,35 @@ Create drawing commands for this animation frame:`;
 
         tempCtx.putImageData(this.selectionData, 0, 0);
 
-        const layerCtx = layer.canvas.getContext('2d');
-        layerCtx.drawImage(tempCanvas, bounds.x, bounds.y);
+        // Apply to frame layer
+        const frameLayerCtx = frameLayer.canvas.getContext('2d');
+        frameLayerCtx.drawImage(tempCanvas, bounds.x, bounds.y);
+
+        // Apply to global layer
+        const globalLayerCtx = globalLayer.canvas.getContext('2d');
+        globalLayerCtx.drawImage(tempCanvas, bounds.x, bounds.y);
     }
 
-    copySelection() {
-        if (!this.selectionActive || !this.selectionData) return;
+    clearSelection() {
+        if (this.selectionActive && this.selectionData) {
+            // Apply any pending selection changes before clearing
+            this.applySelectionToLayer();
+            // Sync the changes to ensure consistency
+            this.syncGlobalLayersToCurrentFrame();
+        }
 
-        const bounds = this.getAdjustedSelectionBounds();
-        this.copiedSelection = {
-            data: new ImageData(
-                new Uint8ClampedArray(this.selectionData.data),
-                this.selectionData.width,
-                this.selectionData.height
-            ),
-            width: bounds.width,
-            height: bounds.height
-        };
+        this.selectionActive = false;
+        this.selectionBounds = { x: 0, y: 0, width: 0, height: 0 };
+        this.selectionPath = [];
+        this.selectionData = null;
+        this.isDraggingSelection = false;
+        this.selectionOffset = { x: 0, y: 0 };
+        this.selectionStartX = 0;
+        this.selectionStartY = 0;
+        this.selectionRotation = 0;
+        this.selectionRotateButton = null;
+        this.stopSelectionAnimation();
+        this.renderCurrentFrameToMainCanvas();
     }
 
     cutSelection() {
@@ -7099,8 +8470,24 @@ Create drawing commands for this animation frame:`;
         if (!this.selectionActive) return;
 
         this.undoAdd();
-        this.clearSelection();
+
+        // The selected area is already cleared from extractSelectionData()
+        // Just clear the selection state
+        this.selectionActive = false;
+        this.selectionBounds = { x: 0, y: 0, width: 0, height: 0 };
+        this.selectionPath = [];
+        this.selectionData = null;
+        this.isDraggingSelection = false;
+        this.selectionOffset = { x: 0, y: 0 };
+        this.selectionStartX = 0;
+        this.selectionStartY = 0;
+        this.selectionRotation = 0;
+        this.selectionRotateButton = null;
+        this.stopSelectionAnimation();
+
+        // Make sure both layers are synced
         this.syncGlobalLayersToCurrentFrame();
+        this.renderCurrentFrameToMainCanvas();
     }
 
     rotateSelection(degrees) {

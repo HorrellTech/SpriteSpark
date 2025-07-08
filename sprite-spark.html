@@ -236,6 +236,16 @@
                             <circle cx="14" cy="4" r="1.5" fill="currentColor" />
                         </svg>
                     </button>
+                    <button class="drawing-tool" data-tool="vector" title="Vector Tool">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M2 2 L8 8 L14 2 M8 8 L14 14" stroke-linecap="round" stroke-linejoin="round" />
+                            <circle cx="2" cy="2" r="1.5" fill="currentColor" />
+                            <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                            <circle cx="14" cy="2" r="1.5" fill="currentColor" />
+                            <circle cx="14" cy="14" r="1.5" fill="currentColor" />
+                        </svg>
+                    </button>
                     <button class="drawing-tool" data-tool="rectangle-select" title="Rectangle Selection">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-dasharray="3,3">
@@ -357,6 +367,51 @@
                             • Drag: Move point<br>
                             • Right click: Remove point<br>
                             • Click Apply when done
+                        </div>
+                    </div>
+                    <div class="property-group" id="vectorOptions" style="display:none;">
+                        <h4
+                            style="margin: 0 0 var(--spacing-md) 0; color: var(--accent-color); font-size: var(--font-size-small); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                            Vector Tool Options</h4>
+
+                        <label>Vector Mode:</label>
+                        <select id="vectorMode">
+                            <option value="path">Path (Connected)</option>
+                            <option value="shape">Shape (Closed)</option>
+                            <option value="bezier">Bezier Curves</option>
+                        </select>
+
+                        <label>Fill:
+                            <input type="checkbox" id="vectorFill">
+                            Fill Shape
+                        </label>
+
+                        <label>Stroke Width: <span id="vectorStrokeValue">2</span>px</label>
+                        <input type="range" id="vectorStroke" min="1" max="20" value="2">
+
+                        <div style="margin-top: 8px;">
+                            <label style="display: block;">
+                                <input type="checkbox" id="vectorShowPoints" checked>
+                                Show Control Points
+                            </label>
+                            <label style="display: block;">
+                                <input type="checkbox" id="vectorShowHandles" checked>
+                                Show Bezier Handles
+                            </label>
+                            <label style="display: block;">
+                                <input type="checkbox" id="vectorSnapToGrid">
+                                Snap to Grid
+                            </label>
+                        </div>
+
+                        <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary);">
+                            <strong>Instructions:</strong><br>
+                            • Left click: Add point<br>
+                            • Drag point: Move point<br>
+                            • Ctrl+click: Add bezier handle<br>
+                            • Right click: Remove point<br>
+                            • Enter: Complete vector<br>
+                            • Esc: Cancel vector
                         </div>
                     </div>
                 </div>
@@ -601,7 +656,8 @@
                     <h3>AI Animation</h3>
                     <label>
                         Animation Description:
-                        <input type="text" id="aiAnimationPrompt" placeholder="e.g., bouncing ball, walking character, spinning star">
+                        <input type="text" id="aiAnimationPrompt"
+                            placeholder="e.g., bouncing ball, walking character, spinning star">
                     </label>
                     <label>
                         Frame Count:
