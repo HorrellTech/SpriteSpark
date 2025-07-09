@@ -4499,7 +4499,7 @@ Create drawing commands for this animation frame:`;
             }
         }
 
-        // Add object rendering to live preview
+        // Reset composition settings for objects
         this.livePreviewCtx.globalAlpha = 1.0;
         this.livePreviewCtx.globalCompositeOperation = 'source-over';
 
@@ -4525,11 +4525,26 @@ Create drawing commands for this animation frame:`;
                     -transform.image.width / 2,
                     -transform.image.height / 2
                 );
+            } else {
+                // Draw default placeholder (circle with name)
+                this.livePreviewCtx.fillStyle = '#888';
+                this.livePreviewCtx.beginPath();
+                this.livePreviewCtx.arc(0, 0, 24, 0, 2 * Math.PI);
+                this.livePreviewCtx.fill();
+                this.livePreviewCtx.strokeStyle = '#333';
+                this.livePreviewCtx.lineWidth = 2;
+                this.livePreviewCtx.stroke();
+                this.livePreviewCtx.fillStyle = '#fff';
+                this.livePreviewCtx.font = 'bold 12px sans-serif';
+                this.livePreviewCtx.textAlign = 'center';
+                this.livePreviewCtx.textBaseline = 'middle';
+                this.livePreviewCtx.fillText(obj.name[0] || '?', 0, 2);
             }
 
             this.livePreviewCtx.restore();
         }
 
+        // Reset final composition settings
         this.livePreviewCtx.globalAlpha = 1.0;
         this.livePreviewCtx.globalCompositeOperation = 'source-over';
     }
@@ -5893,7 +5908,13 @@ Create drawing commands for this animation frame:`;
             return;
         }
 
-        if (this.currentTool !== 'object-tool') return;
+        // ONLY handle object tool mouse events here
+        if (this.currentTool === 'object-tool') {
+            this.handleObjectToolMouseDown(e);
+            return;
+        }
+
+        /*if (this.currentTool !== 'object-tool') return;
         const rect = this.mainCanvas.getBoundingClientRect();
         const x = (e.clientX - rect.left) / this.zoom;
         const y = (e.clientY - rect.top) / this.zoom;
@@ -5925,7 +5946,7 @@ Create drawing commands for this animation frame:`;
         this.selectedObjectId = null;
         this.isDraggingObject = false;
         this.renderCurrentFrameToMainCanvas();
-        this.showObjectPropertiesPanel(null);
+        this.showObjectPropertiesPanel(null);*/
     }
 
     handleCanvasMouseMove(e) {
@@ -9734,6 +9755,8 @@ Create drawing commands for this animation frame:`;
         // Check if clicking on an object (check from top to bottom for proper selection)
         for (let i = this.objects.length - 1; i >= 0; i--) {
             const obj = this.objects[i];
+            if (obj.visible === false) continue;
+
             const transform = obj.getTransformAt(this.currentFrame);
 
             if (this.isPointInObject(x, y, transform)) {
@@ -9811,7 +9834,26 @@ Create drawing commands for this animation frame:`;
     }
 
     isPointInObject(x, y, transform) {
-        if (!transform.image) return false;
+        if (!transform.image) {
+            // For objects without images, use a default 48x48 size
+            const halfW = 24;
+            const halfH = 24;
+
+            const dx = x - transform.x;
+            const dy = y - transform.y;
+
+            if (transform.angle === 0) {
+                return Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
+            } else {
+                // With rotation - transform point to object space
+                const cos = Math.cos(-transform.angle * Math.PI / 180);
+                const sin = Math.sin(-transform.angle * Math.PI / 180);
+                const localX = dx * cos - dy * sin;
+                const localY = dx * sin + dy * cos;
+
+                return Math.abs(localX) <= halfW && Math.abs(localY) <= halfH;
+            }
+        }
 
         // Calculate the bounds of the object considering scale and rotation
         const img = transform.image;
@@ -9823,7 +9865,6 @@ Create drawing commands for this animation frame:`;
         const dy = y - transform.y;
 
         // For simple hit detection, check if point is within scaled bounds
-        // You can make this more accurate by considering rotation if needed
         if (transform.angle === 0) {
             // No rotation - simple bounding box
             return Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
