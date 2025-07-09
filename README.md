@@ -25,7 +25,6 @@ SpriteSpark is designed for both beginners and professional animators, offering 
 * **📐 Line Tool**: Draw perfectly straight lines with live preview
 * **▭ Rectangle Tool**: Create precise rectangles and squares
 * **⭕ Ellipse Tool**: Draw circles and ovals with pixel-perfect edges
-* **🔺 Triangle Tool**: Create triangular shapes
 
 #### **Advanced Vector Tools**
 * **🎯 Vector Tool**: Professional point-based drawing system

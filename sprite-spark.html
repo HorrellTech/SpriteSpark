@@ -279,6 +279,14 @@
                             <circle cx="8" cy="8" r="6" stroke="currentColor" fill="none" stroke-width="2" />
                         </svg>
                     </button>
+                    <button class="drawing-tool" data-tool="object-tool" title="Object Tool (O)">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"
+                                fill="none" />
+                            <circle cx="8" cy="8" r="2" fill="currentColor" />
+                            <path d="M8 2v4M8 10v4M2 8h4M10 8h4" stroke="currentColor" stroke-width="1" />
+                        </svg>
+                    </button>
                     <button class="drawing-tool" data-tool="eyedropper" title="Eyedropper">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path
@@ -414,6 +422,65 @@
                             • Esc: Cancel vector
                         </div>
                     </div>
+                    <div class="panel-section" id="objectToolSection" style="display:none;">
+                        <h3>Objects</h3>
+
+                        <!-- Object Library -->
+                        <div class="object-library">
+                            <h4>Object Library</h4>
+                            <div class="object-library-controls">
+                                <button id="addObjectToLibrary" class="small-btn">Add Object</button>
+                                <button id="clearObjectLibrary" class="small-btn">Clear All</button>
+                                <input type="file" id="objectImageInput" accept="image/*" style="display: none;">
+                            </div>
+                            <div id="objectLibraryList" class="object-library-list">
+                                <!-- Objects will be populated here -->
+                            </div>
+                        </div>
+
+                        <!-- Object Properties -->
+                        <div class="object-properties" id="objectPropertiesPanel" style="display: none;">
+                            <h4>Selected Object</h4>
+                            <div class="property-group">
+                                <label>Name:</label>
+                                <input type="text" id="objectName" placeholder="Object name">
+                            </div>
+                            <div class="property-group">
+                                <label>X Position:</label>
+                                <input type="number" id="objectX" step="0.1">
+                            </div>
+                            <div class="property-group">
+                                <label>Y Position:</label>
+                                <input type="number" id="objectY" step="0.1">
+                            </div>
+                            <div class="property-group">
+                                <label>Scale:</label>
+                                <input type="number" id="objectScale" min="0.1" max="10" step="0.1" value="1">
+                            </div>
+                            <div class="property-group">
+                                <label>Rotation (degrees):</label>
+                                <input type="number" id="objectAngle" min="-360" max="360" step="1" value="0">
+                            </div>
+                            <div class="property-group">
+                                <label>Layer:</label>
+                                <select id="objectLayer">
+                                    <!-- Layer options populated dynamically -->
+                                </select>
+                            </div>
+                            <div class="property-group">
+                                <label>
+                                    <input type="checkbox" id="objectTween">
+                                    Enable Tweening
+                                </label>
+                            </div>
+                            <div class="object-controls">
+                                <button id="objectSetKeyframe" class="small-btn">Set Keyframe</button>
+                                <button id="objectRemoveKeyframe" class="small-btn">Remove Keyframe</button>
+                                <button id="objectCenter" class="small-btn">Center</button>
+                                <button id="deleteObject" class="small-btn danger">Delete</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -535,38 +602,6 @@
                         Frames: <input type="number" id="onionSkinFrames" value="1" min="1" max="10"
                             style="width:50px;">
                     </label>
-                </div>
-            </div>
-
-            <div class="panel-section" id="objectPropertiesSection" style="display:none;">
-                <h3>Object Properties</h3>
-                <div class="property-group">
-                    <label>Name: <input type="text" id="objectName"></label>
-                    <label>X: <input type="number" id="objectX"></label>
-                    <label>Y: <input type="number" id="objectY"></label>
-                    <label>Scale: <input type="number" id="objectScale" step="0.01"></label>
-                    <label>Angle: <input type="number" id="objectAngle"></label>
-                    <label>Image: <input type="file" id="objectImageInput" accept="image/*"></label>
-                    <label><input type="checkbox" id="objectTween"> Tween (lerp) between frames</label>
-                    <label>
-                        <input type="checkbox" id="objectVisibleCheckbox" checked>
-                        Visible
-                    </label>
-                    <label>
-                        Alpha:
-                        <input type="range" id="objectAlpha" min="0" max="1" step="0.01" value="1">
-                    </label>
-                    <label>
-                        Hue:
-                        <input type="range" id="objectHue" min="0" max="360" step="1" value="0">
-                    </label>
-                    <label>
-                        Layer:
-                        <select id="objectLayer"></select>
-                    </label>
-                    <button class="small-btn" id="objectSetKeyframe">Set Keyframe</button>
-                    <button id="objectCenterBtn" title="Send to Center">Center</button>
-                    <button class="small-btn" id="objectRemoveKeyframe">Remove Keyframe</button>
                 </div>
             </div>
 

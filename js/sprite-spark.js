@@ -11,6 +11,8 @@ class SpriteSpark {
         this.updateZoomLevel();
         this.drawGrid();
         this.populateThemeDropdown();
+        // Initialize object tool
+        this.initializeObjectTool();
     }
 
     initializeProperties() {
@@ -95,6 +97,18 @@ class SpriteSpark {
         this.draggingVectorPointIndex = -1;
         this.draggingVectorHandle = null; // { pointIndex, handleType: 'in'|'out' }
         this.vectorApplyButton = null;
+
+        // Object tool properties
+        this.objectLibrary = []; // Library of available objects
+        this.objectInstances = []; // Instances of objects on canvas
+        this.selectedObject = null; // Selected object in library
+        this.selectedObjectInstance = null; // Selected object instance on canvas
+        this.isDraggingObject = false;
+        this.isResizingObject = false;
+        this.isRotatingObject = false;
+        this.objectDragOffset = { x: 0, y: 0 };
+        this.objectResizeStartData = null;
+        this.objectRotateStartData = null;
 
         // Selection properties
         this.selectionActive = false;
@@ -267,6 +281,11 @@ class SpriteSpark {
             this.mainCanvas.addEventListener('mousedown', this.handleVectorMouseDown.bind(this));
             this.mainCanvas.addEventListener('mousemove', this.handleVectorMouseMove.bind(this));
             this.mainCanvas.addEventListener('mouseup', this.handleVectorMouseUp.bind(this));
+
+            // Object tool specific events
+            this.mainCanvas.addEventListener('mousedown', this.handleObjectToolMouseDown.bind(this));
+            this.mainCanvas.addEventListener('mousemove', this.handleObjectToolMouseMove.bind(this));
+            this.mainCanvas.addEventListener('mouseup', this.handleObjectToolMouseUp.bind(this));
         }
 
         // Panel resizing
@@ -3728,6 +3747,8 @@ Create drawing commands for this animation frame:`;
                 const floodFillOptions = document.getElementById('floodFillOptions');
                 const splineOptions = document.getElementById('splineOptions');
                 const vectorOptions = document.getElementById('vectorOptions');
+                // Show/hide object tool section
+                const objectToolSection = document.getElementById('objectToolSection');
 
                 if (floodFillOptions) {
                     floodFillOptions.style.display = (this.currentTool === 'bucket') ? 'block' : 'none';
@@ -3737,6 +3758,10 @@ Create drawing commands for this animation frame:`;
                 }
                 if (vectorOptions) {
                     vectorOptions.style.display = (this.currentTool === 'vector') ? 'block' : 'none';
+                }
+
+                if (objectToolSection) {
+                    objectToolSection.style.display = (this.currentTool === 'object-tool') ? 'block' : 'none';
                 }
 
                 // Clear spline state when switching tools
@@ -4086,6 +4111,9 @@ Create drawing commands for this animation frame:`;
         this.renderCurrentFrameToMainCanvas();
         this.syncGlobalLayersToCurrentFrame();
         this.updateFramesList();
+
+        // Refresh object layer dropdown
+        this.refreshObjectLayerDropdown();
     }
 
     deleteLayer(layerId) {
@@ -4110,6 +4138,9 @@ Create drawing commands for this animation frame:`;
         this.renderCurrentFrameToMainCanvas();
         this.syncGlobalLayersToCurrentFrame();
         this.updateFramesList();
+
+        // Refresh object layer dropdown
+        this.refreshObjectLayerDropdown();
     }
 
     moveLayer(layerId, direction) {
@@ -4467,6 +4498,38 @@ Create drawing commands for this animation frame:`;
                 this.livePreviewCtx.drawImage(layer.canvas, 0, 0, this.livePreviewCanvas.width, this.livePreviewCanvas.height);
             }
         }
+
+        // Add object rendering to live preview
+        this.livePreviewCtx.globalAlpha = 1.0;
+        this.livePreviewCtx.globalCompositeOperation = 'source-over';
+
+        // Render objects for this frame
+        for (const obj of this.objects) {
+            if (obj.visible === false) continue;
+            const transform = obj.getTransformAt(frameIndexToRender);
+
+            this.livePreviewCtx.save();
+            this.livePreviewCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+
+            if (obj.hue && obj.hue !== 0) {
+                this.livePreviewCtx.filter = `hue-rotate(${obj.hue}deg)`;
+            }
+
+            this.livePreviewCtx.translate(transform.x, transform.y);
+            this.livePreviewCtx.rotate(transform.angle * Math.PI / 180);
+            this.livePreviewCtx.scale(transform.scale, transform.scale);
+
+            if (transform.image) {
+                this.livePreviewCtx.drawImage(
+                    transform.image,
+                    -transform.image.width / 2,
+                    -transform.image.height / 2
+                );
+            }
+
+            this.livePreviewCtx.restore();
+        }
+
         this.livePreviewCtx.globalAlpha = 1.0;
         this.livePreviewCtx.globalCompositeOperation = 'source-over';
     }
@@ -5525,6 +5588,9 @@ Create drawing commands for this animation frame:`;
             this.drawVectorPreview();
         }
 
+        // Render objects on top of everything
+        this.renderObjectInstances();
+
         this.ctx.globalAlpha = 1.0;
         this.ctx.globalCompositeOperation = 'source-over';
     }
@@ -5567,35 +5633,41 @@ Create drawing commands for this animation frame:`;
     showObjectPropertiesPanel(obj, transform) {
         const section = document.getElementById('objectPropertiesSection');
         if (!section) return;
+
         if (!obj) {
             section.style.display = 'none';
             return;
         }
-        section.style.display = '';
 
-        document.getElementById('objectName').value = obj.name;
-        document.getElementById('objectX').value = transform.x;
-        document.getElementById('objectY').value = transform.y;
-        document.getElementById('objectScale').value = transform.scale;
-        document.getElementById('objectAngle').value = transform.angle;
-        document.getElementById('objectTween').checked = !!obj.tween;
+        section.style.display = 'block';
 
-        // New: visibility, alpha, hue, layer
-        const visibleCheckbox = document.getElementById('objectVisibleCheckbox');
-        if (visibleCheckbox) visibleCheckbox.checked = obj.visible !== false;
-        const alphaInput = document.getElementById('objectAlpha');
-        if (alphaInput) alphaInput.value = obj.alpha !== undefined ? obj.alpha : 1;
-        const hueInput = document.getElementById('objectHue');
-        if (hueInput) hueInput.value = obj.hue !== undefined ? obj.hue : 0;
-        const layerSelect = document.getElementById('objectLayer');
-        if (layerSelect) {
-            layerSelect.innerHTML = '';
+        // Update all input fields
+        const objectName = document.getElementById('objectName');
+        const objectX = document.getElementById('objectX');
+        const objectY = document.getElementById('objectY');
+        const objectScale = document.getElementById('objectScale');
+        const objectAngle = document.getElementById('objectAngle');
+        const objectTween = document.getElementById('objectTween');
+        const objectLayer = document.getElementById('objectLayer');
+
+        if (objectName) objectName.value = obj.name;
+        if (objectX) objectX.value = Math.round(transform.x * 10) / 10;
+        if (objectY) objectY.value = Math.round(transform.y * 10) / 10;
+        if (objectScale) objectScale.value = Math.round(transform.scale * 100) / 100;
+        if (objectAngle) objectAngle.value = Math.round(transform.angle);
+        if (objectTween) objectTween.checked = !!obj.tween;
+
+        // Update layer dropdown
+        if (objectLayer) {
+            objectLayer.innerHTML = '';
             this.layers.forEach(layer => {
-                const opt = document.createElement('option');
-                opt.value = layer.id;
-                opt.textContent = layer.name;
-                if (obj.layerId === layer.id) opt.selected = true;
-                layerSelect.appendChild(opt);
+                const option = document.createElement('option');
+                option.value = layer.id;
+                option.textContent = layer.name;
+                if (obj.layerId === layer.id) {
+                    option.selected = true;
+                }
+                objectLayer.appendChild(option);
             });
         }
     }
@@ -5981,6 +6053,11 @@ Create drawing commands for this animation frame:`;
             this.clearSelection();
         }
 
+        if (this.currentTool === 'object-tool') {
+            this.handleObjectToolMouseDown(e);
+            return;
+        }
+
         // --- Add undo step before drawing ---
         this.undoAdd();
 
@@ -6066,6 +6143,11 @@ Create drawing commands for this animation frame:`;
             }
             this.renderCurrentFrameToMainCanvas();
             this.drawShapePreview();
+            return;
+        }
+
+        if (this.currentTool === 'object-tool') {
+            this.handleObjectToolMouseMove(e);
             return;
         }
 
@@ -6339,6 +6421,11 @@ Create drawing commands for this animation frame:`;
 
             if (this.isDraggingSelection) {
                 this.stopDraggingSelection();
+                return;
+            }
+
+            if (this.currentTool === 'object-tool') {
+                this.handleObjectToolMouseUp(e);
                 return;
             }
 
@@ -7664,17 +7751,52 @@ Create drawing commands for this animation frame:`;
             })),
             currentFrame: this.currentFrame,
             activeLayerId: this.activeLayerId,
-            fps: this.fps
+            fps: this.fps,
+            // Save sprite objects
+            objects: this.objects.map(obj => ({
+                id: obj.id,
+                name: obj.name,
+                visible: obj.visible,
+                alpha: obj.alpha,
+                hue: obj.hue,
+                layerId: obj.layerId,
+                tween: obj.tween,
+                keyframes: Object.fromEntries(
+                    Object.entries(obj.keyframes).map(([frame, transform]) => [
+                        frame,
+                        {
+                            x: transform.x,
+                            y: transform.y,
+                            scale: transform.scale,
+                            angle: transform.angle,
+                            image: transform.image ? transform.image.src : null
+                        }
+                    ])
+                )
+            })),
+            // Save object library
+            objectLibrary: this.objectLibrary.map(objDef => ({
+                id: objDef.id,
+                name: objDef.name,
+                width: objDef.width,
+                height: objDef.height,
+                image: objDef.image ? objDef.image.src : null
+            }))
         };
     }
 
     loadProjectData(data) {
-        // Restore essential project data only
+        // Restore essential project data
         this.canvasWidth = data.canvasWidth || 320;
         this.canvasHeight = data.canvasHeight || 240;
         this.currentFrame = data.currentFrame || 0;
         this.activeLayerId = data.activeLayerId || null;
         this.fps = data.fps || 12;
+
+        // Clear existing objects and library
+        this.objects = [];
+        this.objectLibrary = [];
+        this.selectedObjectId = null;
 
         // Restore layers structure first
         this.layers = data.layers.map(l => ({
@@ -7686,12 +7808,28 @@ Create drawing commands for this animation frame:`;
         let totalImages = 0;
         let loadedImages = 0;
 
-        // Count total images that need to be loaded
+        // Count total images that need to be loaded (frames + objects + library)
         data.frames.forEach(frame => {
             frame.layers.forEach(layerData => {
                 if (layerData.image) totalImages++;
             });
         });
+
+        // Count object images
+        if (data.objects) {
+            data.objects.forEach(objData => {
+                Object.values(objData.keyframes || {}).forEach(transform => {
+                    if (transform.image) totalImages++;
+                });
+            });
+        }
+
+        // Count library images
+        if (data.objectLibrary) {
+            data.objectLibrary.forEach(objDef => {
+                if (objDef.image) totalImages++;
+            });
+        }
 
         const checkComplete = () => {
             if (loadedImages >= totalImages) {
@@ -7700,6 +7838,9 @@ Create drawing commands for this animation frame:`;
                     this.selectFrame(this.currentFrame);
                     this.renderLayersList();
                     this.updateFramesList();
+                    this.updateObjectLibraryList();
+                    this.renderObjectsList();
+                    this.refreshObjectLayerDropdown();
 
                     // Update UI inputs
                     const canvasWidthInput = document.getElementById('canvasWidth');
@@ -7716,16 +7857,118 @@ Create drawing commands for this animation frame:`;
             }
         };
 
+        // Load object library first
+        if (data.objectLibrary) {
+            data.objectLibrary.forEach(objDefData => {
+                if (objDefData.image) {
+                    const img = new Image();
+                    img.onload = () => {
+                        const objDef = {
+                            id: objDefData.id,
+                            name: objDefData.name,
+                            width: objDefData.width,
+                            height: objDefData.height,
+                            image: img
+                        };
+                        this.objectLibrary.push(objDef);
+                        loadedImages++;
+                        checkComplete();
+                    };
+                    img.onerror = () => {
+                        console.error('Failed to load object library image:', objDefData.name);
+                        loadedImages++;
+                        checkComplete();
+                    };
+                    img.src = objDefData.image;
+                } else {
+                    // No image for this library object
+                    const objDef = {
+                        id: objDefData.id,
+                        name: objDefData.name,
+                        width: objDefData.width,
+                        height: objDefData.height,
+                        image: null
+                    };
+                    this.objectLibrary.push(objDef);
+                }
+            });
+        }
+
+        // Load sprite objects
+        if (data.objects) {
+            data.objects.forEach(objData => {
+                const obj = new SpriteObject({
+                    id: objData.id,
+                    name: objData.name,
+                    x: 0,
+                    y: 0,
+                    scale: 1,
+                    angle: 0,
+                    image: null
+                });
+
+                // Restore object properties
+                obj.visible = objData.visible !== undefined ? objData.visible : true;
+                obj.alpha = objData.alpha !== undefined ? objData.alpha : 1;
+                obj.hue = objData.hue || 0;
+                obj.layerId = objData.layerId;
+                obj.tween = objData.tween !== undefined ? objData.tween : true;
+
+                // Load keyframes with images
+                Object.entries(objData.keyframes || {}).forEach(([frame, transformData]) => {
+                    if (transformData.image) {
+                        const img = new Image();
+                        img.onload = () => {
+                            obj.setKeyframe(parseInt(frame), {
+                                x: transformData.x,
+                                y: transformData.y,
+                                scale: transformData.scale,
+                                angle: transformData.angle,
+                                image: img
+                            });
+                            loadedImages++;
+                            checkComplete();
+                        };
+                        img.onerror = () => {
+                            console.error('Failed to load object keyframe image for object:', objData.name, 'frame:', frame);
+                            // Set keyframe without image
+                            obj.setKeyframe(parseInt(frame), {
+                                x: transformData.x,
+                                y: transformData.y,
+                                scale: transformData.scale,
+                                angle: transformData.angle,
+                                image: null
+                            });
+                            loadedImages++;
+                            checkComplete();
+                        };
+                        img.src = transformData.image;
+                    } else {
+                        // Set keyframe without image
+                        obj.setKeyframe(parseInt(frame), {
+                            x: transformData.x,
+                            y: transformData.y,
+                            scale: transformData.scale,
+                            angle: transformData.angle,
+                            image: null
+                        });
+                    }
+                });
+
+                this.objects.push(obj);
+            });
+        }
+
         // Restore frames with proper layer distribution and active states
         this.frames = data.frames.map((frameData, frameIndex) => ({
-            isActive: frameData.isActive !== undefined ? frameData.isActive : true, // Restore active state
+            isActive: frameData.isActive !== undefined ? frameData.isActive : true,
             layers: frameData.layers.map((layerData, layerIndex) => {
                 const canvas = this.createLayerCanvas();
                 const ctx = canvas.getContext('2d');
 
                 // Load image data for this specific layer
                 if (layerData.image) {
-                    const img = new window.Image();
+                    const img = new Image();
                     img.onload = () => {
                         ctx.drawImage(img, 0, 0);
                         loadedImages++;
@@ -9040,6 +9283,660 @@ Create drawing commands for this animation frame:`;
         this.splineApplyButton = null;
         this.renderCurrentFrameToMainCanvas();
         this.syncGlobalLayersToCurrentFrame();
+    }
+
+    // OBJECTS
+    initializeObjectTool() {
+        // Object library controls
+        const addObjectBtn = document.getElementById('addObjectToLibrary');
+        const clearLibraryBtn = document.getElementById('clearObjectLibrary');
+        const objectImageInput = document.getElementById('objectImageInput');
+        const deleteObjectBtn = document.getElementById('deleteObject');
+
+        if (addObjectBtn) {
+            addObjectBtn.addEventListener('click', () => {
+                objectImageInput.click();
+            });
+        }
+
+        if (clearLibraryBtn) {
+            clearLibraryBtn.addEventListener('click', () => {
+                if (confirm('Clear all objects from library?')) {
+                    this.objectLibrary = [];
+                    this.updateObjectLibraryList();
+                }
+            });
+        }
+
+        if (objectImageInput) {
+            objectImageInput.addEventListener('change', (e) => {
+                this.handleObjectImageUpload(e);
+            });
+        }
+
+        if (deleteObjectBtn) {
+            deleteObjectBtn.addEventListener('click', () => {
+                this.deleteSelectedObject();
+            });
+        }
+
+        // Object properties controls
+        const objectName = document.getElementById('objectName');
+        const objectX = document.getElementById('objectX');
+        const objectY = document.getElementById('objectY');
+        const objectScale = document.getElementById('objectScale');
+        const objectAngle = document.getElementById('objectAngle');
+        const objectLayer = document.getElementById('objectLayer');
+        const objectTween = document.getElementById('objectTween');
+        const objectSetKeyframe = document.getElementById('objectSetKeyframe');
+        const objectRemoveKeyframe = document.getElementById('objectRemoveKeyframe');
+        const objectCenter = document.getElementById('objectCenter');
+
+        // Real-time updates for all inputs
+        [objectName, objectX, objectY, objectScale, objectAngle].forEach(input => {
+            if (input) {
+                // Use 'input' event for real-time updates as user types
+                input.addEventListener('input', () => {
+                    this.updateSelectedObjectProperties();
+                });
+                // Also listen for 'change' event for when focus is lost
+                input.addEventListener('change', () => {
+                    this.updateSelectedObjectProperties();
+                });
+            }
+        });
+
+        // Checkbox and select elements use 'change' event
+        [objectTween, objectLayer].forEach(input => {
+            if (input) {
+                input.addEventListener('change', () => {
+                    this.updateSelectedObjectProperties();
+                });
+            }
+        });
+
+        [objectName, objectX, objectY, objectScale, objectAngle, objectTween].forEach(input => {
+            if (input) {
+                input.addEventListener('input', () => {
+                    this.updateSelectedObjectProperties();
+                });
+            }
+        });
+
+        if (objectLayer) {
+            objectLayer.addEventListener('change', () => {
+                this.updateSelectedObjectProperties();
+            });
+        }
+
+        if (objectSetKeyframe) {
+            objectSetKeyframe.addEventListener('click', () => {
+                this.setObjectKeyframe();
+            });
+        }
+
+        if (objectRemoveKeyframe) {
+            objectRemoveKeyframe.addEventListener('click', () => {
+                this.removeObjectKeyframe();
+            });
+        }
+
+        if (objectCenter) {
+            objectCenter.addEventListener('click', () => {
+                this.centerSelectedObject();
+            });
+        }
+
+        // Initialize drag and drop
+        this.initializeObjectToolDragDrop();
+
+        // Initialize library
+        this.updateObjectLibraryList();
+        this.updateObjectPropertiesPanel();
+    }
+
+    refreshObjectLayerDropdown() {
+        const objectLayer = document.getElementById('objectLayer');
+        if (!objectLayer) return;
+
+        const currentValue = objectLayer.value;
+        objectLayer.innerHTML = '';
+
+        this.layers.forEach(layer => {
+            const option = document.createElement('option');
+            option.value = layer.id;
+            option.textContent = layer.name;
+            if (layer.id === currentValue) {
+                option.selected = true;
+            }
+            objectLayer.appendChild(option);
+        });
+    }
+
+    handleObjectImageUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const img = new Image();
+            img.onload = () => {
+                this.addObjectToLibrary(img, file.name);
+            };
+            img.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    addObjectToLibrary(image, name) {
+        const objectDef = {
+            id: 'lib_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+            name: name.replace(/\.[^/.]+$/, ""), // Remove file extension
+            image: image,
+            width: image.width,
+            height: image.height
+        };
+
+        this.objectLibrary.push(objectDef);
+        this.updateObjectLibraryList();
+    }
+
+    updateObjectLibraryList() {
+        const list = document.getElementById('objectLibraryList');
+        if (!list) return;
+
+        list.innerHTML = '';
+
+        if (this.objectLibrary.length === 0) {
+            list.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No objects in library. Add some images to get started!</p>';
+            return;
+        }
+
+        this.objectLibrary.forEach(objDef => {
+            const item = document.createElement('div');
+            item.className = 'object-library-item';
+            item.dataset.objectId = objDef.id;
+            item.draggable = true;
+
+            // Thumbnail
+            const thumbnail = document.createElement('div');
+            thumbnail.className = 'object-library-thumbnail';
+            if (objDef.image) {
+                const img = document.createElement('img');
+                img.src = objDef.image.src;
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.objectFit = 'cover';
+                thumbnail.appendChild(img);
+            } else {
+                thumbnail.textContent = '📦';
+            }
+
+            // Info
+            const info = document.createElement('div');
+            info.className = 'object-library-info';
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'object-library-name';
+            nameDiv.textContent = objDef.name;
+
+            const sizeDiv = document.createElement('div');
+            sizeDiv.className = 'object-library-size';
+            sizeDiv.textContent = `${objDef.width}×${objDef.height}`;
+
+            info.appendChild(nameDiv);
+            info.appendChild(sizeDiv);
+
+            item.appendChild(thumbnail);
+            item.appendChild(info);
+
+            // Events
+            item.addEventListener('click', () => {
+                this.selectObjectInLibrary(objDef.id);
+            });
+
+            item.addEventListener('dblclick', () => {
+                this.addObjectInstanceToCanvas(objDef.id);
+            });
+
+            item.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', objDef.id);
+                item.classList.add('dragging');
+            });
+
+            item.addEventListener('dragend', () => {
+                item.classList.remove('dragging');
+            });
+
+            list.appendChild(item);
+        });
+    }
+
+    selectObjectInLibrary(objectId) {
+        // Remove previous selection
+        document.querySelectorAll('.object-library-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+
+        // Add selection to clicked item
+        const item = document.querySelector(`[data-object-id="${objectId}"]`);
+        if (item) {
+            item.classList.add('selected');
+        }
+
+        this.selectedObject = this.objectLibrary.find(obj => obj.id === objectId);
+    }
+
+    addObjectInstanceToCanvas(objectId, x = null, y = null) {
+        const objDef = this.objectLibrary.find(obj => obj.id === objectId);
+        if (!objDef) return;
+
+        // Default position at canvas center
+        if (x === null) x = this.canvasWidth / 2;
+        if (y === null) y = this.canvasHeight / 2;
+
+        const instance = new SpriteObject({
+            name: objDef.name,
+            x: x,
+            y: y,
+            scale: 1,
+            angle: 0,
+            image: objDef.image
+        });
+
+        // Set initial keyframe
+        instance.setKeyframe(this.currentFrame, {
+            x: x,
+            y: y,
+            scale: 1,
+            angle: 0,
+            image: objDef.image
+        });
+
+        this.objectInstances.push(instance);
+        this.selectedObjectInstance = instance;
+
+        this.renderCurrentFrameToMainCanvas();
+        this.updateObjectPropertiesPanel();
+    }
+
+    updateObjectPropertiesPanel() {
+        const panel = document.getElementById('objectPropertiesPanel');
+        const objectName = document.getElementById('objectName');
+        const objectX = document.getElementById('objectX');
+        const objectY = document.getElementById('objectY');
+        const objectScale = document.getElementById('objectScale');
+        const objectAngle = document.getElementById('objectAngle');
+        const objectLayer = document.getElementById('objectLayer');
+        const objectTween = document.getElementById('objectTween');
+
+        if (!panel) return;
+
+        if (!this.selectedObjectInstance) {
+            panel.style.display = 'none';
+            return;
+        }
+
+        panel.style.display = 'block';
+
+        const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+
+        // Update input values without triggering events
+        if (objectName) objectName.value = this.selectedObjectInstance.name;
+        if (objectX) objectX.value = Math.round(transform.x * 10) / 10; // One decimal place
+        if (objectY) objectY.value = Math.round(transform.y * 10) / 10;
+        if (objectScale) objectScale.value = Math.round(transform.scale * 100) / 100; // Two decimal places
+        if (objectAngle) objectAngle.value = Math.round(transform.angle);
+        if (objectTween) objectTween.checked = this.selectedObjectInstance.tween || false;
+
+        // Update layer dropdown
+        if (objectLayer) {
+            objectLayer.innerHTML = '';
+            this.layers.forEach(layer => {
+                const option = document.createElement('option');
+                option.value = layer.id;
+                option.textContent = layer.name;
+                if (this.selectedObjectInstance.layerId === layer.id) {
+                    option.selected = true;
+                }
+                objectLayer.appendChild(option);
+            });
+        }
+    }
+
+    updateSelectedObjectProperties() {
+        if (!this.selectedObjectInstance) return;
+
+        const objectName = document.getElementById('objectName');
+        const objectX = document.getElementById('objectX');
+        const objectY = document.getElementById('objectY');
+        const objectScale = document.getElementById('objectScale');
+        const objectAngle = document.getElementById('objectAngle');
+        const objectLayer = document.getElementById('objectLayer');
+        const objectTween = document.getElementById('objectTween');
+
+        // Update object properties
+        if (objectName) this.selectedObjectInstance.name = objectName.value;
+        if (objectLayer) this.selectedObjectInstance.layerId = objectLayer.value;
+        if (objectTween) this.selectedObjectInstance.tween = objectTween.checked;
+
+        const currentTransform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+
+        // Parse and validate numeric inputs
+        const newX = objectX ? parseFloat(objectX.value) : currentTransform.x;
+        const newY = objectY ? parseFloat(objectY.value) : currentTransform.y;
+        const newScale = objectScale ? parseFloat(objectScale.value) : currentTransform.scale;
+        const newAngle = objectAngle ? parseFloat(objectAngle.value) : currentTransform.angle;
+
+        // Validate values and provide sensible defaults
+        const validX = isNaN(newX) ? currentTransform.x : Math.max(0, Math.min(newX, this.canvasWidth));
+        const validY = isNaN(newY) ? currentTransform.y : Math.max(0, Math.min(newY, this.canvasHeight));
+        const validScale = isNaN(newScale) ? currentTransform.scale : Math.max(0.1, Math.min(newScale, 10));
+        const validAngle = isNaN(newAngle) ? currentTransform.angle : ((newAngle % 360) + 360) % 360;
+
+        // Update transform properties
+        const newTransform = {
+            x: validX,
+            y: validY,
+            scale: validScale,
+            angle: validAngle,
+            image: currentTransform.image
+        };
+
+        // Set the keyframe with new transform
+        this.selectedObjectInstance.setKeyframe(this.currentFrame, newTransform);
+
+        // Re-render to show changes immediately
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    setObjectKeyframe() {
+        if (!this.selectedObjectInstance) return;
+
+        const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+        this.selectedObjectInstance.setKeyframe(this.currentFrame, transform);
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    removeObjectKeyframe() {
+        if (!this.selectedObjectInstance) return;
+
+        this.selectedObjectInstance.removeKeyframe(this.currentFrame);
+        this.updateObjectPropertiesPanel();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    centerSelectedObject() {
+        if (!this.selectedObjectInstance) return;
+
+        const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+        const newTransform = {
+            ...transform,
+            x: this.canvasWidth / 2,
+            y: this.canvasHeight / 2
+        };
+
+        this.selectedObjectInstance.setKeyframe(this.currentFrame, newTransform);
+        this.updateObjectPropertiesPanel();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    deleteSelectedObject() {
+        if (!this.selectedObjectInstance) return;
+
+        if (confirm('Are you sure you want to delete this object?')) {
+            const index = this.objectInstances.indexOf(this.selectedObjectInstance);
+            if (index > -1) {
+                this.objectInstances.splice(index, 1);
+            }
+
+            this.selectedObjectInstance = null;
+            this.updateObjectPropertiesPanel();
+            this.renderCurrentFrameToMainCanvas();
+        }
+    }
+
+    initializeObjectToolDragDrop() {
+        const canvasContainer = document.getElementById('canvasContainer');
+        if (!canvasContainer) return;
+
+        canvasContainer.addEventListener('dragover', (e) => {
+            if (this.currentTool === 'object-tool') {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+            }
+        });
+
+        canvasContainer.addEventListener('drop', (e) => {
+            if (this.currentTool !== 'object-tool') return;
+
+            e.preventDefault();
+            const objectId = e.dataTransfer.getData('text/plain');
+
+            if (objectId && this.objectLibrary.find(obj => obj.id === objectId)) {
+                const rect = this.mainCanvas.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / this.zoom;
+                const y = (e.clientY - rect.top) / this.zoom;
+
+                this.addObjectInstanceToCanvas(objectId, x, y);
+            }
+        });
+    }
+
+    // Object tool mouse handling
+    handleObjectToolMouseDown(e) {
+        if (this.currentTool !== 'object-tool') return;
+
+        const rect = this.mainCanvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / this.zoom;
+        const y = (e.clientY - rect.top) / this.zoom;
+
+        // Check if clicking on an object (check from top to bottom for proper selection)
+        for (let i = this.objects.length - 1; i >= 0; i--) {
+            const obj = this.objects[i];
+            const transform = obj.getTransformAt(this.currentFrame);
+
+            if (this.isPointInObject(x, y, transform)) {
+                // Select this object
+                this.selectedObjectId = obj.id;
+                this.isDraggingObject = true;
+
+                // Calculate drag offset relative to object center
+                this.objectDragOffset = {
+                    x: x - transform.x,
+                    y: y - transform.y
+                };
+
+                // Update properties panel and re-render
+                this.showObjectPropertiesPanel(obj, transform);
+                this.renderCurrentFrameToMainCanvas();
+                e.preventDefault();
+                return;
+            }
+        }
+
+        // If no object clicked, deselect current object
+        this.selectedObjectId = null;
+        this.isDraggingObject = false;
+        this.showObjectPropertiesPanel(null, null);
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    handleObjectToolMouseMove(e) {
+        if (this.currentTool !== 'object-tool' || !this.isDraggingObject || !this.selectedObjectId) return;
+
+        const rect = this.mainCanvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / this.zoom;
+        const y = (e.clientY - rect.top) / this.zoom;
+
+        const obj = this.objects.find(o => o.id === this.selectedObjectId);
+        if (!obj) return;
+
+        // Calculate new position
+        const newX = x - this.objectDragOffset.x;
+        const newY = y - this.objectDragOffset.y;
+
+        // Get current transform
+        const transform = obj.getTransformAt(this.currentFrame);
+
+        // Create updated transform
+        const newTransform = {
+            ...transform,
+            x: newX,
+            y: newY
+        };
+
+        // Update the keyframe
+        obj.setKeyframe(this.currentFrame, newTransform);
+
+        // Update the properties panel to show new position
+        this.showObjectPropertiesPanel(obj, newTransform);
+
+        // Re-render immediately for smooth dragging
+        this.renderCurrentFrameToMainCanvas();
+    }
+
+    handleObjectToolMouseUp(e) {
+        if (this.currentTool !== 'object-tool') return;
+
+        this.isDraggingObject = false;
+
+        // If we have a selected object, ensure its properties are updated
+        if (this.selectedObjectId) {
+            const obj = this.objects.find(o => o.id === this.selectedObjectId);
+            if (obj) {
+                this.showObjectPropertiesPanel(obj, obj.getTransformAt(this.currentFrame));
+            }
+        }
+    }
+
+    isPointInObject(x, y, transform) {
+        if (!transform.image) return false;
+
+        // Calculate the bounds of the object considering scale and rotation
+        const img = transform.image;
+        const halfW = (img.width * transform.scale) / 2;
+        const halfH = (img.height * transform.scale) / 2;
+
+        // Simple bounding box check first (for performance)
+        const dx = x - transform.x;
+        const dy = y - transform.y;
+
+        // For simple hit detection, check if point is within scaled bounds
+        // You can make this more accurate by considering rotation if needed
+        if (transform.angle === 0) {
+            // No rotation - simple bounding box
+            return Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
+        } else {
+            // With rotation - transform point to object space
+            const cos = Math.cos(-transform.angle * Math.PI / 180);
+            const sin = Math.sin(-transform.angle * Math.PI / 180);
+            const localX = dx * cos - dy * sin;
+            const localY = dx * sin + dy * cos;
+
+            return Math.abs(localX) <= halfW && Math.abs(localY) <= halfH;
+        }
+    }
+
+    // Add object rendering to your renderCurrentFrame method
+    renderObjectInstances() {
+        this.objectInstances.forEach(instance => {
+            const transform = instance.getTransformAt(this.currentFrame);
+            if (!transform.image) return;
+
+            this.ctx.save();
+            this.ctx.translate(transform.x, transform.y);
+            this.ctx.rotate(transform.angle * Math.PI / 180);
+            this.ctx.scale(transform.scale, transform.scale);
+
+            const img = transform.image;
+            this.ctx.drawImage(img, -img.width / 2, -img.height / 2, img.width, img.height);
+
+            // Draw selection outline if selected
+            if (instance === this.selectedObjectInstance && this.currentTool === 'object-tool') {
+                this.ctx.strokeStyle = '#007acc';
+                this.ctx.lineWidth = 2 / transform.scale; // Adjust line width for scale
+                this.ctx.setLineDash([8 / transform.scale, 4 / transform.scale]); // Adjust dash for scale
+                this.ctx.strokeRect(-img.width / 2, -img.height / 2, img.width, img.height);
+                this.ctx.setLineDash([]);
+
+                // Draw a center point
+                this.ctx.fillStyle = '#007acc';
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, 3 / transform.scale, 0, 2 * Math.PI);
+                this.ctx.fill();
+            }
+
+            this.ctx.restore();
+        });
+    }
+
+    getTransformAt(frame) {
+        // If tweening is disabled, return exact keyframe or default
+        if (!this.tween) {
+            return this.keyframes[frame] || this.getDefaultTransform();
+        }
+
+        // Find surrounding keyframes for interpolation
+        const frames = Object.keys(this.keyframes).map(Number).sort((a, b) => a - b);
+
+        // If no keyframes, return default
+        if (frames.length === 0) {
+            return this.getDefaultTransform();
+        }
+
+        // If exact keyframe exists, return it
+        if (this.keyframes[frame]) {
+            return { ...this.keyframes[frame] };
+        }
+
+        // Find the two keyframes to interpolate between
+        let beforeFrame = -1;
+        let afterFrame = -1;
+
+        for (let i = 0; i < frames.length; i++) {
+            if (frames[i] < frame) {
+                beforeFrame = frames[i];
+            } else if (frames[i] > frame && afterFrame === -1) {
+                afterFrame = frames[i];
+                break;
+            }
+        }
+
+        // If only keyframes after current frame, use the first one
+        if (beforeFrame === -1) {
+            return { ...this.keyframes[afterFrame] };
+        }
+
+        // If only keyframes before current frame, use the last one
+        if (afterFrame === -1) {
+            return { ...this.keyframes[beforeFrame] };
+        }
+
+        // Interpolate between the two keyframes
+        const beforeTransform = this.keyframes[beforeFrame];
+        const afterTransform = this.keyframes[afterFrame];
+        const progress = (frame - beforeFrame) / (afterFrame - beforeFrame);
+
+        return {
+            x: this.lerp(beforeTransform.x, afterTransform.x, progress),
+            y: this.lerp(beforeTransform.y, afterTransform.y, progress),
+            scale: this.lerp(beforeTransform.scale, afterTransform.scale, progress),
+            angle: this.lerpAngle(beforeTransform.angle, afterTransform.angle, progress),
+            image: afterTransform.image || beforeTransform.image
+        };
+    }
+
+    lerp(a, b, t) {
+        return a + (b - a) * t;
+    }
+
+    lerpAngle(a, b, t) {
+        // Handle angle wrapping for smooth rotation
+        let diff = b - a;
+        if (diff > 180) diff -= 360;
+        if (diff < -180) diff += 360;
+        return a + diff * t;
     }
 
     // UNDO/REDO functionality
