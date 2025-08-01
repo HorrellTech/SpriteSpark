@@ -11,8 +11,8 @@ class AIDrawing {
         }
 
         try {
-            // Create style-specific system prompt
-            let systemPrompt = this.getSystemPrompt(width, height, style);
+            // New: System prompt for JS drawing commands
+            let systemPrompt = this.getContextDrawingPrompt(width, height, style);
 
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
@@ -26,7 +26,7 @@ class AIDrawing {
                         { role: 'system', content: systemPrompt },
                         { role: 'user', content: prompt }
                     ],
-                    max_tokens: 3000,
+                    max_tokens: 2000,
                     temperature: 0.7
                 })
             });
@@ -37,14 +37,33 @@ class AIDrawing {
             }
 
             const data = await response.json();
-            const pixelData = this.parsePixelData(data.choices[0].message.content);
-            
-            this.drawPixelArrayToCanvas(pixelData);
+            const code = this.extractCodeBlock(data.choices[0].message.content);
+
+            this.runDrawingCode(code, width, height);
             return true;
         } catch (error) {
             console.error('AI drawing failed:', error);
             throw error;
         }
+    }
+
+    getContextDrawingPrompt(width, height, style) {
+        let styleHint = '';
+        switch (style) {
+            case 'pixel-art':
+                styleHint = 'Color each pixel with a hex color. Use ctx.fillRect(x, y, 1, 1) to draw each pixel. Use a limited retro color palette (8-16 colors). Keep it blocky and pixelated like classic video game sprites.';
+                break;
+            case 'simple-drawing':
+                styleHint = 'Use simple shapes and colors. Use ctx.fillRect, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.fill, etc.';
+                break;
+            case 'line-art':
+                styleHint = 'Use only black lines on transparent background. Use ctx.beginPath, ctx.moveTo, ctx.lineTo, ctx.stroke.';
+                break;
+            case 'minimalist':
+                styleHint = 'Use only 2-4 colors, focus on essential shapes and negative space.';
+                break;
+        }
+        return `You are a JavaScript canvas drawing assistant. Given a prompt, generate ONLY JavaScript code using the 2D canvas context variable "ctx" to draw a ${width}x${height} image in the style "${style}". ${styleHint} Do not include explanations, just a single code block.`;
     }
 
     getSystemPrompt(width, height, style) {
@@ -58,6 +77,12 @@ class AIDrawing {
         };
 
         return `${basePrompt} ${stylePrompts[style] || stylePrompts['pixel-art']} Example: [["#FF0000", null, "#0000FF"], [null, "#00FF00", null]]`;
+    }
+
+    extractCodeBlock(content) {
+        const codeMatch = content.match(/```(?:javascript)?\s*([\s\S]*?)```/i);
+        if (codeMatch) return codeMatch[1];
+        return content;
     }
 
     parsePixelData(content) {
@@ -109,6 +134,24 @@ class AIDrawing {
             }
         }
     }
+
+    runDrawingCode(code, width, height) {
+        if (!this.app.activeLayerId) throw new Error('No active layer selected');
+        const layer = this.app.layers.find(l => l.id === this.app.activeLayerId);
+        if (!layer) throw new Error('Active layer not found');
+        const ctx = layer.canvas.getContext('2d');
+
+        // Optionally clear the layer before drawing
+        ctx.clearRect(0, 0, width, height);
+
+        // Run the code with ctx in scope
+        try {
+            // eslint-disable-next-line no-new-func
+            new Function('ctx', code)(ctx);
+        } catch (e) {
+            throw new Error('Error running AI drawing code: ' + e.message);
+        }
+    }
 }
 
 class AIDrawingCommands {
@@ -123,10 +166,7 @@ class AIDrawingCommands {
         }
 
         try {
-            const systemPrompt = `Convert the user's request into simple drawing commands for a ${this.app.canvasWidth}x${this.app.canvasHeight} pixel canvas. Return ONLY a JSON array of drawing commands. Available commands:
-            - {"type": "line", "x1": number, "y1": number, "x2": number, "y2": number, "color": "#RRGGBB", "thickness": number}
-            - {"type": "circle", "x": number, "y": number, "radius": number, "color": "#RRGGBB", "filled": boolean}
-            - {"type": "rectangle", "x": number, "y": number, "width": number, "height": number, "color": "#RRGGBB", "filled": boolean}
+            const systemPrompt = `Convert the user's request into javascript context commands for a ${this.app.canvasWidth}x${this.app.canvasHeight} pixel canvas. Return ONLY a JSON array of drawing commands. Available commands:
             
             Keep coordinates within canvas bounds (0-${this.app.canvasWidth-1}, 0-${this.app.canvasHeight-1}).`;
 

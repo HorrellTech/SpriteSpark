@@ -2257,3 +2257,103 @@ select:focus {
 .canvas-container[data-tool="object-tool"].dragging-object {
     cursor: move;
 }
+
+.modal {
+    position: fixed; z-index: 10000; left: 0; top: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center;
+}
+.modal-content {
+    background: var(--bg-elevated, #222); color: var(--text-primary, #fff);
+    border-radius: 8px; padding: 24px; box-shadow: 0 4px 32px #0008;
+    min-width: 320px; max-width: 90vw;
+}
+
+#codeDrawingGroup,
+#codeDrawingModal .modal-content {
+    background: var(--bg-control, #23272e);
+    border-radius: var(--radius-md, 6px);
+    border: 1.5px solid var(--border-color, #333);
+    box-shadow: 0 2px 12px #0002;
+    padding: var(--spacing-lg, 12px);
+}
+
+#codeDrawingTextarea,
+#codeDrawingModalTextarea {
+    background: #181c20;
+    color: #e6e6e6;
+    font-family: 'Fira Mono', 'Consolas', 'Menlo', 'Monaco', 'monospace';
+    font-size: 14px;
+    border: 1.5px solid var(--border-color, #333);
+    border-radius: var(--radius-md, 6px);
+    padding: 10px 12px;
+    outline: none;
+    transition: border 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 4px #0001;
+    resize: vertical;
+    min-height: 120px;
+    line-height: 1.5;
+}
+
+#codeDrawingTextarea:focus,
+#codeDrawingModalTextarea:focus {
+    border-color: var(--accent-color, #4faaff);
+    box-shadow: 0 0 0 2px var(--accent-color-alpha, #4faaff33);
+    background: #20242a;
+}
+
+#applyCodeDrawingBtn,
+#applyCodeDrawingModalBtn,
+#openCodeModalBtn,
+#closeCodeModalBtn,
+#backToPanelBtn {
+    background: var(--accent-color, #4faaff);
+    color: var(--text-accent, #fff);
+    border: none;
+    border-radius: var(--radius-sm, 4px);
+    padding: 8px 18px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    box-shadow: 0 1px 4px #0002;
+    transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+#applyCodeDrawingBtn:hover,
+#applyCodeDrawingModalBtn:hover,
+#openCodeModalBtn:hover,
+#closeCodeModalBtn,
+#backToPanelBtn:hover {
+    background: var(--accent-color-hover, #357fd6);
+    color: #fff;
+    box-shadow: 0 2px 8px #0003;
+}
+
+#openCodeModalBtn {
+    float: right;
+    padding: 4px 10px;
+    font-size: 18px;
+    background: transparent;
+    color: var(--accent-color, #4faaff);
+    border: none;
+    box-shadow: none;
+    margin-top: -2px;
+}
+
+#openCodeModalBtn:hover {
+    background: var(--accent-color-alpha, #4faaff22);
+    color: var(--accent-color-hover, #357fd6);
+}
+
+.panel-group-title {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent-color, #4faaff);
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}

@@ -33,6 +33,7 @@
                 <li class="separator"></li>
                 <li><span data-action="export-frame">Export Frame</span></li>
                 <li><span data-action="export-animation">Export Animation</span></li>
+                <li><span data-action="export-zip">Export Frames as ZIP</span></li>
             </ul>
         </div>
         <div class="menu-item">
@@ -687,7 +688,7 @@
                     <button id="setApiKey" class="small-btn">Set API Key</button>
                 </div>
 
-                <!--div class="property-group">
+                <div class="property-group">
                     <h3>AI Animation</h3>
                     <label>
                         Animation Description:
@@ -710,7 +711,25 @@
                     </label>
                     <button id="generateAIAnimation" class="tool-btn">Generate AI Animation</button>
                     <small>Generates multiple frames automatically</small>
-                </div-->
+                </div>
+            </div>
+            <div id="codeDrawingGroup" class="panel-group">
+                <div class="panel-group-title">
+                    Code Drawing
+                    <button id="openCodeModalBtn" title="Open in Modal" style="float:right;">&#x26F6;</button>
+                </div>
+                <textarea id="codeDrawingTextarea" rows="8" style="width:100%;font-family:monospace;resize:vertical;">// Example: Draw a house
+ctx.fillStyle = '#8B4513';
+ctx.fillRect(60, 120, 80, 60); // House base
+ctx.fillStyle = '#FF0000';
+ctx.beginPath();
+ctx.moveTo(60, 120);
+ctx.lineTo(100, 80);
+ctx.lineTo(140, 120);
+ctx.closePath();
+ctx.fill(); // Roof
+            </textarea>
+                <button id="applyCodeDrawingBtn" style="margin-top:6px;">Apply Code</button>
             </div>
         </div>
 
@@ -751,6 +770,21 @@
     <!-- Hidden File Input -->
     <input type="file" id="fileInput" accept=".json,.png,.jpg,.jpeg" style="display: none;">
 
+    <!-- Code Drawing Modal (hidden by default) -->
+    <div id="codeDrawingModal" class="modal" style="display:none;">
+        <div class="modal-content" style="min-width:400px;max-width:90vw;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h2 style="margin:0;">Code Drawing</h2>
+                <button id="closeCodeModalBtn" title="Close" style="font-size:18px;">&times;</button>
+            </div>
+            <textarea id="codeDrawingModalTextarea" rows="16" style="width:100%;font-family:monospace;resize:vertical;"></textarea>
+            <div style="margin-top:10px;display:flex;justify-content:space-between;">
+                <button id="applyCodeDrawingModalBtn" class="accent">Apply Code</button>
+                <button id="backToPanelBtn">Back to Panel</button>
+            </div>
+        </div>
+    </div>
+
     <div id="exportModal" class="modal hidden">
         <div class="modal-content">
             <h2>Export Animation</h2>
@@ -759,6 +793,7 @@
                 <option value="gif">GIF</option>
                 <option value="webm">WebM</option>
                 <option value="mp4">MP4</option>
+                <option value="png-sequence">PNG Sequence Zip File</option>
             </select>
             <label for="exportName">File Name:</label>
             <input type="text" id="exportName" placeholder="animation">

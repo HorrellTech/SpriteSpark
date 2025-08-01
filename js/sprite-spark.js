@@ -974,254 +974,6 @@ class SpriteSpark {
         }
     }
 
-    /*async generateAIDrawing(prompt, size, style) {
-        const apiKey = localStorage.getItem('openai_api_key');
-        if (!apiKey) {
-            alert('Please set your OpenAI API key first');
-            return;
-        }
-
-        const generateBtn = document.getElementById('generateAIArt');
-        const originalText = generateBtn.textContent;
-        generateBtn.textContent = 'Generating...';
-        generateBtn.disabled = true;
-
-        try {
-            console.log('Making API request with prompt:', prompt);
-            console.log('Using canvas size:', size, 'x', size);
-
-            // Create system prompt for drawing commands
-            const systemPrompt = `You are a drawing assistant that creates images using simple drawing commands. 
-Create a ${size}x${size} image for the given prompt using ONLY these commands:
-
-Available commands:
-- circle(x, y, radius, filled, color) - Draw a circle
-- rectangle(x, y, width, height, filled, color) - Draw a rectangle  
-- line(x1, y1, x2, y2, color) - Draw a line
-- ellipse(x, y, radiusX, radiusY, filled, color) - Draw an ellipse
-- triangle(x1, y1, x2, y2, x3, y3, filled, color) - Draw a triangle
-
-Rules:
-- Coordinates must be within 0 to ${size - 1}
-- Colors must be hex format like "#FF0000"
-- filled parameter is true/false for shapes
-- Return ONLY a JSON array of commands, no explanations
-- Keep it simple with 5-15 commands max
-
-Style: ${style}
-
-Example format:
-[
-  {"type": "circle", "x": 16, "y": 16, "radius": 8, "filled": true, "color": "#FF0000"},
-  {"type": "line", "x1": 0, "y1": 0, "x2": 31, "y2": 31, "color": "#0000FF"},
-  {"type": "rectangle", "x": 10, "y": 10, "width": 20, "height": 20, "filled": false, "color": "#00FF00"},
-  {"type": "ellipse", "x": 16, "y": 16, "radiusX": 10, "radiusY": 5, "filled": true, "color": "#FFFF00"},
-  {"type": "triangle", "x1": 5, "y1": 5, "x2": 15, "y2": 25, "x3": 25, "y3": 5, "filled": true, "color": "#FF00FF"}
-]`;
-
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'gpt-4',
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: `Create drawing commands for: ${prompt}` }
-                    ],
-                    max_tokens: 3000,
-                    temperature: 0.7
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
-            }
-
-            const data = await response.json();
-            const content = data.choices[0].message.content.trim();
-
-            let commands;
-            try {
-                // Try to parse JSON directly
-                commands = JSON.parse(content);
-            } catch (parseError) {
-                // Try to extract JSON from response
-                const jsonMatch = content.match(/\[[\s\S]*\]/);
-                if (!jsonMatch) {
-                    throw new Error('No valid JSON commands found in AI response');
-                }
-                commands = JSON.parse(jsonMatch[0]);
-            }
-
-            // Validate and execute commands
-            this.executeDrawingCommands(commands, size);
-
-        } catch (error) {
-            console.error('AI generation failed:', error);
-
-            // Create simple fallback
-            const fallbackCommands = this.createFallbackCommands(size, prompt);
-            this.executeDrawingCommands(fallbackCommands, size);
-
-            this.showNotification('AI response failed. Created a simple fallback design.', 'warning');
-
-        } finally {
-            generateBtn.textContent = originalText;
-            generateBtn.disabled = false;
-        }
-    }*/
-
-    /*async generateAIDrawing(prompt, size, style) {
-        const apiKey = localStorage.getItem('gemini_api_key');
-        if (!apiKey) {
-            alert('Please set your Gemini API key first');
-            return;
-        }
-
-        const generateBtn = document.getElementById('generateAIArt');
-        const originalText = generateBtn.textContent;
-        generateBtn.textContent = 'Generating...';
-        generateBtn.disabled = true;
-
-        try {
-            console.log('Making Gemini API request with prompt:', prompt);
-
-            const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
-            console.log('Using canvas size:', canvasSize, 'x', canvasSize);
-
-            let systemPrompt;
-
-            if (style === 'realistic') {
-                systemPrompt = `You are a drawing assistant that creates realistic-looking scenes with multiple objects using simple drawing commands.
-
-Create a ${canvasSize}x${canvasSize} realistic scene for: "${prompt}"
-
-IMPORTANT: Parse the prompt to identify ALL objects and elements that should be in the scene.
-Draw them in proper layering order (background first, foreground last).
-
-Available commands:
-- circle(x, y, radius, filled, color)
-- rectangle(x, y, width, height, filled, color)  
-- line(x1, y1, x2, y2, color)
-- ellipse(x, y, radiusX, radiusY, filled, color)
-- triangle(x1, y1, x2, y2, x3, y3, filled, color)
-
-Rules:
-- Coordinates must be within 0 to ${canvasSize - 1}
-- Colors must be hex format like "#FF0000"
-- filled parameter is true/false for shapes
-- Return ONLY a JSON array of commands, no explanations
-- Use 20-40 commands for complex scenes with multiple objects
-- Use realistic colors and proportions
-- Layer shapes to create depth and detail
-- Draw ALL objects mentioned in the prompt
-
-For complex scenes:
-- Start with background elements (sky, ground, grass, etc.)
-- Add middle-ground objects (trees, buildings, etc.)
-- Finish with foreground objects (characters, balls, etc.)
-- Use appropriate colors and realistic proportions
-
-Create realistic drawing commands for the complete scene: ${prompt}`;
-            } else {
-                systemPrompt = `You are a drawing assistant that creates pixel art scenes with multiple objects using simple drawing commands.
-
-Create a ${canvasSize}x${canvasSize} pixel art scene for: "${prompt}"
-
-IMPORTANT: Parse the prompt to identify ALL objects and elements that should be in the scene.
-Draw them in proper layering order (background first, foreground last).
-
-Available commands:
-- circle(x, y, radius, filled, color)
-- rectangle(x, y, width, height, filled, color)  
-- line(x1, y1, x2, y2, color)
-- ellipse(x, y, radiusX, radiusY, filled, color)
-- triangle(x1, y1, x2, y2, x3, y3, filled, color)
-
-Rules:
-- Coordinates must be within 0 to ${canvasSize - 1}
-- Colors must be hex format like "#FF0000"
-- filled parameter is true/false for shapes
-- Return ONLY a JSON array of commands, no explanations
-- Use 10-30 commands for complete scenes
-- Think about pixel art aesthetics - simple shapes, bold colors
-- Draw ALL objects mentioned in the prompt
-
-Style: ${style}
-
-Example for "red ball on green grass" (adjusted for ${canvasSize}x${canvasSize} canvas):
-[
-  {"type": "rectangle", "x": 0, "y": ${Math.floor(canvasSize * 0.8)}, "width": ${canvasSize}, "height": ${Math.floor(canvasSize * 0.2)}, "filled": true, "color": "#228B22"},
-  {"type": "circle", "x": ${Math.floor(canvasSize / 2)}, "y": ${Math.floor(canvasSize / 2)}, "radius": ${Math.floor(canvasSize / 8)}, "filled": true, "color": "#FF0000"}
-]
-
-Create drawing commands for the complete scene: ${prompt}`;
-            }
-
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: systemPrompt }] }],
-                    generationConfig: {
-                        temperature: style === 'realistic' ? 0.3 : 0.7,
-                        topK: 40,
-                        topP: 0.95,
-                        maxOutputTokens: style === 'realistic' ? 4096 : 2048,
-                    }
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`Gemini API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
-            }
-
-            const data = await response.json();
-            console.log('Full Gemini API response:', JSON.stringify(data, null, 2));
-
-            if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-                throw new Error('No response from Gemini API');
-            }
-
-            const content = data.candidates[0].content.parts[0].text.trim();
-            console.log('Raw Gemini response text:', content);
-
-            let commands;
-            try {
-                commands = JSON.parse(content);
-                console.log('Successfully parsed JSON commands:', commands);
-            } catch (parseError) {
-                console.log('Failed to parse JSON directly, trying to extract from text');
-                const jsonMatch = content.match(/\[[\s\S]*\]/);
-                if (!jsonMatch) {
-                    console.error('No valid JSON commands found in Gemini response');
-                    throw new Error('No valid JSON commands found in Gemini response');
-                }
-                console.log('Extracted JSON string:', jsonMatch[0]);
-                commands = JSON.parse(jsonMatch[0]);
-                console.log('Successfully parsed extracted JSON commands:', commands);
-            }
-
-            this.executeDrawingCommands(commands, canvasSize);
-
-        } catch (error) {
-            console.error('Gemini AI generation failed:', error);
-            const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
-            const fallbackCommands = this.createComplexFallbackCommands(canvasSize, prompt, style);
-            console.log('Using complex fallback commands:', fallbackCommands);
-            this.executeDrawingCommands(fallbackCommands, canvasSize);
-            this.showNotification('AI response failed. Created a simple fallback design.', 'warning');
-        } finally {
-            generateBtn.textContent = originalText;
-            generateBtn.disabled = false;
-        }
-    }*/
-
     async generateAIDrawing(prompt, size, style) {
         const apiKey = localStorage.getItem('gemini_api_key');
         if (!apiKey) {
@@ -1237,40 +989,14 @@ Create drawing commands for the complete scene: ${prompt}`;
         try {
             const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
 
-            const systemPrompt = `You are a drawing assistant that creates images using vector and shape commands.
-
-Create a ${canvasSize}x${canvasSize} image for: "${prompt}"
-
-Available commands:
-- circle(x, y, radius, filled, color) - Draw a circle
-- rectangle(x, y, width, height, filled, color) - Draw a rectangle  
-- line(x1, y1, x2, y2, color) - Draw a line
-- ellipse(x, y, radiusX, radiusY, filled, color) - Draw an ellipse
-- triangle(x1, y1, x2, y2, x3, y3, filled, color) - Draw a triangle with THREE different points
-- vector(points, mode, filled, color, strokeWidth) - Draw vector path
-  * points: array of {x, y} coordinates
-  * mode: "path" (connected lines), "shape" (closed), or "bezier" (smooth curves)
-  * filled: true/false
-  * color: hex color
-  * strokeWidth: line thickness
-
-IMPORTANT TRIANGLE RULES:
-- ALL triangle coordinates (x1,y1,x2,y2,x3,y3) MUST be provided
-- The three points MUST be significantly different to form a visible triangle
-- Minimum triangle size should be at least 20x20 pixels
-- Example: {"type": "triangle", "x1": 50, "y1": 20, "x2": 20, "y2": 80, "x3": 80, "y3": 80, "filled": true, "color": "#FF0000"}
-
-Rules:
-- Coordinates must be within 0 to ${canvasSize - 1}
-- Colors must be hex format like "#FF0000"
-- Use vectors for complex shapes, curves, and organic forms
-- Use basic shapes for simple geometric elements
-- Combine both for best results
-- Return ONLY a JSON array of commands
-
-Style: ${style}
-
-Create drawing commands for: ${prompt}`;
+            // System prompt: ask for ONLY JavaScript code using ctx for drawing
+            const systemPrompt = `
+You are a JavaScript canvas drawing professional. Given a prompt, generate ONLY JavaScript code using the 2D canvas context variable "ctx" to draw a ${canvasSize}x${canvasSize} image in the style "${style}".
+- Use ctx.fillRect, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.fill, etc(you should have access to all javascript drawing commands).
+- Do not include explanations, just a single code block.
+- The variable "ctx" is already defined.
+Prompt: ${prompt}
+`;
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
                 method: 'POST',
@@ -1293,25 +1019,34 @@ Create drawing commands for: ${prompt}`;
             const data = await response.json();
             const content = data.candidates[0].content.parts[0].text.trim();
 
-            let commands;
+            // Extract code from markdown code block or plain text
+            let code = content;
+            const codeMatch = content.match(/```(?:javascript)?\s*([\s\S]*?)```/i);
+            if (codeMatch) code = codeMatch[1];
+
+            // Get the active layer's context
+            if (!this.activeLayerId) throw new Error('No active layer selected');
+            const layer = this.layers.find(l => l.id === this.activeLayerId);
+            if (!layer) throw new Error('Active layer not found');
+            const ctx = layer.canvas.getContext('2d');
+
+            // Optionally clear the layer before drawing
+            ctx.clearRect(0, 0, canvasSize, canvasSize);
+
+            // Run the code with ctx in scope
             try {
-                commands = JSON.parse(content);
-            } catch (parseError) {
-                const jsonMatch = content.match(/\[[\s\S]*\]/);
-                if (!jsonMatch) {
-                    throw new Error('No valid JSON commands found');
-                }
-                commands = JSON.parse(jsonMatch[0]);
+                // eslint-disable-next-line no-new-func
+                new Function('ctx', code)(ctx);
+            } catch (e) {
+                throw new Error('Error running AI drawing code: ' + e.message);
             }
 
-            this.executeDrawingCommands(commands, canvasSize);
+            this.syncGlobalLayersToCurrentFrame();
+            this.renderCurrentFrameToMainCanvas();
 
         } catch (error) {
             console.error('AI generation failed:', error);
-            const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
-            const fallbackCommands = this.createVectorFallbackCommands(canvasSize, prompt, style);
-            this.executeDrawingCommands(fallbackCommands, canvasSize);
-            this.showNotification('AI response failed. Created a vector fallback design.', 'warning');
+            this.showNotification('AI response failed. No drawing generated.', 'warning');
         } finally {
             generateBtn.textContent = originalText;
             generateBtn.disabled = false;
@@ -1954,12 +1689,118 @@ Create drawing commands for: ${prompt}`;
 
             const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
 
-            // IMPROVED: More specific animation analysis
-            const animationAnalysis = await this.analyzeAnimationPrompt(prompt, canvasSize, style, frameCount, apiKey);
-            console.log('Animation analysis:', animationAnalysis);
+            // Enhanced frame memory system
+            const frameMemory = {
+                codes: [], // Store code for each frame
+                descriptions: [], // Store AI's description of what it drew
+                keyframes: [], // Store important animation states
+                animationState: null // Track overall animation progression
+            };
 
-            // Generate the complete animation based on analysis
-            await this.generateSpecificAnimation(animationAnalysis, frameCount, canvasSize, style, apiKey, generateBtn);
+            for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+                generateBtn.textContent = `Generating Frame ${frameIndex + 1}/${frameCount}...`;
+
+                // Create new frame if needed
+                if (frameIndex >= this.frames.length) {
+                    this.addEmptyFrame();
+                }
+                this.selectFrame(frameIndex);
+
+                // Build context from previous frames
+                const contextFrames = this.buildFrameContext(frameMemory, frameIndex, frameCount);
+
+                // Enhanced system prompt with better memory context
+                const systemPrompt = `
+You are a JavaScript canvas animation assistant creating frame ${frameIndex + 1} of ${frameCount} for a smooth animation.
+
+ANIMATION CONTEXT:
+- Canvas size: ${canvasSize}x${canvasSize}
+- Style: "${style}"
+- Prompt: "${prompt}"
+- Progress: ${((frameIndex / (frameCount - 1)) * 100).toFixed(1)}% through animation
+
+${contextFrames}
+
+REQUIREMENTS:
+1. Generate ONLY JavaScript code using the 2D canvas context variable "ctx"
+2. Ensure smooth animation progression from previous frames
+3. Maintain object consistency (size, color, position relativity)
+4. Use appropriate easing for natural motion
+5. Consider the animation timeline (beginning/middle/end)
+
+AVAILABLE METHODS: ctx.fillRect, ctx.strokeRect, ctx.beginPath, ctx.arc, ctx.ellipse, ctx.moveTo, ctx.lineTo, ctx.bezierCurveTo, ctx.quadraticCurveTo, ctx.stroke, ctx.fill, ctx.fillStyle, ctx.strokeStyle, ctx.lineWidth, ctx.globalAlpha, ctx.save, ctx.restore, ctx.translate, ctx.rotate, ctx.scale
+
+Generate the drawing code for frame ${frameIndex + 1}:`;
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: systemPrompt }] }],
+                        generationConfig: {
+                            temperature: 0.3, // Lower temperature for more consistent animation
+                            topK: 40,
+                            topP: 0.9,
+                            maxOutputTokens: 4096,
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Gemini API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const content = data.candidates[0].content.parts[0].text.trim();
+
+                // Extract code from markdown code block or plain text
+                let code = content;
+                const codeMatch = content.match(/```(?:javascript)?\s*([\s\S]*?)```/i);
+                if (codeMatch) code = codeMatch[1];
+
+                // Get the active layer's context
+                if (!this.activeLayerId) throw new Error('No active layer selected');
+                const layer = this.layers.find(l => l.id === this.activeLayerId);
+                if (!layer) throw new Error('Active layer not found');
+                const ctx = layer.canvas.getContext('2d');
+
+                // Clear the layer before drawing
+                ctx.clearRect(0, 0, canvasSize, canvasSize);
+
+                // Run the code with ctx in scope
+                try {
+                    // eslint-disable-next-line no-new-func
+                    new Function('ctx', code)(ctx);
+                } catch (e) {
+                    throw new Error('Error running AI drawing code: ' + e.message);
+                }
+
+                // Store frame information in memory
+                frameMemory.codes.push(code);
+
+                // Generate a brief description of the current frame for context
+                const frameDescription = await this.generateFrameDescription(code, frameIndex, frameCount, apiKey);
+                frameMemory.descriptions.push(frameDescription);
+
+                // Mark keyframes (first, middle, last, and quarter points)
+                if (frameIndex === 0 || frameIndex === Math.floor(frameCount / 4) ||
+                    frameIndex === Math.floor(frameCount / 2) || frameIndex === Math.floor(3 * frameCount / 4) ||
+                    frameIndex === frameCount - 1) {
+                    frameMemory.keyframes.push({
+                        index: frameIndex,
+                        code: code,
+                        description: frameDescription
+                    });
+                }
+
+                this.syncGlobalLayersToCurrentFrame();
+                this.renderCurrentFrameToMainCanvas();
+
+                // Small delay to prevent API rate limiting
+                if (frameIndex < frameCount - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+            }
 
             // Select first frame when done
             this.selectFrame(0);
@@ -1982,81 +1823,199 @@ Create drawing commands for: ${prompt}`;
         }
     }
 
-    async analyzeAnimationPrompt(prompt, canvasSize, style, frameCount, apiKey) {
-        const analysisPrompt = `You are an expert animation director. Analyze this animation request: "${prompt}"
+    // Helper method to build context from previous frames
+    buildFrameContext(frameMemory, currentIndex, totalFrames) {
+        if (currentIndex === 0) {
+            return `FIRST FRAME: Set up the initial scene and establish the main elements to be animated.`;
+        }
 
-TASK: Create a detailed animation plan for ${frameCount} frames on a ${canvasSize}x${canvasSize} canvas.
+        let context = `PREVIOUS FRAMES CONTEXT:\n`;
 
-CRITICAL REQUIREMENTS:
-1. Identify the MAIN OBJECT that should animate (ball, character, car, etc.)
-2. Define clear START and END positions for smooth motion
-3. Choose appropriate animation type (bounce, slide, rotate, etc.)
-4. Plan consistent object properties (size, color, shape)
+        // Always include the immediately previous frame
+        if (currentIndex > 0) {
+            context += `
+PREVIOUS FRAME (${currentIndex}):
+Description: ${frameMemory.descriptions[currentIndex - 1] || 'Frame ' + currentIndex}
+Code:
+${frameMemory.codes[currentIndex - 1]}
+`;
+        }
 
-Return ONLY this JSON structure:
-{
-  "mainObject": {
-    "type": "ball|character|car|bird|etc",
-    "description": "detailed visual description",
-    "shape": "circle|rectangle|ellipse|complex",
-    "size": number (radius or width in pixels),
-    "color": "#hexcolor",
-    "startPosition": {"x": number, "y": number},
-    "endPosition": {"x": number, "y": number}
-  },
-  "animation": {
-    "type": "bounce|slide|rotate|orbit|wave|fall",
-    "physics": "gravity|momentum|spring|linear",
-    "details": "specific movement description",
-    "speed": "slow|medium|fast"
-  },
-  "background": {
-    "type": "ground|sky|none|simple",
-    "color": "#hexcolor"
-  }
-}
+        // Include the frame before that for better continuity
+        if (currentIndex > 1) {
+            context += `
+FRAME BEFORE PREVIOUS (${currentIndex - 1}):
+Description: ${frameMemory.descriptions[currentIndex - 2] || 'Frame ' + (currentIndex - 1)}
+Code (condensed):
+${this.condenseCode(frameMemory.codes[currentIndex - 2])}
+`;
+        }
 
-EXAMPLES:
-- "red ball bouncing" → ball moves in arc with gravity
-- "car driving" → car slides horizontally across screen  
-- "bird flying" → bird moves in wave pattern
-- "spinning wheel" → wheel rotates in place
-- "falling leaf" → leaf falls with gentle sway
-
-Focus on ONE main animated object with clear, smooth motion.`;
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: analysisPrompt }] }],
-                generationConfig: {
-                    temperature: 0.2,
-                    topK: 20,
-                    topP: 0.8,
-                    maxOutputTokens: 1024,
+        // Include relevant keyframes for long-term consistency
+        if (frameMemory.keyframes.length > 0) {
+            context += `\nKEY ANIMATION POINTS:\n`;
+            frameMemory.keyframes.forEach(keyframe => {
+                if (keyframe.index < currentIndex) {
+                    context += `Frame ${keyframe.index + 1}: ${keyframe.description}\n`;
                 }
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
+            });
         }
 
-        const data = await response.json();
-        const content = data.candidates[0].content.parts[0].text.trim();
+        // Add animation phase context
+        const progress = currentIndex / (totalFrames - 1);
+        if (progress < 0.25) {
+            context += `\nANIMATION PHASE: Beginning - establish motion and direction`;
+        } else if (progress < 0.75) {
+            context += `\nANIMATION PHASE: Middle - maintain smooth motion and consistency`;
+        } else {
+            context += `\nANIMATION PHASE: End - prepare for conclusion or loop`;
+        }
 
+        return context;
+    }
+
+    // Helper method to generate a brief description of what the frame contains
+    async generateFrameDescription(code, frameIndex, totalFrames, apiKey) {
         try {
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                return JSON.parse(jsonMatch[0]);
+            const descriptionPrompt = `Analyze this JavaScript canvas drawing code and provide a very brief (1-2 sentences) description of what visual elements it creates and their approximate positions/states. Focus on objects, colors, and motion.
+
+Code:
+${code}
+
+Frame ${frameIndex + 1} of ${totalFrames}`;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: descriptionPrompt }] }],
+                    generationConfig: {
+                        temperature: 0.2,
+                        maxOutputTokens: 100,
+                    }
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.candidates[0].content.parts[0].text.trim();
             }
-        } catch (e) {
-            console.warn('Could not parse animation analysis, using fallback');
+        } catch (error) {
+            console.warn('Failed to generate frame description:', error);
         }
 
-        // Enhanced fallback analysis
-        return this.createEnhancedFallbackAnalysis(prompt, canvasSize);
+        return `Frame ${frameIndex + 1}: Canvas drawing with various shapes and elements`;
+    }
+
+    // Helper method to calculate animation timing and provide pacing guidance
+    calculateAnimationTiming(prompt, totalFrames, currentFrame) {
+        const progress = currentFrame / (totalFrames - 1);
+        const frameProgress = `Frame ${currentFrame + 1}/${totalFrames}`;
+
+        // Analyze the prompt for timing-related keywords and numbers
+        const timingAnalysis = this.analyzePromptTiming(prompt, totalFrames, currentFrame);
+
+        let timingInfo = `${frameProgress} (${(progress * 100).toFixed(1)}% complete)\n`;
+        timingInfo += timingAnalysis;
+
+        // Add phase-specific guidance
+        if (currentFrame === 0) {
+            timingInfo += `\n- STARTING FRAME: Establish initial state and begin the action`;
+        } else if (currentFrame === totalFrames - 1) {
+            timingInfo += `\n- FINAL FRAME: Complete the action and prepare for loop/end`;
+        } else {
+            const phaseInfo = this.getAnimationPhase(progress);
+            timingInfo += `\n- CURRENT PHASE: ${phaseInfo}`;
+        }
+
+        return timingInfo;
+    }
+
+    // Analyze the prompt for specific timing requirements
+    analyzePromptTiming(prompt, totalFrames, currentFrame) {
+        const lowerPrompt = prompt.toLowerCase();
+        let analysis = "";
+
+        // Extract numbers that might indicate repetitions
+        const numbers = prompt.match(/\b(\d+)\b/g);
+        const actionWords = ['bounce', 'bounces', 'spin', 'spins', 'rotation', 'rotations', 'jump', 'jumps', 'wave', 'waves', 'pulse', 'pulses', 'beat', 'beats', 'cycle', 'cycles', 'loop', 'loops'];
+
+        // Look for repetitive actions
+        let repetitions = null;
+        let actionType = null;
+
+        for (const word of actionWords) {
+            if (lowerPrompt.includes(word)) {
+                actionType = word;
+                // Look for numbers near this action word
+                const wordIndex = lowerPrompt.indexOf(word);
+                const nearbyText = lowerPrompt.substring(Math.max(0, wordIndex - 20), wordIndex + 20);
+                const nearbyNumbers = nearbyText.match(/\b(\d+)\b/g);
+                if (nearbyNumbers) {
+                    repetitions = parseInt(nearbyNumbers[nearbyNumbers.length - 1]);
+                }
+                break;
+            }
+        }
+
+        if (repetitions && actionType) {
+            // Calculate timing for repetitive actions
+            const framesPerAction = totalFrames / repetitions;
+            const currentActionNumber = Math.floor(currentFrame / framesPerAction) + 1;
+            const frameInCurrentAction = currentFrame % framesPerAction;
+            const progressInAction = frameInCurrentAction / framesPerAction;
+
+            analysis += `- ACTION: ${repetitions} ${actionType} across ${totalFrames} frames\n`;
+            analysis += `- PACING: ~${framesPerAction.toFixed(1)} frames per ${actionType.replace(/s$/, '')}\n`;
+            analysis += `- CURRENT: ${actionType.replace(/s$/, '')} #${currentActionNumber} (${(progressInAction * 100).toFixed(1)}% through this ${actionType.replace(/s$/, '')})\n`;
+
+            // Provide specific guidance for this action phase
+            if (actionType.includes('bounce')) {
+                if (progressInAction < 0.5) {
+                    analysis += `- BOUNCE PHASE: Moving down/compressing (${(progressInAction * 200).toFixed(1)}% to bottom)`;
+                } else {
+                    analysis += `- BOUNCE PHASE: Moving up/expanding (${((progressInAction - 0.5) * 200).toFixed(1)}% from bottom)`;
+                }
+            } else if (actionType.includes('spin') || actionType.includes('rotation')) {
+                const rotationDegrees = progressInAction * 360;
+                analysis += `- ROTATION PHASE: ${rotationDegrees.toFixed(1)}° of this rotation`;
+            } else if (actionType.includes('wave') || actionType.includes('pulse')) {
+                const wavePhase = Math.sin(progressInAction * Math.PI * 2);
+                analysis += `- WAVE PHASE: ${wavePhase > 0 ? 'Expanding' : 'Contracting'} (${(Math.abs(wavePhase) * 100).toFixed(1)}% intensity)`;
+            }
+        } else {
+            // General animation timing without specific repetitions
+            analysis += `- PACING: Smooth progression across ${totalFrames} frames\n`;
+            analysis += `- TIMING: Distribute the entire action evenly across all frames`;
+
+            // Look for movement/transition words
+            if (lowerPrompt.includes('move') || lowerPrompt.includes('travel') || lowerPrompt.includes('go')) {
+                const progressPercent = (currentFrame / (totalFrames - 1)) * 100;
+                analysis += `\n- MOVEMENT: ${progressPercent.toFixed(1)}% of the journey complete`;
+            }
+        }
+
+        return analysis;
+    }
+
+    // Get animation phase description
+    getAnimationPhase(progress) {
+        if (progress < 0.1) return "Early beginning - establish motion";
+        if (progress < 0.25) return "Beginning phase - build momentum";
+        if (progress < 0.5) return "First half - main action development";
+        if (progress < 0.75) return "Second half - continue main action";
+        if (progress < 0.9) return "Late phase - prepare for conclusion";
+        return "Near end - finalize action";
+    }
+
+    // Helper method to condense code for context (remove comments, extra whitespace)
+    condenseCode(code) {
+        return code
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line && !line.startsWith('//'))
+            .join('; ')
+            .substring(0, 200) + (code.length > 200 ? '...' : '');
     }
 
     createEnhancedFallbackAnalysis(prompt, canvasSize) {
@@ -5722,6 +5681,9 @@ Create drawing commands for this animation frame:`;
             case 'export-animation':
                 this.exportAnimation();
                 break;
+            case 'export-zip':
+                this.exportFramesAsZip();
+                break;
             case 'undo':
                 this.undo();
                 break;
@@ -8099,6 +8061,67 @@ Create drawing commands for this animation frame:`;
         cancelBtn.onclick = () => {
             modal.classList.add('hidden');
         };
+    }
+
+    // --- EXPORT ALL FRAMES AS ZIP ---
+    async exportFramesAsZip() {
+        // Dynamically load JSZip if not already loaded
+        if (typeof window.JSZip === "undefined") {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        const JSZip = window.JSZip;
+
+        const zip = new JSZip();
+        const activeFrames = this.frames.filter(frame => frame.isActive !== false);
+
+        if (activeFrames.length === 0) {
+            alert("No active frames to export!");
+            return;
+        }
+
+        // Prepare all frames as PNG blobs
+        const pngPromises = activeFrames.map((frame, idx) => {
+            return new Promise(resolve => {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.canvasWidth;
+                tempCanvas.height = this.canvasHeight;
+                const tempCtx = tempCanvas.getContext('2d');
+                // Draw all visible layers
+                for (let i = 0; i < frame.layers.length; i++) {
+                    const layer = frame.layers[i];
+                    if (!layer.isVisible) continue;
+                    tempCtx.globalAlpha = layer.opacity / 100;
+                    tempCtx.globalCompositeOperation = layer.blendMode;
+                    tempCtx.drawImage(layer.canvas, 0, 0);
+                }
+                tempCtx.globalAlpha = 1.0;
+                tempCtx.globalCompositeOperation = 'source-over';
+                tempCanvas.toBlob(blob => {
+                    resolve({ idx, blob });
+                }, 'image/png');
+            });
+        });
+
+        // Wait for all PNGs
+        const pngs = await Promise.all(pngPromises);
+
+        // Add to zip
+        pngs.forEach(({ idx, blob }) => {
+            zip.file(`frame_${String(idx + 1).padStart(2, '0')}.png`, blob);
+        });
+
+        // Generate and download zip
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(zipBlob);
+        a.download = "frames.zip";
+        a.click();
     }
 
     _drawPixelLine(ctx, x0, y0, x1, y1, color, size, preventCorners) {
@@ -10954,6 +10977,65 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Set pixel perfect to true by default ---
     SpriteSpark.prototype.pixelPerfect = true;
 
+    // --- Code Drawing Feature ---
+    const codeGroup = document.getElementById('codeDrawingGroup');
+    const codeTextarea = document.getElementById('codeDrawingTextarea');
+    const applyBtn = document.getElementById('applyCodeDrawingBtn');
+    const openModalBtn = document.getElementById('openCodeModalBtn');
+    const codeModal = document.getElementById('codeDrawingModal');
+    const codeModalTextarea = document.getElementById('codeDrawingModalTextarea');
+    const closeModalBtn = document.getElementById('closeCodeModalBtn');
+    const applyModalBtn = document.getElementById('applyCodeDrawingModalBtn');
+    const backToPanelBtn = document.getElementById('backToPanelBtn');
+
+    // Panel apply button
+    if (applyBtn) {
+        applyBtn.onclick = () => applyCodeDrawing(codeTextarea.value);
+    }
+
+    // Open modal
+    if (openModalBtn) {
+        openModalBtn.onclick = () => {
+            codeModalTextarea.value = codeTextarea.value;
+            codeModal.style.display = 'flex';
+            codeModalTextarea.focus();
+        };
+    }
+
+    // Close modal
+    if (closeModalBtn) {
+        closeModalBtn.onclick = () => {
+            codeModal.style.display = 'none';
+            codeTextarea.value = codeModalTextarea.value;
+            codeTextarea.focus();
+        }
+    }
+
+    // Apply in modal
+    if (applyModalBtn) {
+        applyModalBtn.onclick = () => applyCodeDrawing(codeModalTextarea.value);
+    }
+
+    // Back to panel (copy code back)
+    if (backToPanelBtn) {
+        backToPanelBtn.onclick = () => {
+            codeTextarea.value = codeModalTextarea.value;
+            codeModal.style.display = 'none';
+            codeTextarea.focus();
+        };
+    }
+
+    // Modal close on outside click
+    if (codeModal) {
+        codeModal.onclick = (e) => {
+            if (e.target === codeModal) {
+                codeModal.style.display = 'none';
+                codeTextarea.value = codeModalTextarea.value;
+                codeTextarea.focus();
+            }
+        };
+    }
+
     //adjustMainContentHeight();
 
     window.addEventListener('resize', () => {
@@ -10966,4 +11048,32 @@ document.addEventListener('DOMContentLoaded', () => {
         item.addEventListener('mouseleave', updateResizerPointerEvents);
     });
     document.addEventListener('click', updateResizerPointerEvents);
+
+
+
+    // Helper: get current layer object
+    function getCurrentLayer() {
+        if (!app.activeLayerId) return null;
+        return app.layers.find(l => l.id === app.activeLayerId);
+    }
+
+    // Apply code from textarea to canvas
+    function applyCodeDrawing(code) {
+        const layer = getCurrentLayer();
+        if (!layer) {
+            alert('No active layer selected!');
+            return;
+        }
+        try {
+            // Provide ctx and layer as variables
+            const ctx = layer.canvas.getContext('2d');
+            // eslint-disable-next-line no-new-func
+            new Function('ctx', 'layer', code)(ctx, layer);
+            app.syncGlobalLayersToCurrentFrame();
+            app.renderCurrentFrameToMainCanvas();
+            app.showNotification('Code applied!', 'info');
+        } catch (err) {
+            app.showNotification('Error: ' + err.message, 'warning');
+        }
+    }
 });
