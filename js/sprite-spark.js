@@ -995,7 +995,7 @@ You are a JavaScript canvas drawing professional. Given a prompt, generate ONLY 
 - Use ctx.fillRect, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.fill, etc(you should have access to all javascript drawing commands).
 - Do not include explanations, just a single code block.
 - The variable "ctx" is already defined.
-Prompt: ${prompt}
+Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, in ${style} style. generate ONLY the JavaScript code to draw this image.
 `;
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
@@ -1031,15 +1031,34 @@ Prompt: ${prompt}
             const ctx = layer.canvas.getContext('2d');
 
             // Optionally clear the layer before drawing
-            ctx.clearRect(0, 0, canvasSize, canvasSize);
+            ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
 
-            // Run the code with ctx in scope
+            // --- NEW: Draw to offscreen canvas first ---
+            const offscreen = document.createElement('canvas');
+            offscreen.width = this.canvasWidth;
+            offscreen.height = this.canvasHeight;
+            const offCtx = offscreen.getContext('2d');
+
+            // Run the AI code on the offscreen context
             try {
-                // eslint-disable-next-line no-new-func
-                new Function('ctx', code)(ctx);
+                new Function('ctx', code)(offCtx);
             } catch (e) {
                 throw new Error('Error running AI drawing code: ' + e.message);
             }
+
+            // Now center and scale the offscreen result onto the main layer
+            ctx.save();
+            ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+
+            // Calculate scale to fit the canvas
+            const scale = Math.min(this.canvasWidth / this.canvasSize, this.canvasHeight / this.canvasSize);
+            const dx = (this.canvasWidth - this.canvasSize * scale) / 2;
+            const dy = (this.canvasHeight - this.canvasSize * scale) / 2;
+
+            ctx.setTransform(scale, 0, 0, scale, dx, dy);
+            ctx.drawImage(offscreen, 0, 0);
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.restore();
 
             this.syncGlobalLayersToCurrentFrame();
             this.renderCurrentFrameToMainCanvas();
@@ -1483,10 +1502,10 @@ Prompt: ${prompt}
             },
             {
                 type: 'rectangle',
-                x: center - radius,
-                y: center - radius,
-                width: radius * 2,
-                height: radius * 2,
+                x: center,
+                y: center,
+                width: this.canvasWidth,
+                height: this.canvasHeight,
                 filled: true,
                 color: color
             }
@@ -1714,10 +1733,10 @@ Prompt: ${prompt}
 You are a JavaScript canvas animation assistant creating frame ${frameIndex + 1} of ${frameCount} for a smooth animation.
 
 ANIMATION CONTEXT:
-- Canvas size: ${canvasSize}x${canvasSize}
+- Canvas size: ${this.canvasWidth}x${this.canvasheight}
 - Style: "${style}"
 - Prompt: "${prompt}"
-- Progress: ${((frameIndex / (frameCount - 1)) * 100).toFixed(1)}% through animation
+- Progress: ${((frameIndex / (frameCount - 1)) * 100).toFixed(1)}% through animation. Fit full animation within ${frameCount} frames.
 
 ${contextFrames}
 
@@ -1728,7 +1747,9 @@ REQUIREMENTS:
 4. Use appropriate easing for natural motion
 5. Consider the animation timeline (beginning/middle/end)
 
-AVAILABLE METHODS: ctx.fillRect, ctx.strokeRect, ctx.beginPath, ctx.arc, ctx.ellipse, ctx.moveTo, ctx.lineTo, ctx.bezierCurveTo, ctx.quadraticCurveTo, ctx.stroke, ctx.fill, ctx.fillStyle, ctx.strokeStyle, ctx.lineWidth, ctx.globalAlpha, ctx.save, ctx.restore, ctx.translate, ctx.rotate, ctx.scale
+AVAILABLE METHODS: ctx.fillRect, ctx.strokeRect, ctx.beginPath, ctx.arc, ctx.ellipse, ctx.moveTo, 
+ctx.lineTo, ctx.bezierCurveTo, ctx.quadraticCurveTo, ctx.stroke, ctx.fill, ctx.fillStyle, ctx.strokeStyle, 
+ctx.lineWidth, ctx.globalAlpha, ctx.save, ctx.restore, ctx.translate, ctx.rotate, ctx.scale
 
 Generate the drawing code for frame ${frameIndex + 1}:`;
 
@@ -1765,7 +1786,7 @@ Generate the drawing code for frame ${frameIndex + 1}:`;
                 const ctx = layer.canvas.getContext('2d');
 
                 // Clear the layer before drawing
-                ctx.clearRect(0, 0, canvasSize, canvasSize);
+                ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
 
                 // Run the code with ctx in scope
                 try {
@@ -8055,7 +8076,11 @@ Create drawing commands for this animation frame:`;
             const name = nameInput.value.trim() || "animation";
             const format = formatSelect.value;
             modal.classList.add('hidden');
-            this._doExportAnimation(name, format);
+            if (format === "frames-zip" || format === "png-sequence") {
+                this.exportFramesAsZip(name);
+            } else {
+                this._doExportAnimation(name, format);
+            }
         };
         // Cancel export
         cancelBtn.onclick = () => {
@@ -8064,7 +8089,7 @@ Create drawing commands for this animation frame:`;
     }
 
     // --- EXPORT ALL FRAMES AS ZIP ---
-    async exportFramesAsZip() {
+    async exportFramesAsZip(name = "frames") {
         // Dynamically load JSZip if not already loaded
         if (typeof window.JSZip === "undefined") {
             await new Promise((resolve, reject) => {
@@ -8120,7 +8145,7 @@ Create drawing commands for this animation frame:`;
         const zipBlob = await zip.generateAsync({ type: "blob" });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(zipBlob);
-        a.download = "frames.zip";
+        a.download = name + ".zip";
         a.click();
     }
 
