@@ -1065,7 +1065,7 @@ Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, make sure 
 
         } catch (error) {
             console.error('AI generation failed:', error);
-            this.showNotification('AI response failed. No drawing generated.', 'warning');
+            this.showNotification('AI response failed\n' + error.message, 'warning');
         } finally {
             generateBtn.textContent = originalText;
             generateBtn.disabled = false;
@@ -1834,7 +1834,7 @@ Generate the drawing code for frame ${frameIndex + 1}:`;
             console.error('AI animation generation failed:', error);
             generateBtn.textContent = 'Generation Failed';
             generateBtn.classList.add('error');
-            this.showNotification('AI animation generation failed. Please try again.', 'error');
+            this.showNotification('AI animation generation failed\n' + error.message, 'error');
         } finally {
             setTimeout(() => {
                 generateBtn.textContent = originalText;
@@ -3017,29 +3017,82 @@ Create drawing commands for this animation frame:`;
     showNotification(message, type = 'info') {
         // Create a temporary notification element
         const notification = document.createElement('div');
+        let bgColor = '#4caf50';
+        if (type === 'warning') bgColor = '#ff9800';
+        if (type === 'error') bgColor = '#e53935';
+
         notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 20px;
-            background: ${type === 'warning' ? '#ff9800' : '#4caf50'};
-            color: white;
-            border-radius: 4px;
-            z-index: 10000;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            font-size: 14px;
-            max-width: 300px;
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px 12px 20px;
+        background: ${bgColor};
+        color: white;
+        border-radius: 4px;
+        z-index: 10000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        font-size: 14px;
+        max-width: 340px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-direction: column;
+    `;
+
+        // Message text
+        const msgDiv = document.createElement('div');
+        msgDiv.textContent = message;
+        notification.appendChild(msgDiv);
+
+        // If error, add Google search link
+        if (type === 'error') {
+            const link = document.createElement('a');
+            link.href = 'https://www.google.com/search?q=' + encodeURIComponent(message);
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'Search this error on Google';
+            link.style.cssText = `
+            color: #fff;
+            text-decoration: underline;
+            font-size: 13px;
+            margin-top: 4px;
+            opacity: 0.85;
         `;
-        notification.textContent = message;
+            link.onmouseenter = () => link.style.opacity = '1';
+            link.onmouseleave = () => link.style.opacity = '0.85';
+            notification.appendChild(link);
+        }
+
+        // Add close button
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = `
+        background: none;
+        border: none;
+        color: white;
+        font-size: 1.3em;
+        cursor: pointer;
+        margin-left: 8px;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+        align-self: flex-end;
+    `;
+        closeBtn.onclick = () => {
+            if (notification.parentNode) notification.parentNode.removeChild(notification);
+        };
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.7';
+
+        notification.appendChild(closeBtn);
 
         document.body.appendChild(notification);
 
-        // Remove after 4 seconds
+        // Remove after 12 seconds
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
             }
-        }, 4000);
+        }, 12000);
     }
 
     getFallbackColors(prompt) {
