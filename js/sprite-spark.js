@@ -8392,16 +8392,20 @@ Create drawing commands for this animation frame:`;
     updateSelectionDrag(x, y) {
         if (!this.isDraggingSelection) return;
 
-        const newX = x - this.selectionOffset.x;
-        const newY = y - this.selectionOffset.y;
+        // Adjust for zoom
+        const mouseX = x;
+        const mouseY = y;
 
         if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
+            const newX = mouseX - this.selectionOffset.x;
+            const newY = mouseY - this.selectionOffset.y;
             this.selectionBounds.x = newX;
             this.selectionBounds.y = newY;
         } else if (this.selectionPath.length > 0) {
-            // Move entire path
-            const dx = newX - this.selectionPath[0].x;
-            const dy = newY - this.selectionPath[0].y;
+            // Move entire path, snap to mouse position
+            const bounds = this.getAdjustedSelectionBounds();
+            const dx = mouseX - bounds.x - this.selectionOffset.x;
+            const dy = mouseY - bounds.y - this.selectionOffset.y;
             this.selectionPath = this.selectionPath.map(p => ({
                 x: p.x + dx,
                 y: p.y + dy
@@ -8551,6 +8555,20 @@ Create drawing commands for this animation frame:`;
         this.selectionRotateButton = null;
         this.stopSelectionAnimation();
         this.renderCurrentFrameToMainCanvas();
+    }
+
+    copySelection() {
+        if (!this.selectionActive || !this.selectionData) return;
+        // Store selection data and bounds for paste
+        this.copiedSelection = {
+            data: new ImageData(
+                new Uint8ClampedArray(this.selectionData.data),
+                this.selectionData.width,
+                this.selectionData.height
+            ),
+            width: this.selectionData.width,
+            height: this.selectionData.height
+        };
     }
 
     cutSelection() {
