@@ -678,6 +678,7 @@
                         <label>Art Style:</label>
                         <select id="aiArtStyle">
                             <option value="pixel-art">Pixel Art</option>
+                            <option value="pixel-art-character">Pixel Art Character</option>
                             <option value="simple-drawing">Simple Drawing</option>
                             <option value="line-art">Line Art</option>
                             <option value="minimalist">Minimalist</option>
@@ -716,6 +717,7 @@
             <div id="codeDrawingGroup" class="panel-group">
                 <div class="panel-group-title">
                     Code Drawing
+                    <button id="showAIPromptBtn" class="small-btn" style="margin-top:10px;">Get AI Chatbot Prompt</button>
                     <button id="openCodeModalBtn" title="Open in Modal" style="float:right;">&#x26F6;</button>
                 </div>
                 <textarea id="codeDrawingTextarea" rows="8" style="width:100%;font-family:monospace;resize:vertical;">// Example: Draw a house
@@ -781,6 +783,39 @@ ctx.fill(); // Roof
             <div style="margin-top:10px;display:flex;justify-content:space-between;">
                 <button id="applyCodeDrawingModalBtn" class="accent">Apply Code</button>
                 <button id="backToPanelBtn">Back to Panel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="aiPromptModal" class="modal hidden">
+        <div class="modal-content" style="min-width:340px;max-width:95vw;">
+            <h2>AI Chatbot Prompt Template</h2>
+            <div style="margin-bottom:12px;">
+                <div class="ai-prompt-fields">
+                    <label for="aiPromptStyle">Art Style:</label>
+                    <input type="text" id="aiPromptStyle" value="pixel-art" placeholder="e.g. pixel-art, cartoon, sketch">
+
+                    <label for="aiPromptSubject">What to draw:</label>
+                    <input type="text" id="aiPromptSubject" value="" placeholder="e.g. a cat, a sword, a house">
+
+                    <div style="display:flex;gap:12px;">
+                        <div style="flex:1;">
+                            <label for="aiPromptWidth">Canvas Width:</label>
+                            <input type="number" id="aiPromptWidth" value="320" min="1" style="width:100%;">
+                        </div>
+                        <div style="flex:1;">
+                            <label for="aiPromptHeight">Canvas Height:</label>
+                            <input type="number" id="aiPromptHeight" value="240" min="1" style="width:100%;">
+                        </div>
+                    </div>
+
+                    <label for="aiPromptGenerated">Generated Prompt:</label>
+                    <textarea id="aiPromptGenerated" readonly style="width:100%;min-height:100px;font-family:monospace;font-size:14px;resize:vertical;"></textarea>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="copyAIPromptBtn" class="modal-btn accent">Copy Prompt</button>
+                <button id="closeAIPromptModalBtn" class="modal-btn">Close</button>
             </div>
         </div>
     </div>

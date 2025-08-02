@@ -53,6 +53,10 @@ class AIDrawing {
             case 'pixel-art':
                 styleHint = 'Color each pixel with a hex color. Use ctx.fillRect(x, y, 1, 1) to draw each pixel. Use a limited retro color palette (8-16 colors). Keep it blocky and pixelated like classic video game sprites.';
                 break;
+            case 'pixel-art-character':
+                styleHint = 'Create a character sprite with a limited retro color palette.'
+                + 'Use ctx.fillRect(x, y, 1, 1) to draw each pixel. Focus on clear shapes and recognizable features. ' 
+                + 'Use curves and lines for shape and details.';
             case 'simple-drawing':
                 styleHint = 'Use simple shapes and colors. Use ctx.fillRect, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.fill, etc.';
                 break;

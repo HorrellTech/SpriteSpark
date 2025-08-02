@@ -995,7 +995,7 @@ You are a JavaScript canvas drawing professional. Given a prompt, generate ONLY 
 - Use ctx.fillRect, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.fill, etc(you should have access to all javascript drawing commands).
 - Do not include explanations, just a single code block.
 - The variable "ctx" is already defined.
-Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, in ${style} style. generate ONLY the JavaScript code to draw this image.
+Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, make sure to *CENTER THE MAIN SUBJECT* in ${style} style. generate ONLY the JavaScript code to draw this image.
 `;
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
@@ -1741,15 +1741,15 @@ ANIMATION CONTEXT:
 ${contextFrames}
 
 REQUIREMENTS:
-1. Generate ONLY JavaScript code using the 2D canvas context variable "ctx"
-2. Ensure smooth animation progression from previous frames
+1. Generate ONLY JavaScript code using the 2D canvas context variable "ctx". ctx is already defined and ready to use.
+2. Ensure smooth animation progression from previous frames, relative to frame count
 3. Maintain object consistency (size, color, position relativity)
 4. Use appropriate easing for natural motion
 5. Consider the animation timeline (beginning/middle/end)
+6. If you wish, you can use image URLs to draw images if you can find free ones, but ensure they are loaded before drawing.
 
-AVAILABLE METHODS: ctx.fillRect, ctx.strokeRect, ctx.beginPath, ctx.arc, ctx.ellipse, ctx.moveTo, 
-ctx.lineTo, ctx.bezierCurveTo, ctx.quadraticCurveTo, ctx.stroke, ctx.fill, ctx.fillStyle, ctx.strokeStyle, 
-ctx.lineWidth, ctx.globalAlpha, ctx.save, ctx.restore, ctx.translate, ctx.rotate, ctx.scale
+Use javascript canvas ctx(already defined) commands. If you wish to utilize fine detail, create a const drawPixel(x, y, color) 
+function to draw pixels. Use advanced algorithms if you want to create complex shapes or patterns.
 
 Generate the drawing code for frame ${frameIndex + 1}:`;
 
@@ -2399,121 +2399,6 @@ Calculate the exact position for this frame based on progress ${Math.round(progr
         return objects[0] || null;
     }
 
-    async generateFrameFromAnalysis(analysis, frameIndex, totalFrames, canvasSize, style, apiKey) {
-        const progress = frameIndex / (totalFrames - 1);
-
-        // MUCH SHORTER frame prompt - cut from ~800 to ~300 tokens
-        const framePrompt = `Frame ${frameIndex + 1}/${totalFrames} (${Math.round(progress * 100)}%):
-
-Objects: ${JSON.stringify(analysis.objects)}
-Canvas: ${canvasSize}x${canvasSize}
-
-Draw ALL body parts for each object at correct positions for this frame.
-Rules: Use realistic physics, smooth movement between start/end positions.
-
-Commands: circle(x,y,radius,filled,color), rectangle(x,y,w,h,filled,color), line(x1,y1,x2,y2,color)
-
-Return JSON array of drawing commands:`;
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: framePrompt }] }],
-                generationConfig: {
-                    temperature: 0.2, // Lower for more consistent animation
-                    topK: 20,
-                    topP: 0.8,
-                    maxOutputTokens: 1024,
-                }
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const content = data.candidates[0].content.parts[0].text.trim();
-
-        try {
-            const commands = JSON.parse(content);
-            return commands;
-        } catch (parseError) {
-            const jsonMatch = content.match(/\[[\s\S]*\]/);
-            if (!jsonMatch) {
-                console.error('No valid JSON commands found, using fallback');
-                return this.createFrameFromAnalysisFallback(analysis, frameIndex, totalFrames, canvasSize);
-            }
-            return JSON.parse(jsonMatch[0]);
-        }
-    }
-
-    // ALTERNATIVE: Single-call approach to reduce API calls
-    async generateAIAnimationOptimized(prompt, style, frameCount) {
-        const apiKey = localStorage.getItem('gemini_api_key');
-        if (!apiKey) {
-            alert('Please set your Gemini API key first');
-            return;
-        }
-
-        // Much simpler prompt
-        const allFramesPrompt = `Create ${frameCount} frames of "${prompt}" animation.
-Canvas: ${Math.min(this.canvasWidth, this.canvasHeight)}x${Math.min(this.canvasWidth, this.canvasHeight)}
-
-KEEP OBJECTS IDENTICAL between frames - only change x,y positions.
-
-Return JSON:
-{
-  "frames": [
-    [{"type": "circle", "x": 100, "y": 100, "radius": 10, "filled": true, "color": "#FF0000"}],
-    [{"type": "circle", "x": 110, "y": 100, "radius": 10, "filled": true, "color": "#FF0000"}]
-  ]
-}
-
-Make ${frameCount} frames with smooth movement.`;
-
-        try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: allFramesPrompt }] }],
-                    generationConfig: {
-                        temperature: 0.2,
-                        topK: 20,
-                        topP: 0.8,
-                        maxOutputTokens: 2048,
-                    }
-                })
-            });
-
-            if (!response.ok) throw new Error(`API error: ${response.status}`);
-
-            const data = await response.json();
-            const content = data.candidates[0].content.parts[0].text.trim();
-
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                const result = JSON.parse(jsonMatch[0]);
-
-                // Apply frames sequentially
-                for (let i = 0; i < Math.min(result.frames.length, frameCount); i++) {
-                    if (i >= this.frames.length) this.addEmptyFrame();
-                    this.selectFrame(i);
-                    this.executeDrawingCommands(result.frames[i], Math.min(this.canvasWidth, this.canvasHeight));
-                }
-
-                this.selectFrame(0);
-                this.updateFramesList();
-                return;
-            }
-        } catch (error) {
-            console.error('Optimized AI animation failed:', error);
-            return this.generateAIAnimation(prompt, style, frameCount);
-        }
-    }
-
     createFrameFromAnalysisFallback(analysis, frameIndex, totalFrames, canvasSize, previousCommands = null) {
         const progress = frameIndex / (totalFrames - 1);
         const commands = [];
@@ -2598,7 +2483,7 @@ Make ${frameCount} frames with smooth movement.`;
         const planPrompt = `You are an animation director creating a plan for a ${frameCount}-frame animation.
 
 Animation Request: "${prompt}"
-Canvas Size: ${canvasSize}x${canvasSize}
+Canvas Size: ${this.canvasWidth}x${this.canvasHeight}
 Style: ${style}
 
 Create a detailed animation plan that breaks down the movement/changes across ${frameCount} frames.
@@ -2657,104 +2542,6 @@ Focus on creating smooth, believable motion appropriate for the style.`;
 
         // Fallback plan
         return this.createFallbackAnimationPlan(prompt, frameCount);
-    }
-
-    async generateConsistentAnimationPlan(prompt, frameCount, canvasSize, style, apiKey) {
-        const planPrompt = `You are creating a CONSISTENT multi-object animation plan for: "${prompt}"
-
-CRITICAL CONSISTENCY RULES:
-1. Parse the prompt to identify ALL objects/elements that should be in the scene
-2. Each object must maintain consistent properties across all frames
-3. Background elements should be drawn first, then foreground objects
-4. Plan object interactions and relationships
-
-Canvas: ${canvasSize}x${canvasSize} pixels
-Frames: ${frameCount} total
-Style: ${style}
-
-Analyze the prompt and identify:
-- Background elements (grass, sky, buildings, etc.)
-- Main animated objects (balls, characters, etc.)
-- Static objects (trees, houses, etc.)
-- Environmental effects (clouds, particles, etc.)
-
-Return ONLY this JSON structure:
-{
-  "sceneElements": [
-    {
-      "type": "background|static|animated",
-      "name": "descriptive name",
-      "shape": "circle|rectangle|ellipse|triangle|line",
-      "primaryColor": "#hexcolor",
-      "secondaryColor": "#hexcolor",
-      "baseSize": number,
-      "layer": number (0=back, higher=front),
-      "animation": {
-        "type": "none|bounce|slide|rotate|sway",
-        "startX": number,
-        "startY": number,
-        "endX": number,
-        "endY": number,
-        "amplitude": number
-      }
-    }
-  ],
-  "frames": [
-    {
-      "frame": 0,
-      "elements": [
-        {
-          "name": "element name matching above",
-          "x": number,
-          "y": number,
-          "width": number,
-          "height": number,
-          "rotation": number
-        }
-      ]
-    }
-  ]
-}
-
-Example for "bouncing red ball on green grass":
-- Background: green grass (rectangle at bottom)
-- Animated: red ball (circle that bounces)
-- Static: maybe some flowers or trees
-
-Focus on creating a complete scene with all requested elements.`;
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: planPrompt }] }],
-                generationConfig: {
-                    temperature: 0.3,
-                    topK: 20,
-                    topP: 0.8,
-                    maxOutputTokens: 3072,
-                }
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const content = data.candidates[0].content.parts[0].text.trim();
-
-        try {
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                return JSON.parse(jsonMatch[0]);
-            }
-        } catch (e) {
-            console.warn('Could not parse animation plan JSON, using fallback');
-        }
-
-        // Enhanced fallback plan with multiple elements
-        return this.createComplexFallbackPlan(prompt, frameCount, canvasSize);
     }
 
     createComplexFallbackPlan(prompt, frameCount, canvasSize) {
@@ -6823,21 +6610,11 @@ Create drawing commands for this animation frame:`;
         const x = Math.floor((e.clientX - rect.left) / this.zoom);
         const y = Math.floor((e.clientY - rect.top) / this.zoom);
 
-        // Draw ghost brush
+        // Draw a single 1x1 pixel ghost cursor
         this.ghostCtx.save();
         this.ghostCtx.globalAlpha = 1;
-        this.ghostCtx.strokeStyle = '#888';
-        this.ghostCtx.lineWidth = 1;
-        this.ghostCtx.beginPath();
-        this.ghostCtx.arc(x, y, this.brushSize / 2, 0, 2 * Math.PI);
-        this.ghostCtx.stroke();
-
-        // Fill with brush color
         this.ghostCtx.fillStyle = this.primaryColor;
-        this.ghostCtx.globalAlpha = 0.9;
-        this.ghostCtx.beginPath();
-        this.ghostCtx.arc(x, y, this.brushSize / 2, 0, 2 * Math.PI);
-        this.ghostCtx.fill();
+        this.ghostCtx.fillRect(x, y, 1, 1);
         this.ghostCtx.restore();
     }
 
@@ -10994,6 +10771,53 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 300); // Wait for transition to complete
         });
     });
+
+    // Show modal when button is clicked
+    document.getElementById('showAIPromptBtn').addEventListener('click', function () {
+        document.getElementById('aiPromptModal').classList.remove('hidden');
+    });
+
+    // Close modal
+    document.getElementById('closeAIPromptModalBtn').addEventListener('click', function () {
+        document.getElementById('aiPromptModal').classList.add('hidden');
+    });
+
+    // Copy prompt to clipboard
+    document.getElementById('copyAIPromptBtn').addEventListener('click', function () {
+        const textarea = document.getElementById('aiPromptTemplate');
+        textarea.select();
+        document.execCommand('copy');
+        this.textContent = 'Copied!';
+        setTimeout(() => { this.textContent = 'Copy Prompt'; }, 1200);
+    });
+
+    function updateAIPromptGenerated() {
+        const style = document.getElementById('aiPromptStyle').value || 'pixel-art';
+        const subject = document.getElementById('aiPromptSubject').value || 'a cat';
+        const width = document.getElementById('aiPromptWidth').value || '320';
+        const height = document.getElementById('aiPromptHeight').value || '240';
+
+        const prompt = `Give me javascript code to draw a ${style} image of ${subject} on a canvas of size ${width}x${height} pixels.
+Return only JavaScript code that uses the HTML5 Canvas API (ctx - already defined) to draw the image.
+Do not include explanations, comments, or HTML—just the code. If the style is pixel art, create a const drawPixel(x, y, color) function to set pixel colors.`;
+
+        document.getElementById('aiPromptGenerated').value = prompt;
+    }
+
+    // Update prompt when any field changes
+    ['aiPromptStyle', 'aiPromptSubject', 'aiPromptWidth', 'aiPromptHeight'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateAIPromptGenerated);
+    });
+
+    // Initialize on modal open
+    document.getElementById('aiPromptModal').addEventListener('show', updateAIPromptGenerated);
+    // Or call updateAIPromptGenerated() after modal is shown
+
+    document.getElementById('copyAIPromptBtn').onclick = function () {
+        const prompt = document.getElementById('aiPromptGenerated').value;
+        navigator.clipboard.writeText(prompt);
+        // Optionally show a "Copied!" message
+    };
 
     // Force desktop mode always
     document.body.classList.add('desktop-mode');
