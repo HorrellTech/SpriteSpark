@@ -1065,7 +1065,7 @@ Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, make sure 
 
         } catch (error) {
             console.error('AI generation failed:', error);
-            this.showNotification('AI response failed\n' + error.message, 'warning');
+            this.showNotification(error.message, 'warning');
         } finally {
             generateBtn.textContent = originalText;
             generateBtn.disabled = false;
@@ -1733,7 +1733,7 @@ Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, make sure 
 You are a JavaScript canvas animation assistant creating frame ${frameIndex + 1} of ${frameCount} for a smooth animation.
 
 ANIMATION CONTEXT:
-- Canvas size: ${this.canvasWidth}x${this.canvasheight}
+- Canvas size: ${this.canvasWidth}x${this.canvasHeight}
 - Style: "${style}"
 - Prompt: "${prompt}"
 - Progress: ${((frameIndex / (frameCount - 1)) * 100).toFixed(1)}% through animation. Fit full animation within ${frameCount} frames.
@@ -1834,7 +1834,7 @@ Generate the drawing code for frame ${frameIndex + 1}:`;
             console.error('AI animation generation failed:', error);
             generateBtn.textContent = 'Generation Failed';
             generateBtn.classList.add('error');
-            this.showNotification('AI animation generation failed\n' + error.message, 'error');
+            this.showNotification(error.message, 'error');
         } finally {
             setTimeout(() => {
                 generateBtn.textContent = originalText;
@@ -3030,18 +3030,19 @@ Create drawing commands for this animation frame:`;
         color: white;
         border-radius: 4px;
         z-index: 10000;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.35);
         font-size: 14px;
         max-width: 340px;
         display: flex;
         align-items: center;
         gap: 12px;
         flex-direction: column;
+        border: 2.5px solid #fff;
     `;
 
         // Message text
         const msgDiv = document.createElement('div');
-        msgDiv.textContent = message;
+        msgDiv.textContent = 'AI Generation Failed: ' + message;
         notification.appendChild(msgDiv);
 
         // If error, add Google search link
