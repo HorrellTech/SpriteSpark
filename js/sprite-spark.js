@@ -8733,24 +8733,8 @@ Create drawing commands for this animation frame:`;
                         }
                     }
 
-                    // Use the same interpolation logic as live preview
-                    let transform;
-                    if (obj.tween && idx < activeFrames.length - 1) {
-                        const currentTransform = obj.getTransformAt(idx);
-                        const nextTransform = obj.getTransformAt(idx + 1);
-
-                        // Add sub-frame interpolation for smoother export
-                        const subFrameProgress = 0.5; // Mid-frame interpolation
-                        transform = {
-                            x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
-                            y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
-                            scale: this.lerp(currentTransform.scale, nextTransform.scale, subFrameProgress),
-                            angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
-                            image: currentTransform.image || nextTransform.image
-                        };
-                    } else {
-                        transform = obj.getTransformAt(idx);
-                    }
+                    // FIX: Get complete transform for this frame
+                    const transform = obj.getTransformAt(idx);
 
                     tempCtx.save();
                     tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
@@ -8759,9 +8743,25 @@ Create drawing commands for this animation frame:`;
                     } else {
                         tempCtx.filter = 'none';
                     }
+
                     tempCtx.translate(transform.x, transform.y);
                     tempCtx.rotate(transform.angle * Math.PI / 180);
-                    tempCtx.scale(transform.scale, transform.scale);
+
+                    // FIX: Apply skew transform
+                    const skewX = (transform.skewX || 0) * Math.PI / 180;
+                    const skewY = (transform.skewY || 0) * Math.PI / 180;
+                    if (skewX !== 0 || skewY !== 0) {
+                        tempCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+                    }
+
+                    // FIX: Apply scaling with flip support
+                    let finalScaleX = transform.scaleX || 1;
+                    let finalScaleY = transform.scaleY || 1;
+
+                    if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+                    if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+
+                    tempCtx.scale(finalScaleX, finalScaleY);
 
                     if (transform.image) {
                         tempCtx.drawImage(
@@ -8857,90 +8857,133 @@ Create drawing commands for this animation frame:`;
 
             let totalFrames = activeFrames.length;
 
-            // --- ASYNC FRAME ADDITION ---
+            // Enhanced frame addition with sub-frame interpolation for smooth tweening
             const addFramesAsync = async () => {
-                for (let f = 0; f < totalFrames; f++) {
+                // Calculate how many sub-frames to render for smoother object animation
+                const subFrameSteps = 4; // Render 4x more frames for smoother tweening
+                const totalSubFrames = totalFrames * subFrameSteps;
+
+                for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
                     if (cancelled) return;
-                    const tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = this.canvasWidth;
-                    tempCanvas.height = this.canvasHeight;
-                    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-                    const frame = activeFrames[f];
 
-                    // Draw layers
-                    for (let i = 0; i < frame.layers.length; i++) {
-                        const layer = frame.layers[i];
-                        if (!layer.isVisible) continue;
-                        tempCtx.globalAlpha = layer.opacity / 100;
-                        tempCtx.globalCompositeOperation = layer.blendMode;
-                        tempCtx.drawImage(layer.canvas, 0, 0);
-                    }
+                    // Render multiple sub-frames for this frame to get smooth tweening
+                    for (let subStep = 0; subStep < subFrameSteps; subStep++) {
+                        if (cancelled) return;
 
-                    // Draw objects for this frame with visibility check
-                    tempCtx.globalAlpha = 1.0;
-                    tempCtx.globalCompositeOperation = 'source-over';
+                        const subFrameProgress = subStep / subFrameSteps;
+                        const currentSubFrame = frameIndex * subFrameSteps + subStep;
 
-                    for (const obj of this.objectInstances) {
-                        if (obj.visible === false) continue;
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = this.canvasWidth;
+                        tempCanvas.height = this.canvasHeight;
+                        const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                        const frame = activeFrames[frameIndex];
 
-                        // Check if the object's layer is visible
-                        if (obj.layerId) {
-                            const objectLayer = this.layers.find(l => l.id === obj.layerId);
-                            if (objectLayer && !objectLayer.isVisible) {
-                                continue;
+                        // Draw layers first
+                        for (let i = 0; i < frame.layers.length; i++) {
+                            const layer = frame.layers[i];
+                            if (!layer.isVisible) continue;
+                            tempCtx.globalAlpha = layer.opacity / 100;
+                            tempCtx.globalCompositeOperation = layer.blendMode;
+                            tempCtx.drawImage(layer.canvas, 0, 0);
+                        }
+
+                        // Draw objects with sub-frame interpolation for smooth tweening
+                        tempCtx.globalAlpha = 1.0;
+                        tempCtx.globalCompositeOperation = 'source-over';
+
+                        for (const obj of this.objectInstances) {
+                            if (obj.visible === false) continue;
+
+                            // Check if the object's layer is visible
+                            if (obj.layerId) {
+                                const objectLayer = this.layers.find(l => l.id === obj.layerId);
+                                if (objectLayer && !objectLayer.isVisible) {
+                                    continue;
+                                }
                             }
+
+                            // Get interpolated transform with sub-frame smoothing
+                            let transform;
+                            if (obj.tween && subFrameProgress > 0 && frameIndex < totalFrames - 1) {
+                                // Calculate sub-frame interpolated position for smooth animation
+                                const currentTransform = obj.getTransformAt(frameIndex);
+                                const nextFrameIndex = frameIndex + 1;
+                                const nextTransform = obj.getTransformAt(nextFrameIndex);
+
+                                // Interpolate ALL transform properties with sub-frame precision
+                                transform = {
+                                    x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
+                                    y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
+                                    scaleX: this.lerp(currentTransform.scaleX || 1, nextTransform.scaleX || 1, subFrameProgress),
+                                    scaleY: this.lerp(currentTransform.scaleY || 1, nextTransform.scaleY || 1, subFrameProgress),
+                                    angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
+                                    flipX: currentTransform.flipX || false, // Flips don't interpolate
+                                    flipY: currentTransform.flipY || false,
+                                    skewX: this.lerp(currentTransform.skewX || 0, nextTransform.skewX || 0, subFrameProgress),
+                                    skewY: this.lerp(currentTransform.skewY || 0, nextTransform.skewY || 0, subFrameProgress),
+                                    image: currentTransform.image || nextTransform.image
+                                };
+                            } else {
+                                // Use exact keyframe transform
+                                transform = obj.getTransformAt(frameIndex);
+                            }
+
+                            tempCtx.save();
+                            tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+                            if (obj.hue && obj.hue !== 0) {
+                                tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
+                            } else {
+                                tempCtx.filter = 'none';
+                            }
+
+                            tempCtx.translate(transform.x, transform.y);
+                            tempCtx.rotate(transform.angle * Math.PI / 180);
+
+                            // Apply skew transform
+                            const skewX = (transform.skewX || 0) * Math.PI / 180;
+                            const skewY = (transform.skewY || 0) * Math.PI / 180;
+                            if (skewX !== 0 || skewY !== 0) {
+                                tempCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+                            }
+
+                            // Apply scaling with flip support
+                            let finalScaleX = transform.scaleX || 1;
+                            let finalScaleY = transform.scaleY || 1;
+
+                            if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+                            if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+
+                            tempCtx.scale(finalScaleX, finalScaleY);
+
+                            if (transform.image) {
+                                tempCtx.drawImage(
+                                    transform.image,
+                                    -transform.image.width / 2,
+                                    -transform.image.height / 2
+                                );
+                            }
+                            tempCtx.restore();
                         }
 
-                        // Use the same interpolation logic as live preview
-                        let transform;
-                        if (obj.tween && f < totalFrames - 1) {
-                            const currentTransform = obj.getTransformAt(f);
-                            const nextTransform = obj.getTransformAt(f + 1);
+                        // Add frame to GIF with appropriate delay
+                        // Use shorter delay since we're adding more frames
+                        const frameDelay = (1000 / this.fps) / subFrameSteps;
+                        gif.addFrame(tempCanvas, { delay: frameDelay });
 
-                            // Add sub-frame interpolation for smoother export
-                            const subFrameProgress = 0.5; // Mid-frame interpolation
-                            transform = {
-                                x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
-                                y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
-                                scale: this.lerp(currentTransform.scale, nextTransform.scale, subFrameProgress),
-                                angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
-                                image: currentTransform.image || nextTransform.image
-                            };
-                        } else {
-                            transform = obj.getTransformAt(f);
-                        }
+                        // Update progress
+                        const progressPercent = Math.round(((currentSubFrame + 1) / totalSubFrames) * 100);
+                        showLoading(`Preparing GIF: ${currentSubFrame + 1}/${totalSubFrames} (${progressPercent}%)`, progressPercent);
 
-                        tempCtx.save();
-                        tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
-                        if (obj.hue && obj.hue !== 0) {
-                            tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
-                        } else {
-                            tempCtx.filter = 'none';
-                        }
-                        tempCtx.translate(transform.x, transform.y);
-                        tempCtx.rotate(transform.angle * Math.PI / 180);
-                        tempCtx.scale(transform.scale, transform.scale);
-
-                        if (transform.image) {
-                            tempCtx.drawImage(
-                                transform.image,
-                                -transform.image.width / 2,
-                                -transform.image.height / 2
-                            );
-                        }
-                        tempCtx.restore();
+                        // Yield to browser for UI updates
+                        await new Promise(r => setTimeout(r, 5));
                     }
-
-                    gif.addFrame(tempCanvas, { delay: 1000 / this.fps });
-
-                    // Yield to the browser so UI/progress can update
-                    showLoading(`Preparing GIF: ${f + 1}/${totalFrames}`, Math.round(((f + 1) / totalFrames) * 100));
-                    await new Promise(r => setTimeout(r, 10));
                 }
 
                 gif.on('progress', (p) => {
                     showLoading(`Encoding GIF: ${Math.round(p * 100)}%`, Math.round(p * 100));
                 });
+
                 gif.on('finished', function (blob) {
                     hideLoading();
                     if (cancelled) return;
@@ -8949,22 +8992,26 @@ Create drawing commands for this animation frame:`;
                     a.download = name + ".gif";
                     a.click();
                 });
+
                 showLoading("Encoding GIF: 0%", 0);
                 gif.render();
             };
 
             addFramesAsync();
         } else {
-            // WebM/MP4 export using CCapture.js - also include objects
+            // WebM/MP4 export with enhanced object tweening
             let capturer = new CCapture({
                 format: "webm",
-                framerate: this.fps,
+                framerate: this.fps * 4, // Increase framerate for smoother tweening
                 verbose: true,
                 name: name
             });
 
             let frameIdx = 0;
             const totalFrames = activeFrames.length;
+            const subFrameSteps = 4; // Render 4x frames for smooth tweening
+            const totalSubFrames = totalFrames * subFrameSteps;
+
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = this.canvasWidth;
             tempCanvas.height = this.canvasHeight;
@@ -8979,83 +9026,119 @@ Create drawing commands for this animation frame:`;
                         hideLoading();
                         return;
                     }
-                    tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-                    const frame = activeFrames[frameIdx];
 
-                    // Draw layers
-                    for (let i = 0; i < frame.layers.length; i++) {
-                        const layer = frame.layers[i];
-                        if (!layer.isVisible) continue;
-                        tempCtx.globalAlpha = layer.opacity / 100;
-                        tempCtx.globalCompositeOperation = layer.blendMode;
-                        tempCtx.drawImage(layer.canvas, 0, 0);
-                    }
+                    // Render multiple sub-frames for this frame
+                    for (let subStep = 0; subStep < subFrameSteps; subStep++) {
+                        if (cancelled) {
+                            capturer.stop();
+                            hideLoading();
+                            return;
+                        }
 
-                    // Draw objects
-                    tempCtx.globalAlpha = 1.0;
-                    tempCtx.globalCompositeOperation = 'source-over';
+                        const subFrameProgress = subStep / subFrameSteps;
+                        tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+                        const frame = activeFrames[frameIdx];
 
-                    for (const obj of this.objectInstances) {
-                        if (obj.visible === false) continue;
+                        // Draw layers
+                        for (let i = 0; i < frame.layers.length; i++) {
+                            const layer = frame.layers[i];
+                            if (!layer.isVisible) continue;
+                            tempCtx.globalAlpha = layer.opacity / 100;
+                            tempCtx.globalCompositeOperation = layer.blendMode;
+                            tempCtx.drawImage(layer.canvas, 0, 0);
+                        }
 
-                        // Check if the object's layer is visible
-                        if (obj.layerId) {
-                            const objectLayer = this.layers.find(l => l.id === obj.layerId);
-                            if (objectLayer && !objectLayer.isVisible) {
-                                continue;
+                        // Draw objects with sub-frame interpolation
+                        tempCtx.globalAlpha = 1.0;
+                        tempCtx.globalCompositeOperation = 'source-over';
+
+                        for (const obj of this.objectInstances) {
+                            if (obj.visible === false) continue;
+
+                            // Check if the object's layer is visible
+                            if (obj.layerId) {
+                                const objectLayer = this.layers.find(l => l.id === obj.layerId);
+                                if (objectLayer && !objectLayer.isVisible) {
+                                    continue;
+                                }
                             }
+
+                            // Same interpolation logic as GIF export
+                            let transform;
+                            if (obj.tween && subFrameProgress > 0 && frameIdx < totalFrames - 1) {
+                                const currentTransform = obj.getTransformAt(frameIdx);
+                                const nextTransform = obj.getTransformAt(frameIdx + 1);
+
+                                transform = {
+                                    x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
+                                    y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
+                                    scaleX: this.lerp(currentTransform.scaleX || 1, nextTransform.scaleX || 1, subFrameProgress),
+                                    scaleY: this.lerp(currentTransform.scaleY || 1, nextTransform.scaleY || 1, subFrameProgress),
+                                    angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
+                                    flipX: currentTransform.flipX || false,
+                                    flipY: currentTransform.flipY || false,
+                                    skewX: this.lerp(currentTransform.skewX || 0, nextTransform.skewX || 0, subFrameProgress),
+                                    skewY: this.lerp(currentTransform.skewY || 0, nextTransform.skewY || 0, subFrameProgress),
+                                    image: currentTransform.image || nextTransform.image
+                                };
+                            } else {
+                                transform = obj.getTransformAt(frameIdx);
+                            }
+
+                            tempCtx.save();
+                            tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+                            if (obj.hue && obj.hue !== 0) {
+                                tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
+                            } else {
+                                tempCtx.filter = 'none';
+                            }
+
+                            tempCtx.translate(transform.x, transform.y);
+                            tempCtx.rotate(transform.angle * Math.PI / 180);
+
+                            // Apply skew transform
+                            const skewX = (transform.skewX || 0) * Math.PI / 180;
+                            const skewY = (transform.skewY || 0) * Math.PI / 180;
+                            if (skewX !== 0 || skewY !== 0) {
+                                tempCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+                            }
+
+                            // Apply scaling with flip support
+                            let finalScaleX = transform.scaleX || 1;
+                            let finalScaleY = transform.scaleY || 1;
+
+                            if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+                            if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+
+                            tempCtx.scale(finalScaleX, finalScaleY);
+
+                            if (transform.image) {
+                                tempCtx.drawImage(
+                                    transform.image,
+                                    -transform.image.width / 2,
+                                    -transform.image.height / 2
+                                );
+                            }
+                            tempCtx.restore();
                         }
 
-                        // Use the same interpolation logic as live preview
-                        let transform;
-                        if (obj.tween && frameIdx < totalFrames - 1) {
-                            const currentTransform = obj.getTransformAt(frameIdx);
-                            const nextTransform = obj.getTransformAt(frameIdx + 1);
+                        capturer.capture(tempCanvas);
 
-                            // Add sub-frame interpolation for smoother export
-                            const subFrameProgress = 0.5; // Mid-frame interpolation
-                            transform = {
-                                x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
-                                y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
-                                scale: this.lerp(currentTransform.scale, nextTransform.scale, subFrameProgress),
-                                angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
-                                image: currentTransform.image || nextTransform.image
-                            };
-                        } else {
-                            transform = obj.getTransformAt(frameIdx);
-                        }
+                        const currentSubFrame = frameIdx * subFrameSteps + subStep;
+                        const progressPercent = Math.round(((currentSubFrame + 1) / totalSubFrames) * 100);
+                        showLoading(`Encoding WEBM: ${currentSubFrame + 1}/${totalSubFrames} (${progressPercent}%)`, progressPercent);
 
-                        tempCtx.save();
-                        tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
-                        if (obj.hue && obj.hue !== 0) {
-                            tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
-                        } else {
-                            tempCtx.filter = 'none';
-                        }
-                        tempCtx.translate(transform.x, transform.y);
-                        tempCtx.rotate(transform.angle * Math.PI / 180);
-                        tempCtx.scale(transform.scale, transform.scale);
-
-                        if (transform.image) {
-                            tempCtx.drawImage(
-                                transform.image,
-                                -transform.image.width / 2,
-                                -transform.image.height / 2
-                            );
-                        }
-                        tempCtx.restore();
+                        await new Promise(r => setTimeout(r, 1000 / (this.fps * subFrameSteps)));
                     }
-
-                    capturer.capture(tempCanvas);
-                    showLoading(`Encoding WEBM: ${frameIdx + 1}/${totalFrames}`, Math.round(((frameIdx + 1) / totalFrames) * 100));
-                    await new Promise(r => setTimeout(r, 1000 / this.fps));
                 }
+
                 capturer.stop();
                 setTimeout(() => {
                     capturer.save();
                     hideLoading();
                 }, 500);
             };
+
             renderFrame();
         }
     }

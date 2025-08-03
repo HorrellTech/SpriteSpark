@@ -15,12 +15,12 @@ class SpriteObject {
             y: options.y || 0,
             // Handle both old single scale and new separate scales
             scaleX: options.scaleX !== undefined ? options.scaleX : (options.scale || 1),
-            scaleY: options.scaleY !== undefined ? options.scaleY : (options.scale || 1),  
+            scaleY: options.scaleY !== undefined ? options.scaleY : (options.scale || 1),
             angle: options.angle || 0,
 
             flipX: options.flipX || false,
             flipY: options.flipY || false,
-            
+
             skewX: options.skewX || 0,
             skewY: options.skewY || 0,
 
@@ -31,16 +31,16 @@ class SpriteObject {
     }
 
     setKeyframe(frame, { x, y, scaleX, scaleY, angle, flipX, flipY, skewX, skewY, image }) {
-        this.keyframes[frame] = { 
-            x, y, 
-            scaleX: scaleX || 1, 
-            scaleY: scaleY || 1, 
+        this.keyframes[frame] = {
+            x, y,
+            scaleX: scaleX || 1,
+            scaleY: scaleY || 1,
             angle: angle || 0,
             flipX: flipX || false,
             flipY: flipY || false,
             skewX: skewX || 0,
             skewY: skewY || 0,
-            image 
+            image
         };
     }
 
@@ -51,20 +51,7 @@ class SpriteObject {
     getTransformAt(frame) {
         // If tweening is disabled, return exact keyframe or default
         if (!this.tween) {
-            const keyframe = this.keyframes[frame];
-            if (keyframe) {
-                // Convert old scale to separate scales if needed
-                if (keyframe.scale !== undefined && (keyframe.scaleX === undefined || keyframe.scaleY === undefined)) {
-                    return {
-                        ...keyframe,
-                        scaleX: keyframe.scaleX || keyframe.scale,
-                        scaleY: keyframe.scaleY || keyframe.scale,
-                        scale: undefined
-                    };
-                }
-                return { ...keyframe };
-            }
-            return this.getDefaultTransform();
+            return this.keyframes[frame] || this.getDefaultTransform();
         }
 
         // Find surrounding keyframes for interpolation
@@ -75,18 +62,9 @@ class SpriteObject {
             return this.getDefaultTransform();
         }
 
-        // If exact keyframe exists, return it (with scale conversion if needed)
+        // If exact keyframe exists, return it
         if (this.keyframes[frame]) {
-            const keyframe = this.keyframes[frame];
-            if (keyframe.scale !== undefined && (keyframe.scaleX === undefined || keyframe.scaleY === undefined)) {
-                return {
-                    ...keyframe,
-                    scaleX: keyframe.scaleX || keyframe.scale,
-                    scaleY: keyframe.scaleY || keyframe.scale,
-                    scale: undefined
-                };
-            }
-            return { ...keyframe };
+            return { ...this.keyframes[frame] };
         }
 
         // Find the two keyframes to interpolate between
@@ -104,30 +82,12 @@ class SpriteObject {
 
         // If only keyframes after current frame, use the first one
         if (beforeFrame === -1) {
-            const keyframe = this.keyframes[afterFrame];
-            if (keyframe.scale !== undefined && (keyframe.scaleX === undefined || keyframe.scaleY === undefined)) {
-                return {
-                    ...keyframe,
-                    scaleX: keyframe.scaleX || keyframe.scale,
-                    scaleY: keyframe.scaleY || keyframe.scale,
-                    scale: undefined
-                };
-            }
-            return { ...keyframe };
+            return { ...this.keyframes[afterFrame] };
         }
 
         // If only keyframes before current frame, use the last one
         if (afterFrame === -1) {
-            const keyframe = this.keyframes[beforeFrame];
-            if (keyframe.scale !== undefined && (keyframe.scaleX === undefined || keyframe.scaleY === undefined)) {
-                return {
-                    ...keyframe,
-                    scaleX: keyframe.scaleX || keyframe.scale,
-                    scaleY: keyframe.scaleY || keyframe.scale,
-                    scale: undefined
-                };
-            }
-            return { ...keyframe };
+            return { ...this.keyframes[beforeFrame] };
         }
 
         // Interpolate between the two keyframes
@@ -135,23 +95,17 @@ class SpriteObject {
         const afterTransform = this.keyframes[afterFrame];
         const progress = (frame - beforeFrame) / (afterFrame - beforeFrame);
 
-        // Convert old scale to separate scales for interpolation
-        const beforeScaleX = beforeTransform.scaleX !== undefined ? beforeTransform.scaleX : (beforeTransform.scale || 1);
-        const beforeScaleY = beforeTransform.scaleY !== undefined ? beforeTransform.scaleY : (beforeTransform.scale || 1);
-        const afterScaleX = afterTransform.scaleX !== undefined ? afterTransform.scaleX : (afterTransform.scale || 1);
-        const afterScaleY = afterTransform.scaleY !== undefined ? afterTransform.scaleY : (afterTransform.scale || 1);
-
+        // FIX: Interpolate ALL transform properties
         return {
             x: this.lerp(beforeTransform.x, afterTransform.x, progress),
             y: this.lerp(beforeTransform.y, afterTransform.y, progress),
-            scaleX: this.lerp(beforeScaleX, afterScaleX, progress),
-            scaleY: this.lerp(beforeScaleY, afterScaleY, progress),
-            // For boolean values like flip, use the "after" value when progress > 0.5
-            flipX: progress > 0.5 ? afterTransform.flipX : beforeTransform.flipX,
-            flipY: progress > 0.5 ? afterTransform.flipY : beforeTransform.flipY,
-            // Interpolate skew values
-            skewX: this.lerp(beforeTransform.skewX, afterTransform.skewX, progress),
-            skewY: this.lerp(beforeTransform.skewY, afterTransform.skewY, progress),
+            scaleX: this.lerp(beforeTransform.scaleX || 1, afterTransform.scaleX || 1, progress),
+            scaleY: this.lerp(beforeTransform.scaleY || 1, afterTransform.scaleY || 1, progress),
+            angle: this.lerpAngle(beforeTransform.angle, afterTransform.angle, progress),
+            flipX: afterTransform.flipX || beforeTransform.flipX || false, // Flip doesn't interpolate
+            flipY: afterTransform.flipY || beforeTransform.flipY || false,
+            skewX: this.lerp(beforeTransform.skewX || 0, afterTransform.skewX || 0, progress),
+            skewY: this.lerp(beforeTransform.skewY || 0, afterTransform.skewY || 0, progress),
             image: afterTransform.image || beforeTransform.image
         };
     }
@@ -189,8 +143,8 @@ class SpriteObject {
 
     getDefaultTransform() {
         return {
-            x: this.canvasWidth / 2 || 160,
-            y: this.canvasHeight / 2 || 120,
+            x: this.canvasWidth / 2,
+            y: this.canvasHeight / 2,
             scaleX: 1,
             scaleY: 1,
             angle: 0,
