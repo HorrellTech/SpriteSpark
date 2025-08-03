@@ -13,6 +13,9 @@ class SpriteSpark {
         this.populateThemeDropdown();
         // Initialize object tool
         this.initializeObjectTool();
+
+        // Initialize scene objects manager
+        this.sceneObjectsManager = new SceneObjectsManager(this);
     }
 
     initializeProperties() {
@@ -5763,48 +5766,34 @@ Create drawing commands for this animation frame:`;
             }
         }
 
-        // Draw current frame layers with glow if enabled
+        // Draw current frame layers with objects interspersed by layer
         for (let i = 0; i < this.layers.length; i++) {
             const layer = this.layers[i];
             if (!layer.isVisible) continue;
-            const glow = this.layerGlowSettings[layer.id];
-            if (glow && glow.enabled && glow.size > 0) {
-                // 1. Create a colored mask of the layer
-                const mask = document.createElement('canvas');
-                mask.width = layer.canvas.width;
-                mask.height = layer.canvas.height;
-                const maskCtx = mask.getContext('2d');
-                maskCtx.drawImage(layer.canvas, 0, 0);
-                maskCtx.globalCompositeOperation = 'source-in';
-                maskCtx.fillStyle = glow.color;
-                maskCtx.globalAlpha = 1;
-                maskCtx.fillRect(0, 0, mask.width, mask.height);
 
-                // 2. Blur the mask
-                const blurred = document.createElement('canvas');
-                blurred.width = mask.width;
-                blurred.height = mask.height;
-                const blurredCtx = blurred.getContext('2d');
-                blurredCtx.filter = `blur(${glow.size}px)`;
-                blurredCtx.drawImage(mask, 0, 0);
+            const frame = this.frames[this.currentFrame];
+            const frameLayer = frame.layers[i];
+            if (!frameLayer) continue;
 
-                // 3. Punch out the original layer content from the blurred glow
-                blurredCtx.globalCompositeOperation = 'destination-out';
-                blurredCtx.drawImage(layer.canvas, 0, 0);
+            // Draw layer content with glow if enabled
+            this.ctx.save();
+            this.ctx.globalAlpha = layer.opacity / 100;
+            this.ctx.globalCompositeOperation = layer.blendMode || 'source-over';
 
-                // 4. Draw the glow to the main canvas
-                this.ctx.save();
-                this.ctx.globalAlpha = 1.0;
-                this.ctx.globalCompositeOperation = 'lighter';
-                this.ctx.drawImage(blurred, 0, 0);
-                this.ctx.restore();
+            // Apply glow effect if enabled for this layer
+            const glowSettings = this.layerGlowSettings[layer.id];
+            if (glowSettings && glowSettings.enabled) {
+                this.ctx.shadowColor = glowSettings.color;
+                this.ctx.shadowBlur = glowSettings.size;
+                this.ctx.shadowOffsetX = 0;
+                this.ctx.shadowOffsetY = 0;
             }
-            // Draw the layer content
-            if (layer.canvas) {
-                this.ctx.globalAlpha = layer.opacity / 100;
-                this.ctx.globalCompositeOperation = layer.blendMode;
-                this.ctx.drawImage(layer.canvas, 0, 0);
-            }
+
+            this.ctx.drawImage(frameLayer.canvas, 0, 0);
+            this.ctx.restore();
+
+            // Draw objects that belong to this layer
+            this.renderObjectInstancesForLayer(layer.id);
         }
 
         // Draw mirror lines
@@ -5852,6 +5841,59 @@ Create drawing commands for this animation frame:`;
         this.ctx.globalCompositeOperation = 'source-over';
 
         this.renderFrameToLivePreview(this.currentFrame);
+    }
+
+    renderObjectInstancesForLayer(layerId) {
+        // Filter objects that belong to this layer and are visible
+        const layerObjects = this.objectInstances.filter(instance =>
+            instance.layerId === layerId && instance.visible
+        );
+
+        layerObjects.forEach(instance => {
+            const transform = instance.getTransformAt(this.currentFrame);
+            if (!transform.image) return;
+
+            this.ctx.save();
+
+            // Apply object-level alpha and hue
+            this.ctx.globalAlpha = (instance.alpha || 1) / 100;
+
+            // Apply hue rotation if specified
+            if (instance.hue && instance.hue !== 0) {
+                this.ctx.filter = `hue-rotate(${instance.hue}deg)`;
+            }
+
+            // Set transform
+            this.ctx.translate(transform.x, transform.y);
+            this.ctx.rotate((transform.angle || 0) * Math.PI / 180);
+            this.ctx.scale(
+                (transform.scaleX || 1) * (transform.flipX ? -1 : 1),
+                (transform.scaleY || 1) * (transform.flipY ? -1 : 1)
+            );
+
+            // Apply skew if present
+            if (transform.skewX || transform.skewY) {
+                const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                this.ctx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+            }
+
+            // Draw the object
+            this.ctx.drawImage(
+                transform.image,
+                -transform.image.width / 2,
+                -transform.image.height / 2
+            );
+
+            this.ctx.restore();
+
+            // Draw transform controls if this object is selected
+            if (this.currentTool === 'object-tool' &&
+                this.selectedObjectInstance &&
+                this.selectedObjectInstance.id === instance.id) {
+                this.drawObjectTransformControls(transform, transform.image);
+            }
+        });
     }
 
     renderOnionSkinObjects(frameIndex, alpha) {
@@ -10750,6 +10792,13 @@ Create drawing commands for this animation frame:`;
         this.selectedObject = this.objectLibrary.find(obj => obj.id === objectId);
     }
 
+    // Update scene objects list when objects change
+    refreshSceneObjects() {
+        if (this.sceneObjectsManager) {
+            this.sceneObjectsManager.refresh();
+        }
+    }
+
     addObjectInstanceToCanvas(objectId, x = null, y = null) {
         const objDef = this.objectLibrary.find(obj => obj.id === objectId);
         if (!objDef) return;
@@ -10762,8 +10811,8 @@ Create drawing commands for this animation frame:`;
             name: objDef.name,
             x: x,
             y: y,
-            scaleX: 1,  // Use scaleX instead of scale
-            scaleY: 1,  // Use scaleY instead of scale
+            scaleX: 1,
+            scaleY: 1,
             angle: 0,
             image: objDef.image
         });
@@ -10772,14 +10821,20 @@ Create drawing commands for this animation frame:`;
         instance.setKeyframe(this.currentFrame, {
             x: x,
             y: y,
-            scaleX: 1,  // Use scaleX instead of scale
-            scaleY: 1,  // Use scaleY instead of scale
+            scaleX: 1,
+            scaleY: 1,
             angle: 0,
             image: objDef.image
         });
 
         this.objectInstances.push(instance);
         this.selectedObjectInstance = instance;
+
+        // Update scene objects manager
+        if (this.sceneObjectsManager) {
+            this.sceneObjectsManager.selectedObjectId = instance.id;
+            this.sceneObjectsManager.refresh();
+        }
 
         this.renderCurrentFrameToMainCanvas();
         this.updateObjectPropertiesPanel();

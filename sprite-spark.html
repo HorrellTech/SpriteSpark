@@ -18,6 +18,7 @@
     <script src="js/sprite-object.js"></script>
     <script src="js/sprite-spark-modals.js"></script>
     <script src="js/ai-drawing.js"></script>
+    <script src="js/scene-objects-manager.js"></script>
 </head>
 
 <body>
@@ -557,6 +558,24 @@
                 <span>Properties</span>
                 <div class="panel-controls">
                     <!--button class="panel-toggle">−</button-->
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>Scene Objects</h3>
+                <div class="scene-objects-container">
+                    <div class="scene-objects-controls">
+                        <button class="small-btn" data-action="add-scene-object" title="Add New Object">+</button>
+                        <button class="small-btn" data-action="delete-scene-object"
+                            title="Delete Selected Object">−</button>
+                        <button class="small-btn" data-action="move-object-up" title="Move Object Up">↑</button>
+                        <button class="small-btn" data-action="move-object-down" title="Move Object Down">↓</button>
+                        <button class="small-btn" data-action="toggle-object-visibility"
+                            title="Toggle Visibility">👁️</button>
+                    </div>
+                    <div class="scene-objects-list" id="sceneObjectsList">
+                        <!-- Scene objects will be populated here -->
+                    </div>
                 </div>
             </div>
 

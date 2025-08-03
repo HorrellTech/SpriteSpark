@@ -8,6 +8,21 @@ class SpriteObject {
         this.layerId = options.layerId || null;
         this.tween = options.tween !== undefined ? options.tween : true;
         this.keyframes = {};
+        
+        // Hierarchy support
+        this.parentId = options.parentId || null;
+        this.children = [];
+        this.depth = options.depth || 0;
+        this.expanded = options.expanded !== undefined ? options.expanded : true;
+        
+        // Rotation hotspot (relative to object center)
+        this.rotationHotspot = {
+            x: options.rotationHotspotX || 0,
+            y: options.rotationHotspotY || 0
+        };
+        
+        // Z-index for depth sorting within layer
+        this.zIndex = options.zIndex || 0;
 
         // Set initial keyframe with proper scale handling
         const initialTransform = {
@@ -30,6 +45,28 @@ class SpriteObject {
         this.setKeyframe(0, initialTransform);
     }
 
+    // Add child object
+    addChild(childObject) {
+        if (!this.children.includes(childObject.id)) {
+            this.children.push(childObject.id);
+            childObject.parentId = this.id;
+            childObject.depth = this.depth + 1;
+        }
+    }
+
+    // Remove child object
+    removeChild(childId) {
+        const index = this.children.indexOf(childId);
+        if (index > -1) {
+            this.children.splice(index, 1);
+        }
+    }
+
+    setRotationHotspot(x, y) {
+        this.rotationHotspot.x = x;
+        this.rotationHotspot.y = y;
+    }
+
     setKeyframe(frame, { x, y, scaleX, scaleY, angle, flipX, flipY, skewX, skewY, image }) {
         this.keyframes[frame] = {
             x, y,
@@ -46,6 +83,22 @@ class SpriteObject {
 
     removeKeyframe(frame) {
         delete this.keyframes[frame];
+    }
+
+    // Get rotation hotspot in world coordinates
+    getWorldRotationHotspot(frame, allObjects = {}) {
+        const worldTransform = this.getWorldTransformAt(frame, allObjects);
+        
+        const cos = Math.cos(worldTransform.angle * Math.PI / 180);
+        const sin = Math.sin(worldTransform.angle * Math.PI / 180);
+        
+        const hotspotX = this.rotationHotspot.x * worldTransform.scaleX;
+        const hotspotY = this.rotationHotspot.y * worldTransform.scaleY;
+        
+        return {
+            x: worldTransform.x + (hotspotX * cos - hotspotY * sin),
+            y: worldTransform.y + (hotspotX * sin + hotspotY * cos)
+        };
     }
 
     getTransformAt(frame) {
@@ -110,6 +163,41 @@ class SpriteObject {
         };
     }
 
+    getWorldTransformAt(frame, allObjects = {}) {
+        const localTransform = this.getTransformAt(frame);
+        
+        if (!this.parentId || !allObjects[this.parentId]) {
+            return localTransform;
+        }
+
+        const parent = allObjects[this.parentId];
+        const parentWorldTransform = parent.getWorldTransformAt(frame, allObjects);
+        
+        // Calculate world position relative to parent
+        const parentCenterX = parentWorldTransform.x;
+        const parentCenterY = parentWorldTransform.y;
+        
+        // Apply parent rotation to local position
+        const cos = Math.cos(parentWorldTransform.angle * Math.PI / 180);
+        const sin = Math.sin(parentWorldTransform.angle * Math.PI / 180);
+        
+        const rotatedX = localTransform.x * cos - localTransform.y * sin;
+        const rotatedY = localTransform.x * sin + localTransform.y * cos;
+        
+        return {
+            x: parentCenterX + rotatedX * parentWorldTransform.scaleX,
+            y: parentCenterY + rotatedY * parentWorldTransform.scaleY,
+            scaleX: localTransform.scaleX * parentWorldTransform.scaleX,
+            scaleY: localTransform.scaleY * parentWorldTransform.scaleY,
+            angle: localTransform.angle + parentWorldTransform.angle,
+            flipX: localTransform.flipX !== parentWorldTransform.flipX,
+            flipY: localTransform.flipY !== parentWorldTransform.flipY,
+            skewX: localTransform.skewX + parentWorldTransform.skewX,
+            skewY: localTransform.skewY + parentWorldTransform.skewY,
+            image: localTransform.image
+        };
+    }
+
     easeInOutCubic(t) {
         return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
@@ -139,6 +227,32 @@ class SpriteObject {
             skewY: keyframe.skewY || 0,
             image: keyframe.image
         };
+    }
+
+    // Check if this object is a descendant of another object
+    isDescendantOf(ancestorId, allObjects = {}) {
+        let currentParentId = this.parentId;
+        while (currentParentId) {
+            if (currentParentId === ancestorId) return true;
+            const parentObj = allObjects[currentParentId];
+            currentParentId = parentObj ? parentObj.parentId : null;
+        }
+        return false;
+    }
+
+    // Get all descendants
+    getAllDescendants(allObjects = {}) {
+        const descendants = [];
+        
+        for (const childId of this.children) {
+            const child = allObjects[childId];
+            if (child) {
+                descendants.push(childId);
+                descendants.push(...child.getAllDescendants(allObjects));
+            }
+        }
+        
+        return descendants;
     }
 
     getDefaultTransform() {
