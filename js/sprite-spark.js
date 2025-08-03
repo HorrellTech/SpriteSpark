@@ -295,6 +295,68 @@ class SpriteSpark {
             this.mainCanvas.addEventListener('touchmove', this.mainCanvasTouchHandler.bind(this), { passive: false });
             this.mainCanvas.addEventListener('touchend', this.mainCanvasTouchHandler.bind(this), { passive: false });
             this.mainCanvas.addEventListener('touchcancel', this.mainCanvasTouchHandler.bind(this), { passive: false });
+
+            // Enhanced touch support for all tools
+            this.mainCanvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    const rect = this.mainCanvas.getBoundingClientRect();
+                    const fakeEvent = {
+                        button: 0,
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        ctrlKey: false,
+                        preventDefault: () => { },
+                        target: this.mainCanvas
+                    };
+
+                    // Handle different tools
+                    if (this.currentTool === 'rectangle-select' || this.currentTool === 'lasso-select') {
+                        this.startDrawing(fakeEvent);
+                    } else if (this.currentTool === 'object-tool') {
+                        this.handleObjectToolMouseDown(fakeEvent);
+                    } else {
+                        this.startDrawing(fakeEvent);
+                    }
+                }
+            }, { passive: false });
+
+            this.mainCanvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    const fakeEvent = {
+                        button: 0,
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        ctrlKey: false,
+                        preventDefault: () => { },
+                        target: this.mainCanvas
+                    };
+
+                    if (this.currentTool === 'object-tool') {
+                        this.handleObjectToolMouseMove(fakeEvent);
+                    } else {
+                        this.draw(fakeEvent);
+                    }
+                }
+            }, { passive: false });
+
+            this.mainCanvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                const fakeEvent = {
+                    button: 0,
+                    preventDefault: () => { },
+                    target: this.mainCanvas
+                };
+
+                if (this.currentTool === 'object-tool') {
+                    this.handleObjectToolMouseUp(fakeEvent);
+                } else {
+                    this.stopDrawing(fakeEvent);
+                }
+            }, { passive: false });
         }
 
         // Panel resizing
@@ -586,6 +648,63 @@ class SpriteSpark {
                 }
             });
         }
+
+        // Add touch support for menubar items
+        document.querySelectorAll('.menubar .menu-item').forEach(item => {
+            // Mouse events (existing)
+            item.addEventListener('click', function (e) {
+                const clickedElement = e.target.closest('[data-action]');
+                if (clickedElement && clickedElement.closest('.dropdown')) {
+                    return;
+                }
+                if (e.target.closest('.dropdown')) {
+                    return;
+                }
+                e.stopPropagation();
+                document.querySelectorAll('.menubar .dropdown').forEach(d => {
+                    if (d !== this.querySelector('.dropdown')) {
+                        d.classList.remove('open');
+                    }
+                });
+                const dropdown = this.querySelector('.dropdown');
+                if (dropdown) {
+                    dropdown.classList.toggle('open');
+                }
+            });
+
+            // Touch events for better mobile support
+            item.addEventListener('touchstart', function (e) {
+                // Prevent click event from firing
+                e.preventDefault();
+
+                const clickedElement = e.target.closest('[data-action]');
+                if (clickedElement && clickedElement.closest('.dropdown')) {
+                    // This is a dropdown item - trigger the action
+                    const action = clickedElement.getAttribute('data-action');
+                    if (action) {
+                        this.handleMenuClick({ target: clickedElement });
+                    }
+                    // Close dropdown after action
+                    document.querySelectorAll('.menubar .dropdown').forEach(d => d.classList.remove('open'));
+                    return;
+                }
+
+                if (e.target.closest('.dropdown')) {
+                    return;
+                }
+
+                // Toggle dropdown
+                document.querySelectorAll('.menubar .dropdown').forEach(d => {
+                    if (d !== this.querySelector('.dropdown')) {
+                        d.classList.remove('open');
+                    }
+                });
+                const dropdown = this.querySelector('.dropdown');
+                if (dropdown) {
+                    dropdown.classList.toggle('open');
+                }
+            }.bind(this));
+        });
 
         // Update button text on load
         this.updateApiKeyButton();
@@ -5802,7 +5921,6 @@ Create drawing commands for this animation frame:`;
         const centerY = transform.y;
         const angle = transform.angle * Math.PI / 180;
 
-        // Use separate X and Y scales
         const scaleX = transform.scaleX || 1;
         const scaleY = transform.scaleY || 1;
 
@@ -5812,23 +5930,20 @@ Create drawing commands for this animation frame:`;
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
 
-        // Corner positions for resize handles
         const corners = [
-            { x: -halfWidth, y: -halfHeight }, // top-left
-            { x: halfWidth, y: -halfHeight },  // top-right
-            { x: -halfWidth, y: halfHeight },  // bottom-left
-            { x: halfWidth, y: halfHeight }    // bottom-right
+            { x: -halfWidth, y: -halfHeight },
+            { x: halfWidth, y: -halfHeight },
+            { x: -halfWidth, y: halfHeight },
+            { x: halfWidth, y: halfHeight }
         ];
 
-        // Edge midpoints for skew handles
         const edges = [
-            { x: 0, y: -halfHeight }, // top
-            { x: halfWidth, y: 0 },   // right
-            { x: 0, y: halfHeight },  // bottom
-            { x: -halfWidth, y: 0 }   // left
+            { x: 0, y: -halfHeight },
+            { x: halfWidth, y: 0 },
+            { x: 0, y: halfHeight },
+            { x: -halfWidth, y: 0 }
         ];
 
-        // Transform to world space
         const worldCorners = corners.map(corner => ({
             x: centerX + (corner.x * cos - corner.y * sin),
             y: centerY + (corner.x * sin + corner.y * cos)
@@ -5852,8 +5967,12 @@ Create drawing commands for this animation frame:`;
         ctx.stroke();
         ctx.setLineDash([]);
 
+        // Responsive handle sizes
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const handleSize = isTouchDevice ? 24 : 12;
+        const edgeHandleSize = isTouchDevice ? 16 : 8;
+
         // Draw corner resize handles
-        const handleSize = 12;
         ctx.fillStyle = '#007acc';
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
@@ -5863,15 +5982,13 @@ Create drawing commands for this animation frame:`;
             ctx.strokeRect(corner.x - handleSize / 2, corner.y - handleSize / 2, handleSize, handleSize);
         });
 
-        // Draw edge skew handles - now with diamond shape to differentiate from resize handles
-        const edgeHandleSize = 8;
-        ctx.fillStyle = '#FF9800'; // Orange color for skew handles
+        // Draw edge skew handles
+        ctx.fillStyle = '#FF9800';
 
         worldEdges.forEach(edge => {
-            // Draw diamond shape for skew handles
             ctx.save();
             ctx.translate(edge.x, edge.y);
-            ctx.rotate(Math.PI / 4); // 45 degree rotation for diamond
+            ctx.rotate(Math.PI / 4);
             ctx.fillRect(-edgeHandleSize / 2, -edgeHandleSize / 2, edgeHandleSize, edgeHandleSize);
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 1;
@@ -5891,7 +6008,6 @@ Create drawing commands for this animation frame:`;
             y: topCenter.y - rotateDistance * cos
         };
 
-        // Line to rotation handle
         ctx.strokeStyle = '#007acc';
         ctx.lineWidth = 2;
         ctx.setLineDash([4, 4]);
@@ -5901,8 +6017,7 @@ Create drawing commands for this animation frame:`;
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Rotation handle circle
-        const rotateHandleSize = 6;
+        const rotateHandleSize = isTouchDevice ? 12 : 6;
         ctx.beginPath();
         ctx.arc(rotateHandle.x, rotateHandle.y, rotateHandleSize, 0, 2 * Math.PI);
         ctx.fillStyle = '#4CAF50';
@@ -5911,11 +6026,11 @@ Create drawing commands for this animation frame:`;
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Draw flip buttons
+        // Draw flip buttons with larger sizes for touch
         const flipDistance = halfWidth + 20;
-        const flipButtonSize = 16;
+        const flipButtonSize = isTouchDevice ? 32 : 16;
 
-        // Horizontal flip button (right side)
+        // Horizontal flip button
         const hFlipButton = {
             x: centerX + (flipDistance * cos),
             y: centerY + (flipDistance * sin)
@@ -5927,14 +6042,13 @@ Create drawing commands for this animation frame:`;
         ctx.lineWidth = 1;
         ctx.strokeRect(hFlipButton.x - flipButtonSize / 2, hFlipButton.y - flipButtonSize / 2, flipButtonSize, flipButtonSize);
 
-        // H icon with flip indicator
         ctx.fillStyle = transform.flipX ? '#ffffff' : '#333333';
-        ctx.font = 'bold 10px sans-serif';
+        ctx.font = `bold ${isTouchDevice ? 14 : 10}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('H', hFlipButton.x, hFlipButton.y);
 
-        // Vertical flip button (left side)
+        // Vertical flip button
         const vFlipButton = {
             x: centerX - (flipDistance * cos),
             y: centerY - (flipDistance * sin)
@@ -5946,14 +6060,88 @@ Create drawing commands for this animation frame:`;
         ctx.lineWidth = 1;
         ctx.strokeRect(vFlipButton.x - flipButtonSize / 2, vFlipButton.y - flipButtonSize / 2, flipButtonSize, flipButtonSize);
 
-        // V icon with flip indicator
         ctx.fillStyle = transform.flipY ? '#ffffff' : '#333333';
-        ctx.font = 'bold 10px sans-serif';
+        ctx.font = `bold ${isTouchDevice ? 14 : 10}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('V', vFlipButton.x, vFlipButton.y);
 
         ctx.restore();
+    }
+
+    convertFrameToObject() {
+        if (!this.activeLayerId) {
+            alert('Please select a layer first');
+            return;
+        }
+
+        const frame = this.frames[this.currentFrame];
+        const layer = frame.layers.find(l => l.id === this.activeLayerId);
+
+        if (!layer || !layer.canvas) {
+            alert('No valid layer data found');
+            return;
+        }
+
+        // Check if layer has content
+        const ctx = layer.canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, layer.canvas.width, layer.canvas.height);
+        const hasContent = imageData.data.some((value, index) => index % 4 === 3 && value > 0); // Check alpha channel
+
+        if (!hasContent) {
+            alert('Selected layer is empty');
+            return;
+        }
+
+        // Create a canvas from the layer
+        const canvas = document.createElement('canvas');
+        canvas.width = layer.canvas.width;
+        canvas.height = layer.canvas.height;
+        const canvasCtx = canvas.getContext('2d');
+        canvasCtx.drawImage(layer.canvas, 0, 0);
+
+        // Create object definition
+        const objDef = {
+            id: 'frame_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+            name: `Frame ${this.currentFrame + 1} - ${layer.name}`,
+            image: canvas,
+            width: canvas.width,
+            height: canvas.height
+        };
+
+        // Add to object library
+        this.objectLibrary.push(objDef);
+        this.updateObjectLibraryList();
+
+        // Add instance to canvas at center
+        const centerX = this.canvasWidth / 2;
+        const centerY = this.canvasHeight / 2;
+        this.addObjectInstanceToCanvas(objDef.id, centerX, centerY);
+
+        // Clear the original layer
+        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+
+        // Also clear from global layer
+        const globalLayer = this.layers.find(l => l.id === this.activeLayerId);
+        if (globalLayer) {
+            const globalCtx = globalLayer.canvas.getContext('2d');
+            globalCtx.clearRect(0, 0, globalLayer.canvas.width, globalLayer.canvas.height);
+        }
+
+        // Switch to object tool
+        this.currentTool = 'object-tool';
+        document.querySelectorAll('.drawing-tool').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-tool') === 'object-tool');
+        });
+
+        // Show object tool section
+        const objectToolSection = document.getElementById('objectToolSection');
+        if (objectToolSection) objectToolSection.style.display = 'block';
+
+        this.renderCurrentFrameToMainCanvas();
+        this.renderObjectsList();
+
+        alert(`Layer converted to object: "${objDef.name}"`);
     }
 
     showObjectPropertiesPanel(obj, transform) {
@@ -6071,6 +6259,9 @@ Create drawing commands for this animation frame:`;
                 break;
             case 'clear-frame':
                 this.clearFrame();
+                break;
+            case 'convert-frame-to-object':
+                this.convertFrameToObject();
                 break;
             case 'zoom-in': {
                 const zoomInput = document.getElementById('zoomInput');
@@ -7157,7 +7348,6 @@ Create drawing commands for this animation frame:`;
     getObjectTransformHandle(x, y, transform) {
         if (!transform.image) return null;
 
-        // x, y are already in canvas coordinates from the mouse event handling
         const canvasX = x;
         const canvasY = y;
 
@@ -7166,34 +7356,29 @@ Create drawing commands for this animation frame:`;
         const centerY = transform.y;
         const angle = transform.angle * Math.PI / 180;
 
-        // Use separate X and Y scales
         const scaleX = transform.scaleX || 1;
         const scaleY = transform.scaleY || 1;
 
-        // Calculate the corners of the bounding box in world space
         const halfWidth = (img.width * Math.abs(scaleX)) / 2;
         const halfHeight = (img.height * Math.abs(scaleY)) / 2;
 
-        // Calculate rotated corners
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
 
         const corners = [
-            { x: -halfWidth, y: -halfHeight, handle: 'nw' }, // top-left
-            { x: halfWidth, y: -halfHeight, handle: 'ne' },  // top-right
-            { x: -halfWidth, y: halfHeight, handle: 'sw' },  // bottom-left
-            { x: halfWidth, y: halfHeight, handle: 'se' }    // bottom-right
+            { x: -halfWidth, y: -halfHeight, handle: 'nw' },
+            { x: halfWidth, y: -halfHeight, handle: 'ne' },
+            { x: -halfWidth, y: halfHeight, handle: 'sw' },
+            { x: halfWidth, y: halfHeight, handle: 'se' }
         ];
 
-        // Edge midpoints for skewing
         const edges = [
-            { x: 0, y: -halfHeight, handle: 'n' }, // top
-            { x: halfWidth, y: 0, handle: 'e' },   // right
-            { x: 0, y: halfHeight, handle: 's' },  // bottom
-            { x: -halfWidth, y: 0, handle: 'w' }   // left
+            { x: 0, y: -halfHeight, handle: 'n' },
+            { x: halfWidth, y: 0, handle: 'e' },
+            { x: 0, y: halfHeight, handle: 's' },
+            { x: -halfWidth, y: 0, handle: 'w' }
         ];
 
-        // Transform corners and edges to world space
         const worldCorners = corners.map(corner => ({
             x: centerX + (corner.x * cos - corner.y * sin),
             y: centerY + (corner.x * sin + corner.y * cos),
@@ -7206,9 +7391,10 @@ Create drawing commands for this animation frame:`;
             handle: edge.handle
         }));
 
-        // Handle size should be fixed
-        const handleSize = 12;
-        const edgeHandleSize = 8;
+        // Increased handle sizes for touch devices
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const handleSize = isTouchDevice ? 24 : 12; // Larger for touch
+        const edgeHandleSize = isTouchDevice ? 16 : 8;
 
         // Check resize handles (corners)
         for (const corner of worldCorners) {
@@ -7217,14 +7403,14 @@ Create drawing commands for this animation frame:`;
             }
         }
 
-        // Check skew handles (edge midpoints) - Now actually implemented
+        // Check skew handles (edge midpoints)
         for (const edge of worldEdges) {
             if (Math.abs(canvasX - edge.x) < edgeHandleSize / 2 && Math.abs(canvasY - edge.y) < edgeHandleSize / 2) {
                 return { type: 'skew', handle: edge.handle };
             }
         }
 
-        // Check rotation handle (above top-center)
+        // Check rotation handle
         const topCenter = {
             x: (worldCorners[0].x + worldCorners[1].x) / 2,
             y: (worldCorners[0].y + worldCorners[1].y) / 2
@@ -7236,16 +7422,16 @@ Create drawing commands for this animation frame:`;
             y: topCenter.y - rotateDistance * cos
         };
 
-        const rotateHandleSize = 6;
+        const rotateHandleSize = isTouchDevice ? 12 : 6;
         if (Math.abs(canvasX - rotateHandle.x) < rotateHandleSize && Math.abs(canvasY - rotateHandle.y) < rotateHandleSize) {
             return { type: 'rotate' };
         }
 
-        // Check flip buttons (left and right of object)
+        // Check flip buttons
         const flipDistance = Math.max(halfWidth, halfHeight) + 20;
-        const flipButtonSize = 16;
+        const flipButtonSize = isTouchDevice ? 32 : 16; // Larger for touch
 
-        // Horizontal flip button (right side)
+        // Horizontal flip button
         const hFlipButton = {
             x: centerX + (flipDistance * cos),
             y: centerY + (flipDistance * sin)
@@ -7255,7 +7441,7 @@ Create drawing commands for this animation frame:`;
             return { type: 'flip', handle: 'horizontal' };
         }
 
-        // Vertical flip button (left side)
+        // Vertical flip button
         const vFlipButton = {
             x: centerX - (flipDistance * cos),
             y: centerY - (flipDistance * sin)

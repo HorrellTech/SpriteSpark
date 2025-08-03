@@ -427,7 +427,8 @@
                     </div>
 
                     <div class="property-group" id="selectionOptions" style="display:none;">
-                        <button id="convertSelectionToObjectBtn" class="small-btn accent">Convert Selection to Object</button>
+                        <button id="convertSelectionToObjectBtn" class="small-btn accent">Convert Selection to
+                            Object</button>
                         <div style="margin-top:8px;font-size:11px;color:var(--text-secondary);">
                             Converts the current selection into a movable object.
                         </div>
@@ -732,7 +733,8 @@
             <div id="codeDrawingGroup" class="panel-group">
                 <div class="panel-group-title">
                     Code Drawing
-                    <button id="showAIPromptBtn" class="small-btn" style="margin-top:10px;">Get AI Chatbot Prompt</button>
+                    <button id="showAIPromptBtn" class="small-btn" style="margin-top:10px;">Get AI Chatbot
+                        Prompt</button>
                     <button id="openCodeModalBtn" title="Open in Modal" style="float:right;">&#x26F6;</button>
                 </div>
                 <textarea id="codeDrawingTextarea" rows="8" style="width:100%;font-family:monospace;resize:vertical;">// Example: Draw a house
@@ -759,6 +761,10 @@ ctx.fill(); // Roof
                     <button class="small-btn" data-action="duplicate-frame" title="Duplicate Frame">⧉</button>
                     <button class="small-btn" data-action="move-frame-up" title="Move Frame Up">↑</button>
                     <button class="small-btn" data-action="move-frame-down" title="Move Frame Down">↓</button>
+                    <button class="tool-btn" data-action="convert-frame-to-object"
+                        title="Convert current frame layer to sprite object">
+                        <span>🎭</span>
+                    </button>
                 </div>
                 <span style="margin-left: 30%; font-weight: 600;">Frames</span>
                 <div class="frame-size-controls">
@@ -794,7 +800,8 @@ ctx.fill(); // Roof
                 <h2 style="margin:0;">Code Drawing</h2>
                 <button id="closeCodeModalBtn" title="Close" style="font-size:18px;">&times;</button>
             </div>
-            <textarea id="codeDrawingModalTextarea" rows="16" style="width:100%;font-family:monospace;resize:vertical;"></textarea>
+            <textarea id="codeDrawingModalTextarea" rows="16"
+                style="width:100%;font-family:monospace;resize:vertical;"></textarea>
             <div style="margin-top:10px;display:flex;justify-content:space-between;">
                 <button id="applyCodeDrawingModalBtn" class="accent">Apply Code</button>
                 <button id="backToPanelBtn">Back to Panel</button>
@@ -808,7 +815,8 @@ ctx.fill(); // Roof
             <div style="margin-bottom:12px;">
                 <div class="ai-prompt-fields">
                     <label for="aiPromptStyle">Art Style:</label>
-                    <input type="text" id="aiPromptStyle" value="pixel-art" placeholder="e.g. pixel-art, cartoon, sketch">
+                    <input type="text" id="aiPromptStyle" value="pixel-art"
+                        placeholder="e.g. pixel-art, cartoon, sketch">
 
                     <label for="aiPromptSubject">What to draw:</label>
                     <input type="text" id="aiPromptSubject" value="" placeholder="e.g. a cat, a sword, a house">
@@ -825,7 +833,8 @@ ctx.fill(); // Roof
                     </div>
 
                     <label for="aiPromptGenerated">Generated Prompt:</label>
-                    <textarea id="aiPromptGenerated" readonly style="width:100%;min-height:100px;font-family:monospace;font-size:14px;resize:vertical;"></textarea>
+                    <textarea id="aiPromptGenerated" readonly
+                        style="width:100%;min-height:100px;font-family:monospace;font-size:14px;resize:vertical;"></textarea>
                 </div>
             </div>
             <div class="modal-actions">
