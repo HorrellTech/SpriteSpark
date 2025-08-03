@@ -4592,6 +4592,23 @@ Create drawing commands for this animation frame:`;
         };
         this.frames.push(newFrame);
         this.frameActiveStates.push(true);
+
+        // Copy object transforms from previous frame to new frame
+        const previousFrameIndex = this.frames.length - 2; // The frame we just added is at length-1, so previous is length-2
+        if (previousFrameIndex >= 0 && this.objectInstances.length > 0) {
+            this.objectInstances.forEach(obj => {
+                const previousTransform = obj.getTransformAt(previousFrameIndex);
+                // Set the same transform for the new frame
+                obj.setKeyframe(this.frames.length - 1, {
+                    x: previousTransform.x,
+                    y: previousTransform.y,
+                    scale: previousTransform.scale,
+                    angle: previousTransform.angle,
+                    image: previousTransform.image
+                });
+            });
+        }
+
         this.currentFrame = this.frames.length - 1;
         this.selectFrame(this.currentFrame);
         this.updateFramesList();
@@ -4620,6 +4637,23 @@ Create drawing commands for this animation frame:`;
             })
         };
         this.frames.splice(this.currentFrame + 1, 0, newFrame);
+
+        // Copy object transforms from current frame to the duplicated frame
+        const newFrameIndex = this.currentFrame + 1;
+        if (this.objectInstances.length > 0) {
+            this.objectInstances.forEach(obj => {
+                const currentTransform = obj.getTransformAt(this.currentFrame);
+                // Set the same transform for the new duplicated frame
+                obj.setKeyframe(newFrameIndex, {
+                    x: currentTransform.x,
+                    y: currentTransform.y,
+                    scale: currentTransform.scale,
+                    angle: currentTransform.angle,
+                    image: currentTransform.image
+                });
+            });
+        }
+
         this.currentFrame = this.currentFrame + 1;
         this.selectFrame(this.currentFrame);
         this.updateFramesList();
@@ -5916,6 +5950,23 @@ Create drawing commands for this animation frame:`;
             }))
         };
         this.frames.splice(this.currentFrame, 0, newFrame);
+
+        // Copy object transforms from the frame that will now be after this one
+        const nextFrameIndex = this.currentFrame + 1;
+        if (nextFrameIndex < this.frames.length && this.objectInstances.length > 0) {
+            this.objectInstances.forEach(obj => {
+                const nextTransform = obj.getTransformAt(nextFrameIndex);
+                // Set the same transform for the inserted frame
+                obj.setKeyframe(this.currentFrame, {
+                    x: nextTransform.x,
+                    y: nextTransform.y,
+                    scale: nextTransform.scale,
+                    angle: nextTransform.angle,
+                    image: nextTransform.image
+                });
+            });
+        }
+
         this.selectFrame(this.currentFrame); // Stay on the same frame index (now the new frame)
         this.updateFramesList();
         this.triggerLivePreviewIfEnabled();
@@ -7639,328 +7690,347 @@ Create drawing commands for this animation frame:`;
         } else if (e.key === 'Delete') {
             this.deleteSelection();
             e.preventDefault();
-        } else if (e.key === 'Escape') {
-            this.clearSelection();
-            e.preventDefault();
-        } else if (e.key === 'v' && !e.ctrlKey) {
-            // V key for pointer tool
-            this.currentTool = 'pointer';
-            document.querySelectorAll('.drawing-tool').forEach(btn => {
-                btn.classList.toggle('active', btn.getAttribute('data-tool') === 'pointer');
-            });
-            e.preventDefault();
-        } else if (e.key === 'm') {
-            // M key for rectangle select
-            this.currentTool = 'rectangle-select';
-            document.querySelectorAll('.drawing-tool').forEach(btn => {
-                btn.classList.toggle('active', btn.getAttribute('data-tool') === 'rectangle-select');
-            });
-            e.preventDefault();
-        } else if (e.key === 'l') {
-            // L key for lasso select
-            this.currentTool = 'lasso-select';
-            document.querySelectorAll('.drawing-tool').forEach(btn => {
-                btn.classList.toggle('active', btn.getAttribute('data-tool') === 'lasso-select');
-            });
-            e.preventDefault();
-        } else if (e.key === 'ArrowLeft') {
-            if (!this.selectionActive) {
-                // Move to previous frame, loop to last if at first
-                if (this.frames.length > 1) {
-                    let prev = this.currentFrame - 1;
-                    if (prev < 0) prev = this.frames.length - 1;
-                    this.selectFrame(prev);
-                }
-                e.preventDefault();
-            } else {
-                this.rotateSelection(-90);
+        } else if (e.ctrlKey && e.key.toLowerCase() === 'o') {
+            // Ctrl+O: Convert selection to object
+            if (this.selectionActive) {
+                this.convertSelectionToObject();
                 e.preventDefault();
             }
-        } else if (e.key === 'ArrowRight') {
-            if (!this.selectionActive) {
-                // Move to next frame, loop to first if at last
-                if (this.frames.length > 1) {
-                    let next = this.currentFrame + 1;
-                    if (next >= this.frames.length) next = 0;
-                    this.selectFrame(next);
+            else if (e.key === 'Escape') {
+                this.clearSelection();
+                e.preventDefault();
+            } else if (e.key === 'v' && !e.ctrlKey) {
+                // V key for pointer tool
+                this.currentTool = 'pointer';
+                document.querySelectorAll('.drawing-tool').forEach(btn => {
+                    btn.classList.toggle('active', btn.getAttribute('data-tool') === 'pointer');
+                });
+                e.preventDefault();
+            } else if (e.key === 'm') {
+                // M key for rectangle select
+                this.currentTool = 'rectangle-select';
+                document.querySelectorAll('.drawing-tool').forEach(btn => {
+                    btn.classList.toggle('active', btn.getAttribute('data-tool') === 'rectangle-select');
+                });
+                e.preventDefault();
+            } else if (e.key === 'l') {
+                // L key for lasso select
+                this.currentTool = 'lasso-select';
+                document.querySelectorAll('.drawing-tool').forEach(btn => {
+                    btn.classList.toggle('active', btn.getAttribute('data-tool') === 'lasso-select');
+                });
+                e.preventDefault();
+            } else if (e.key === 'ArrowLeft') {
+                if (!this.selectionActive) {
+                    // Move to previous frame, loop to last if at first
+                    if (this.frames.length > 1) {
+                        let prev = this.currentFrame - 1;
+                        if (prev < 0) prev = this.frames.length - 1;
+                        this.selectFrame(prev);
+                    }
+                    e.preventDefault();
+                } else {
+                    this.rotateSelection(-90);
+                    e.preventDefault();
                 }
-                e.preventDefault();
-            } else {
-                this.rotateSelection(90);
-                e.preventDefault();
+            } else if (e.key === 'ArrowRight') {
+                if (!this.selectionActive) {
+                    // Move to next frame, loop to first if at last
+                    if (this.frames.length > 1) {
+                        let next = this.currentFrame + 1;
+                        if (next >= this.frames.length) next = 0;
+                        this.selectFrame(next);
+                    }
+                    e.preventDefault();
+                } else {
+                    this.rotateSelection(90);
+                    e.preventDefault();
+                }
             }
         }
-    }
 
-    handleResize() {
-        this.resizeCanvases();
-        this.drawGrid();
-        this.renderCurrentFrameToMainCanvas();
-    }
+        handleResize() {
+            this.resizeCanvases();
+            this.drawGrid();
+            this.renderCurrentFrameToMainCanvas();
+        }
 
-    handleFileLoad(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            const img = new Image();
-            img.onload = () => {
-                // Draw image to active layer
-                const layer = this.layers.find(l => l.id === this.activeLayerId);
-                if (layer) {
-                    const ctx = layer.canvas.getContext('2d');
-                    ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-                    ctx.drawImage(img, 0, 0, layer.canvas.width, layer.canvas.height);
-                    this.renderCurrentFrameToMainCanvas();
-                }
-            };
-            img.src = evt.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-
-    async openProject() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = async (e) => {
+        handleFileLoad(e) {
             const file = e.target.files[0];
             if (!file) return;
-            const text = await file.text();
-            try {
-                const data = JSON.parse(text);
-                this.loadProjectData(data);
-            } catch (err) {
-                alert("Invalid project file.");
-            }
-        };
-        input.click();
-    }
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const img = new Image();
+                img.onload = () => {
+                    // Draw image to active layer
+                    const layer = this.layers.find(l => l.id === this.activeLayerId);
+                    if (layer) {
+                        const ctx = layer.canvas.getContext('2d');
+                        ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+                        ctx.drawImage(img, 0, 0, layer.canvas.width, layer.canvas.height);
+                        this.renderCurrentFrameToMainCanvas();
+                    }
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+    async openProject() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const text = await file.text();
+                try {
+                    const data = JSON.parse(text);
+                    this.loadProjectData(data);
+                } catch (err) {
+                    alert("Invalid project file.");
+                }
+            };
+            input.click();
+        }
 
     async saveProject(forcePrompt = false) {
-        let name = this.projectName;
-        if (!name || forcePrompt) {
-            name = prompt("Enter a name for your project:", name || "SpriteSparkProject");
-            if (!name) return;
-            this.projectName = name;
+            let name = this.projectName;
+            if (!name || forcePrompt) {
+                name = prompt("Enter a name for your project:", name || "SpriteSparkProject");
+                if (!name) return;
+                this.projectName = name;
+            }
+            const data = this.getProjectData();
+            const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name + ".json";
+            a.click();
         }
-        const data = this.getProjectData();
-        const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = name + ".json";
-        a.click();
-    }
 
-    getProjectData() {
-        // Ensure all frame data is synced before saving
-        this.syncGlobalLayersToCurrentFrame();
+        getProjectData() {
+            // Ensure all frame data is synced before saving
+            this.syncGlobalLayersToCurrentFrame();
 
-        return {
-            canvasWidth: this.canvasWidth,
-            canvasHeight: this.canvasHeight,
-            frames: this.frames.map((frame, frameIndex) => ({
-                isActive: frame.isActive !== undefined ? frame.isActive : true, // Include active state
-                layers: frame.layers.map((layer, layerIndex) => ({
+            return {
+                canvasWidth: this.canvasWidth,
+                canvasHeight: this.canvasHeight,
+                frames: this.frames.map((frame, frameIndex) => ({
+                    isActive: frame.isActive !== undefined ? frame.isActive : true, // Include active state
+                    layers: frame.layers.map((layer, layerIndex) => ({
+                        id: layer.id,
+                        name: layer.name,
+                        isVisible: layer.isVisible !== undefined ? layer.isVisible : true,
+                        opacity: layer.opacity !== undefined ? layer.opacity : 100,
+                        blendMode: layer.blendMode || 'source-over',
+                        image: layer.canvas && layer.canvas.width > 0 && layer.canvas.height > 0
+                            ? layer.canvas.toDataURL('image/png')
+                            : null // Don't save empty canvases
+                    }))
+                })),
+                layers: this.layers.map((layer, layerIndex) => ({
                     id: layer.id,
                     name: layer.name,
                     isVisible: layer.isVisible !== undefined ? layer.isVisible : true,
                     opacity: layer.opacity !== undefined ? layer.opacity : 100,
-                    blendMode: layer.blendMode || 'source-over',
-                    image: layer.canvas && layer.canvas.width > 0 && layer.canvas.height > 0
-                        ? layer.canvas.toDataURL('image/png')
-                        : null // Don't save empty canvases
+                    blendMode: layer.blendMode || 'source-over'
+                })),
+                currentFrame: this.currentFrame,
+                activeLayerId: this.activeLayerId,
+                fps: this.fps,
+                // Save sprite objects
+                objects: this.objects.map(obj => ({
+                    id: obj.id,
+                    name: obj.name,
+                    visible: obj.visible,
+                    alpha: obj.alpha,
+                    hue: obj.hue,
+                    layerId: obj.layerId,
+                    tween: obj.tween,
+                    keyframes: Object.fromEntries(
+                        Object.entries(obj.keyframes).map(([frame, transform]) => [
+                            frame,
+                            {
+                                x: transform.x,
+                                y: transform.y,
+                                scale: transform.scale,
+                                angle: transform.angle,
+                                image: transform.image ? transform.image.src : null
+                            }
+                        ])
+                    )
+                })),
+                // Save object library
+                objectLibrary: this.objectLibrary.map(objDef => ({
+                    id: objDef.id,
+                    name: objDef.name,
+                    width: objDef.width,
+                    height: objDef.height,
+                    image: objDef.image ? objDef.image.src : null
                 }))
-            })),
-            layers: this.layers.map((layer, layerIndex) => ({
-                id: layer.id,
-                name: layer.name,
-                isVisible: layer.isVisible !== undefined ? layer.isVisible : true,
-                opacity: layer.opacity !== undefined ? layer.opacity : 100,
-                blendMode: layer.blendMode || 'source-over'
-            })),
-            currentFrame: this.currentFrame,
-            activeLayerId: this.activeLayerId,
-            fps: this.fps,
-            // Save sprite objects
-            objects: this.objects.map(obj => ({
-                id: obj.id,
-                name: obj.name,
-                visible: obj.visible,
-                alpha: obj.alpha,
-                hue: obj.hue,
-                layerId: obj.layerId,
-                tween: obj.tween,
-                keyframes: Object.fromEntries(
-                    Object.entries(obj.keyframes).map(([frame, transform]) => [
-                        frame,
-                        {
-                            x: transform.x,
-                            y: transform.y,
-                            scale: transform.scale,
-                            angle: transform.angle,
-                            image: transform.image ? transform.image.src : null
-                        }
-                    ])
-                )
-            })),
-            // Save object library
-            objectLibrary: this.objectLibrary.map(objDef => ({
-                id: objDef.id,
-                name: objDef.name,
-                width: objDef.width,
-                height: objDef.height,
-                image: objDef.image ? objDef.image.src : null
-            }))
-        };
-    }
+            };
+        }
 
-    loadProjectData(data) {
-        // Restore essential project data
-        this.canvasWidth = data.canvasWidth || 320;
-        this.canvasHeight = data.canvasHeight || 240;
-        this.currentFrame = data.currentFrame || 0;
-        this.activeLayerId = data.activeLayerId || null;
-        this.fps = data.fps || 12;
+        loadProjectData(data) {
+            // Restore essential project data
+            this.canvasWidth = data.canvasWidth || 320;
+            this.canvasHeight = data.canvasHeight || 240;
+            this.currentFrame = data.currentFrame || 0;
+            this.activeLayerId = data.activeLayerId || null;
+            this.fps = data.fps || 12;
 
-        // Clear existing objects and library
-        this.objects = [];
-        this.objectLibrary = [];
-        this.selectedObjectId = null;
+            // Clear existing objects and library
+            this.objects = [];
+            this.objectLibrary = [];
+            this.selectedObjectId = null;
 
-        // Restore layers structure first
-        this.layers = data.layers.map(l => ({
-            ...l,
-            canvas: this.createLayerCanvas()
-        }));
+            // Restore layers structure first
+            this.layers = data.layers.map(l => ({
+                ...l,
+                canvas: this.createLayerCanvas()
+            }));
 
-        // Keep track of loading progress
-        let totalImages = 0;
-        let loadedImages = 0;
+            // Keep track of loading progress
+            let totalImages = 0;
+            let loadedImages = 0;
 
-        // Count total images that need to be loaded (frames + objects + library)
-        data.frames.forEach(frame => {
-            frame.layers.forEach(layerData => {
-                if (layerData.image) totalImages++;
-            });
-        });
-
-        // Count object images
-        if (data.objects) {
-            data.objects.forEach(objData => {
-                Object.values(objData.keyframes || {}).forEach(transform => {
-                    if (transform.image) totalImages++;
+            // Count total images that need to be loaded (frames + objects + library)
+            data.frames.forEach(frame => {
+                frame.layers.forEach(layerData => {
+                    if (layerData.image) totalImages++;
                 });
             });
-        }
 
-        // Count library images
-        if (data.objectLibrary) {
-            data.objectLibrary.forEach(objDef => {
-                if (objDef.image) totalImages++;
-            });
-        }
-
-        const checkComplete = () => {
-            if (loadedImages >= totalImages) {
-                // All images loaded, now update UI
-                setTimeout(() => {
-                    this.selectFrame(this.currentFrame);
-                    this.renderLayersList();
-                    this.updateFramesList();
-                    this.updateObjectLibraryList();
-                    this.renderObjectsList();
-                    this.refreshObjectLayerDropdown();
-
-                    // Update UI inputs
-                    const canvasWidthInput = document.getElementById('canvasWidth');
-                    const canvasHeightInput = document.getElementById('canvasHeight');
-                    const fpsInput = document.getElementById('fpsInput');
-
-                    if (canvasWidthInput) canvasWidthInput.value = this.canvasWidth;
-                    if (canvasHeightInput) canvasHeightInput.value = this.canvasHeight;
-                    if (fpsInput) fpsInput.value = this.fps;
-
-                    // Force a final render
-                    this.renderCurrentFrameToMainCanvas();
-                }, 100);
+            // Count object images
+            if (data.objects) {
+                data.objects.forEach(objData => {
+                    Object.values(objData.keyframes || {}).forEach(transform => {
+                        if (transform.image) totalImages++;
+                    });
+                });
             }
-        };
 
-        // Load object library first
-        if (data.objectLibrary) {
-            data.objectLibrary.forEach(objDefData => {
-                if (objDefData.image) {
-                    const img = new Image();
-                    img.onload = () => {
+            // Count library images
+            if (data.objectLibrary) {
+                data.objectLibrary.forEach(objDef => {
+                    if (objDef.image) totalImages++;
+                });
+            }
+
+            const checkComplete = () => {
+                if (loadedImages >= totalImages) {
+                    // All images loaded, now update UI
+                    setTimeout(() => {
+                        this.selectFrame(this.currentFrame);
+                        this.renderLayersList();
+                        this.updateFramesList();
+                        this.updateObjectLibraryList();
+                        this.renderObjectsList();
+                        this.refreshObjectLayerDropdown();
+
+                        // Update UI inputs
+                        const canvasWidthInput = document.getElementById('canvasWidth');
+                        const canvasHeightInput = document.getElementById('canvasHeight');
+                        const fpsInput = document.getElementById('fpsInput');
+
+                        if (canvasWidthInput) canvasWidthInput.value = this.canvasWidth;
+                        if (canvasHeightInput) canvasHeightInput.value = this.canvasHeight;
+                        if (fpsInput) fpsInput.value = this.fps;
+
+                        // Force a final render
+                        this.renderCurrentFrameToMainCanvas();
+                    }, 100);
+                }
+            };
+
+            // Load object library first
+            if (data.objectLibrary) {
+                data.objectLibrary.forEach(objDefData => {
+                    if (objDefData.image) {
+                        const img = new Image();
+                        img.onload = () => {
+                            const objDef = {
+                                id: objDefData.id,
+                                name: objDefData.name,
+                                width: objDefData.width,
+                                height: objDefData.height,
+                                image: img
+                            };
+                            this.objectLibrary.push(objDef);
+                            loadedImages++;
+                            checkComplete();
+                        };
+                        img.onerror = () => {
+                            console.error('Failed to load object library image:', objDefData.name);
+                            loadedImages++;
+                            checkComplete();
+                        };
+                        img.src = objDefData.image;
+                    } else {
+                        // No image for this library object
                         const objDef = {
                             id: objDefData.id,
                             name: objDefData.name,
                             width: objDefData.width,
                             height: objDefData.height,
-                            image: img
+                            image: null
                         };
                         this.objectLibrary.push(objDef);
-                        loadedImages++;
-                        checkComplete();
-                    };
-                    img.onerror = () => {
-                        console.error('Failed to load object library image:', objDefData.name);
-                        loadedImages++;
-                        checkComplete();
-                    };
-                    img.src = objDefData.image;
-                } else {
-                    // No image for this library object
-                    const objDef = {
-                        id: objDefData.id,
-                        name: objDefData.name,
-                        width: objDefData.width,
-                        height: objDefData.height,
-                        image: null
-                    };
-                    this.objectLibrary.push(objDef);
-                }
-            });
-        }
-
-        // Load sprite objects
-        if (data.objects) {
-            data.objects.forEach(objData => {
-                const obj = new SpriteObject({
-                    id: objData.id,
-                    name: objData.name,
-                    x: 0,
-                    y: 0,
-                    scale: 1,
-                    angle: 0,
-                    image: null
+                    }
                 });
+            }
 
-                // Restore object properties
-                obj.visible = objData.visible !== undefined ? objData.visible : true;
-                obj.alpha = objData.alpha !== undefined ? objData.alpha : 1;
-                obj.hue = objData.hue || 0;
-                obj.layerId = objData.layerId;
-                obj.tween = objData.tween !== undefined ? objData.tween : true;
+            // Load sprite objects
+            if (data.objects) {
+                data.objects.forEach(objData => {
+                    const obj = new SpriteObject({
+                        id: objData.id,
+                        name: objData.name,
+                        x: 0,
+                        y: 0,
+                        scale: 1,
+                        angle: 0,
+                        image: null
+                    });
 
-                // Load keyframes with images
-                Object.entries(objData.keyframes || {}).forEach(([frame, transformData]) => {
-                    if (transformData.image) {
-                        const img = new Image();
-                        img.onload = () => {
-                            obj.setKeyframe(parseInt(frame), {
-                                x: transformData.x,
-                                y: transformData.y,
-                                scale: transformData.scale,
-                                angle: transformData.angle,
-                                image: img
-                            });
-                            loadedImages++;
-                            checkComplete();
-                        };
-                        img.onerror = () => {
-                            console.error('Failed to load object keyframe image for object:', objData.name, 'frame:', frame);
+                    // Restore object properties
+                    obj.visible = objData.visible !== undefined ? objData.visible : true;
+                    obj.alpha = objData.alpha !== undefined ? objData.alpha : 1;
+                    obj.hue = objData.hue || 0;
+                    obj.layerId = objData.layerId;
+                    obj.tween = objData.tween !== undefined ? objData.tween : true;
+
+                    // Load keyframes with images
+                    Object.entries(objData.keyframes || {}).forEach(([frame, transformData]) => {
+                        if (transformData.image) {
+                            const img = new Image();
+                            img.onload = () => {
+                                obj.setKeyframe(parseInt(frame), {
+                                    x: transformData.x,
+                                    y: transformData.y,
+                                    scale: transformData.scale,
+                                    angle: transformData.angle,
+                                    image: img
+                                });
+                                loadedImages++;
+                                checkComplete();
+                            };
+                            img.onerror = () => {
+                                console.error('Failed to load object keyframe image for object:', objData.name, 'frame:', frame);
+                                // Set keyframe without image
+                                obj.setKeyframe(parseInt(frame), {
+                                    x: transformData.x,
+                                    y: transformData.y,
+                                    scale: transformData.scale,
+                                    angle: transformData.angle,
+                                    image: null
+                                });
+                                loadedImages++;
+                                checkComplete();
+                            };
+                            img.src = transformData.image;
+                        } else {
                             // Set keyframe without image
                             obj.setKeyframe(parseInt(frame), {
                                 x: transformData.x,
@@ -7969,372 +8039,168 @@ Create drawing commands for this animation frame:`;
                                 angle: transformData.angle,
                                 image: null
                             });
+                        }
+                    });
+
+                    this.objects.push(obj);
+                });
+            }
+
+            // Restore frames with proper layer distribution and active states
+            this.frames = data.frames.map((frameData, frameIndex) => ({
+                isActive: frameData.isActive !== undefined ? frameData.isActive : true,
+                layers: frameData.layers.map((layerData, layerIndex) => {
+                    const canvas = this.createLayerCanvas();
+                    const ctx = canvas.getContext('2d');
+
+                    // Load image data for this specific layer
+                    if (layerData.image) {
+                        const img = new Image();
+                        img.onload = () => {
+                            ctx.drawImage(img, 0, 0);
+                            loadedImages++;
+
+                            // If this is the current frame, also update the global layer
+                            if (frameIndex === this.currentFrame && this.layers[layerIndex]) {
+                                const globalCtx = this.layers[layerIndex].canvas.getContext('2d');
+                                globalCtx.clearRect(0, 0, this.layers[layerIndex].canvas.width, this.layers[layerIndex].canvas.height);
+                                globalCtx.drawImage(canvas, 0, 0);
+                                // Trigger a render update for current frame
+                                if (frameIndex === this.currentFrame) {
+                                    this.renderCurrentFrameToMainCanvas();
+                                }
+                            }
+
+                            checkComplete();
+                        };
+                        img.onerror = () => {
+                            console.error(`Failed to load image for frame ${frameIndex}, layer ${layerIndex}`);
                             loadedImages++;
                             checkComplete();
                         };
-                        img.src = transformData.image;
+                        img.src = layerData.image;
                     } else {
-                        // Set keyframe without image
-                        obj.setKeyframe(parseInt(frame), {
-                            x: transformData.x,
-                            y: transformData.y,
-                            scale: transformData.scale,
-                            angle: transformData.angle,
-                            image: null
-                        });
-                    }
-                });
-
-                this.objects.push(obj);
-            });
-        }
-
-        // Restore frames with proper layer distribution and active states
-        this.frames = data.frames.map((frameData, frameIndex) => ({
-            isActive: frameData.isActive !== undefined ? frameData.isActive : true,
-            layers: frameData.layers.map((layerData, layerIndex) => {
-                const canvas = this.createLayerCanvas();
-                const ctx = canvas.getContext('2d');
-
-                // Load image data for this specific layer
-                if (layerData.image) {
-                    const img = new Image();
-                    img.onload = () => {
-                        ctx.drawImage(img, 0, 0);
-                        loadedImages++;
-
-                        // If this is the current frame, also update the global layer
-                        if (frameIndex === this.currentFrame && this.layers[layerIndex]) {
-                            const globalCtx = this.layers[layerIndex].canvas.getContext('2d');
-                            globalCtx.clearRect(0, 0, this.layers[layerIndex].canvas.width, this.layers[layerIndex].canvas.height);
-                            globalCtx.drawImage(canvas, 0, 0);
-                            // Trigger a render update for current frame
-                            if (frameIndex === this.currentFrame) {
-                                this.renderCurrentFrameToMainCanvas();
-                            }
+                        // No image to load for this layer
+                        if (totalImages === 0) {
+                            // No images at all, proceed immediately
+                            setTimeout(checkComplete, 50);
                         }
+                    }
 
-                        checkComplete();
+                    return {
+                        id: layerData.id,
+                        name: layerData.name,
+                        isVisible: layerData.isVisible !== undefined ? layerData.isVisible : true,
+                        opacity: layerData.opacity !== undefined ? layerData.opacity : 100,
+                        blendMode: layerData.blendMode || 'source-over',
+                        canvas
                     };
-                    img.onerror = () => {
-                        console.error(`Failed to load image for frame ${frameIndex}, layer ${layerIndex}`);
-                        loadedImages++;
-                        checkComplete();
-                    };
-                    img.src = layerData.image;
-                } else {
-                    // No image to load for this layer
-                    if (totalImages === 0) {
-                        // No images at all, proceed immediately
-                        setTimeout(checkComplete, 50);
-                    }
-                }
+                })
+            }));
 
-                return {
-                    id: layerData.id,
-                    name: layerData.name,
-                    isVisible: layerData.isVisible !== undefined ? layerData.isVisible : true,
-                    opacity: layerData.opacity !== undefined ? layerData.opacity : 100,
-                    blendMode: layerData.blendMode || 'source-over',
-                    canvas
-                };
-            })
-        }));
+            // Clear undo/redo stacks since we're not saving them
+            this.undoStack = [];
+            this.redoStack = [];
 
-        // Clear undo/redo stacks since we're not saving them
-        this.undoStack = [];
-        this.redoStack = [];
-
-        // If no images to load, proceed immediately
-        if (totalImages === 0) {
-            checkComplete();
-        }
-    }
-
-    exportCurrentFrame() {
-        let name = prompt("Enter a name for the exported frame:", "frame");
-        if (!name) return;
-        // Render current frame to a temp canvas
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = this.canvasWidth;
-        tempCanvas.height = this.canvasHeight;
-        const tempCtx = tempCanvas.getContext('2d');
-        // Draw all visible layers
-        for (let i = 0; i < this.layers.length; i++) {
-            const layer = this.layers[i];
-            if (!layer.isVisible) continue;
-            tempCtx.globalAlpha = layer.opacity / 100;
-            tempCtx.globalCompositeOperation = layer.blendMode;
-            tempCtx.drawImage(layer.canvas, 0, 0);
-        }
-        tempCtx.globalAlpha = 1.0;
-        tempCtx.globalCompositeOperation = 'source-over';
-        // Download as PNG
-        tempCanvas.toBlob(blob => {
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = name + ".png";
-            a.click();
-        });
-    }
-
-    exportAnimation() {
-        // Show modal
-        const modal = document.getElementById('exportModal');
-        const formatSelect = document.getElementById('exportFormat');
-        const nameInput = document.getElementById('exportName');
-        const confirmBtn = document.getElementById('exportConfirm');
-        const cancelBtn = document.getElementById('exportCancel');
-        if (!modal || !formatSelect || !nameInput || !confirmBtn || !cancelBtn) return;
-
-        // Reset modal fields
-        nameInput.value = "animation";
-        formatSelect.value = "gif";
-        modal.classList.remove('hidden');
-        nameInput.focus();
-
-        // Remove previous listeners
-        confirmBtn.onclick = null;
-        cancelBtn.onclick = null;
-
-        // Confirm export
-        confirmBtn.onclick = () => {
-            const name = nameInput.value.trim() || "animation";
-            const format = formatSelect.value;
-            modal.classList.add('hidden');
-            if (format === "frames-zip" || format === "png-sequence") {
-                this.exportFramesAsZip(name);
-            } else {
-                this._doExportAnimation(name, format);
+            // If no images to load, proceed immediately
+            if (totalImages === 0) {
+                checkComplete();
             }
-        };
-        // Cancel export
-        cancelBtn.onclick = () => {
-            modal.classList.add('hidden');
-        };
-    }
-
-    // --- EXPORT ALL FRAMES AS ZIP ---
-    async exportFramesAsZip(name = "frames") {
-        // Dynamically load JSZip if not already loaded
-        if (typeof window.JSZip === "undefined") {
-            await new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
-                script.onload = resolve;
-                script.onerror = reject;
-                document.head.appendChild(script);
-            });
-        }
-        const JSZip = window.JSZip;
-
-        const zip = new JSZip();
-        const activeFrames = this.frames.filter(frame => frame.isActive !== false);
-
-        if (activeFrames.length === 0) {
-            alert("No active frames to export!");
-            return;
         }
 
-        // Prepare all frames as PNG blobs
-        const pngPromises = activeFrames.map((frame, idx) => {
-            return new Promise(resolve => {
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = this.canvasWidth;
-                tempCanvas.height = this.canvasHeight;
-                const tempCtx = tempCanvas.getContext('2d');
-                // Draw all visible layers
-                for (let i = 0; i < frame.layers.length; i++) {
-                    const layer = frame.layers[i];
-                    if (!layer.isVisible) continue;
-                    tempCtx.globalAlpha = layer.opacity / 100;
-                    tempCtx.globalCompositeOperation = layer.blendMode;
-                    tempCtx.drawImage(layer.canvas, 0, 0);
-                }
-                tempCtx.globalAlpha = 1.0;
-                tempCtx.globalCompositeOperation = 'source-over';
-                tempCanvas.toBlob(blob => {
-                    resolve({ idx, blob });
-                }, 'image/png');
-            });
-        });
-
-        // Wait for all PNGs
-        const pngs = await Promise.all(pngPromises);
-
-        // Add to zip
-        pngs.forEach(({ idx, blob }) => {
-            zip.file(`frame_${String(idx + 1).padStart(2, '0')}.png`, blob);
-        });
-
-        // Generate and download zip
-        const zipBlob = await zip.generateAsync({ type: "blob" });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(zipBlob);
-        a.download = name + ".zip";
-        a.click();
-    }
-
-    _drawPixelLine(ctx, x0, y0, x1, y1, color, size, preventCorners) {
-        let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-        let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-        let err = dx + dy, e2;
-        let prevX = x0, prevY = y0;
-
-        while (true) {
-            if (!preventCorners || (x0 === prevX || y0 === prevY)) {
-                ctx.fillStyle = color;
-                ctx.globalAlpha = this.opacity / 100;
-                ctx.fillRect(x0 - Math.floor(size / 2), y0 - Math.floor(size / 2), size, size);
-            }
-            if (x0 === x1 && y0 === y1) break;
-            prevX = x0; prevY = y0;
-            e2 = 2 * err;
-            if (e2 >= dy) { err += dy; x0 += sx; }
-            if (e2 <= dx) { err += dx; y0 += sy; }
-        }
-    }
-
-    _doExportAnimation(name, format) {
-        const loadingModal = document.getElementById('exportLoadingModal');
-        const progressText = document.getElementById('exportProgressText');
-        const progressBar = document.getElementById('exportProgressBar');
-        const cancelBtn = document.getElementById('exportLoadingCancel');
-        let cancelled = false;
-
-        function showLoading(text, percent) {
-            if (loadingModal) loadingModal.classList.remove('hidden');
-            if (progressText) progressText.textContent = text;
-            if (progressBar) progressBar.style.width = percent + "%";
-        }
-        function hideLoading() {
-            if (loadingModal) loadingModal.classList.add('hidden');
-        }
-
-        if (cancelBtn) {
-            cancelBtn.onclick = () => {
-                cancelled = true;
-                hideLoading();
-            };
-        }
-
-        // Filter only active frames for export
-        const activeFrames = this.frames.filter(frame => frame.isActive !== false);
-
-        if (activeFrames.length === 0) {
-            alert("No active frames to export!");
-            return;
-        }
-
-        if (format === "gif") {
-            const gif = new window.GIF({
-                workers: 1,
-                quality: 10,
-                width: this.canvasWidth,
-                height: this.canvasHeight,
-                workerScript: 'js/gif.worker.js'
-            });
-
-            let totalFrames = activeFrames.length;
-
-            // --- ASYNC FRAME ADDITION ---
-            const addFramesAsync = async () => {
-                for (let f = 0; f < totalFrames; f++) {
-                    if (cancelled) return;
-                    const tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = this.canvasWidth;
-                    tempCanvas.height = this.canvasHeight;
-                    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-                    const frame = activeFrames[f]; // Use filtered active frames
-
-                    // Draw layers
-                    for (let i = 0; i < frame.layers.length; i++) {
-                        const layer = frame.layers[i];
-                        if (!layer.isVisible) continue;
-                        tempCtx.globalAlpha = layer.opacity / 100;
-                        tempCtx.globalCompositeOperation = layer.blendMode;
-                        tempCtx.drawImage(layer.canvas, 0, 0);
-                    }
-
-                    // FIX: Draw objects for this frame
-                    tempCtx.globalAlpha = 1.0;
-                    tempCtx.globalCompositeOperation = 'source-over';
-
-                    for (const obj of this.objectInstances) {
-                        if (obj.visible === false) continue;
-                        const transform = obj.getTransformAt(f); // Use frame index f
-
-                        tempCtx.save();
-                        tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
-                        if (obj.hue && obj.hue !== 0) {
-                            tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
-                        } else {
-                            tempCtx.filter = 'none';
-                        }
-                        tempCtx.translate(transform.x, transform.y);
-                        tempCtx.rotate(transform.angle * Math.PI / 180);
-                        tempCtx.scale(transform.scale, transform.scale);
-
-                        if (transform.image) {
-                            tempCtx.drawImage(
-                                transform.image,
-                                -transform.image.width / 2,
-                                -transform.image.height / 2
-                            );
-                        }
-                        tempCtx.restore();
-                    }
-
-                    gif.addFrame(tempCanvas, { delay: 1000 / this.fps });
-
-                    // Yield to the browser so UI/progress can update
-                    showLoading(`Preparing GIF: ${f + 1}/${totalFrames}`, Math.round(((f + 1) / totalFrames) * 100));
-                    await new Promise(r => setTimeout(r, 10));
-                }
-
-                gif.on('progress', (p) => {
-                    showLoading(`Encoding GIF: ${Math.round(p * 100)}%`, Math.round(p * 100));
-                });
-                gif.on('finished', function (blob) {
-                    hideLoading();
-                    if (cancelled) return;
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = name + ".gif";
-                    a.click();
-                });
-                showLoading("Encoding GIF: 0%", 0);
-                gif.render();
-            };
-
-            addFramesAsync();
-        } else {
-            // WebM/MP4 export using CCapture.js
-            let capturer = new CCapture({
-                format: "webm",
-                framerate: this.fps,
-                verbose: true,
-                name: name
-            });
-
-            let frameIdx = 0;
-            const totalFrames = activeFrames.length; // Use filtered active frames
+        exportCurrentFrame() {
+            let name = prompt("Enter a name for the exported frame:", "frame");
+            if (!name) return;
+            // Render current frame to a temp canvas
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = this.canvasWidth;
             tempCanvas.height = this.canvasHeight;
-            const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+            const tempCtx = tempCanvas.getContext('2d');
+            // Draw all visible layers
+            for (let i = 0; i < this.layers.length; i++) {
+                const layer = this.layers[i];
+                if (!layer.isVisible) continue;
+                tempCtx.globalAlpha = layer.opacity / 100;
+                tempCtx.globalCompositeOperation = layer.blendMode;
+                tempCtx.drawImage(layer.canvas, 0, 0);
+            }
+            tempCtx.globalAlpha = 1.0;
+            tempCtx.globalCompositeOperation = 'source-over';
+            // Download as PNG
+            tempCanvas.toBlob(blob => {
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = name + ".png";
+                a.click();
+            });
+        }
 
-            capturer.start();
+        exportAnimation() {
+            // Show modal
+            const modal = document.getElementById('exportModal');
+            const formatSelect = document.getElementById('exportFormat');
+            const nameInput = document.getElementById('exportName');
+            const confirmBtn = document.getElementById('exportConfirm');
+            const cancelBtn = document.getElementById('exportCancel');
+            if (!modal || !formatSelect || !nameInput || !confirmBtn || !cancelBtn) return;
 
-            const renderFrame = async () => {
-                for (frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
-                    if (cancelled) {
-                        capturer.stop();
-                        hideLoading();
-                        return;
-                    }
-                    tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-                    const frame = activeFrames[frameIdx]; // Use filtered active frames
+            // Reset modal fields
+            nameInput.value = "animation";
+            formatSelect.value = "gif";
+            modal.classList.remove('hidden');
+            nameInput.focus();
+
+            // Remove previous listeners
+            confirmBtn.onclick = null;
+            cancelBtn.onclick = null;
+
+            // Confirm export
+            confirmBtn.onclick = () => {
+                const name = nameInput.value.trim() || "animation";
+                const format = formatSelect.value;
+                modal.classList.add('hidden');
+                if (format === "frames-zip" || format === "png-sequence") {
+                    this.exportFramesAsZip(name);
+                } else {
+                    this._doExportAnimation(name, format);
+                }
+            };
+            // Cancel export
+            cancelBtn.onclick = () => {
+                modal.classList.add('hidden');
+            };
+        }
+
+    // --- EXPORT ALL FRAMES AS ZIP ---
+    async exportFramesAsZip(name = "frames") {
+            // Dynamically load JSZip if not already loaded
+            if (typeof window.JSZip === "undefined") {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+            }
+            const JSZip = window.JSZip;
+
+            const zip = new JSZip();
+            const activeFrames = this.frames.filter(frame => frame.isActive !== false);
+
+            if (activeFrames.length === 0) {
+                alert("No active frames to export!");
+                return;
+            }
+
+            // Prepare all frames as PNG blobs
+            const pngPromises = activeFrames.map((frame, idx) => {
+                return new Promise(resolve => {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = this.canvasWidth;
+                    tempCanvas.height = this.canvasHeight;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    // Draw all visible layers
                     for (let i = 0; i < frame.layers.length; i++) {
                         const layer = frame.layers[i];
                         if (!layer.isVisible) continue;
@@ -8344,1745 +8210,2003 @@ Create drawing commands for this animation frame:`;
                     }
                     tempCtx.globalAlpha = 1.0;
                     tempCtx.globalCompositeOperation = 'source-over';
+                    tempCanvas.toBlob(blob => {
+                        resolve({ idx, blob });
+                    }, 'image/png');
+                });
+            });
 
-                    capturer.capture(tempCanvas);
-                    showLoading(`Encoding WEBM: ${frameIdx + 1}/${totalFrames}`, Math.round(((frameIdx + 1) / totalFrames) * 100));
-                    // Wait for the correct frame interval
-                    await new Promise(r => setTimeout(r, 1000 / this.fps));
+            // Wait for all PNGs
+            const pngs = await Promise.all(pngPromises);
+
+            // Add to zip
+            pngs.forEach(({ idx, blob }) => {
+                zip.file(`frame_${String(idx + 1).padStart(2, '0')}.png`, blob);
+            });
+
+            // Generate and download zip
+            const zipBlob = await zip.generateAsync({ type: "blob" });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(zipBlob);
+            a.download = name + ".zip";
+            a.click();
+        }
+
+        _drawPixelLine(ctx, x0, y0, x1, y1, color, size, preventCorners) {
+            let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+            let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+            let err = dx + dy, e2;
+            let prevX = x0, prevY = y0;
+
+            while (true) {
+                if (!preventCorners || (x0 === prevX || y0 === prevY)) {
+                    ctx.fillStyle = color;
+                    ctx.globalAlpha = this.opacity / 100;
+                    ctx.fillRect(x0 - Math.floor(size / 2), y0 - Math.floor(size / 2), size, size);
                 }
-                capturer.stop();
-                setTimeout(() => {
-                    capturer.save();
+                if (x0 === x1 && y0 === y1) break;
+                prevX = x0; prevY = y0;
+                e2 = 2 * err;
+                if (e2 >= dy) { err += dy; x0 += sx; }
+                if (e2 <= dx) { err += dx; y0 += sy; }
+            }
+        }
+
+        _doExportAnimation(name, format) {
+            const loadingModal = document.getElementById('exportLoadingModal');
+            const progressText = document.getElementById('exportProgressText');
+            const progressBar = document.getElementById('exportProgressBar');
+            const cancelBtn = document.getElementById('exportLoadingCancel');
+            let cancelled = false;
+
+            function showLoading(text, percent) {
+                if (loadingModal) loadingModal.classList.remove('hidden');
+                if (progressText) progressText.textContent = text;
+                if (progressBar) progressBar.style.width = percent + "%";
+            }
+            function hideLoading() {
+                if (loadingModal) loadingModal.classList.add('hidden');
+            }
+
+            if (cancelBtn) {
+                cancelBtn.onclick = () => {
+                    cancelled = true;
                     hideLoading();
-                }, 500);
+                };
+            }
+
+            // Filter only active frames for export
+            const activeFrames = this.frames.filter(frame => frame.isActive !== false);
+
+            if (activeFrames.length === 0) {
+                alert("No active frames to export!");
+                return;
+            }
+
+            if (format === "gif") {
+                const gif = new window.GIF({
+                    workers: 1,
+                    quality: 10,
+                    width: this.canvasWidth,
+                    height: this.canvasHeight,
+                    workerScript: 'js/gif.worker.js'
+                });
+
+                let totalFrames = activeFrames.length;
+
+                // --- ASYNC FRAME ADDITION ---
+                const addFramesAsync = async () => {
+                    for (let f = 0; f < totalFrames; f++) {
+                        if (cancelled) return;
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = this.canvasWidth;
+                        tempCanvas.height = this.canvasHeight;
+                        const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                        const frame = activeFrames[f]; // Use filtered active frames
+
+                        // Draw layers
+                        for (let i = 0; i < frame.layers.length; i++) {
+                            const layer = frame.layers[i];
+                            if (!layer.isVisible) continue;
+                            tempCtx.globalAlpha = layer.opacity / 100;
+                            tempCtx.globalCompositeOperation = layer.blendMode;
+                            tempCtx.drawImage(layer.canvas, 0, 0);
+                        }
+
+                        // FIX: Draw objects for this frame
+                        tempCtx.globalAlpha = 1.0;
+                        tempCtx.globalCompositeOperation = 'source-over';
+
+                        for (const obj of this.objectInstances) {
+                            if (obj.visible === false) continue;
+                            const transform = obj.getTransformAt(f); // Use frame index f
+
+                            tempCtx.save();
+                            tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+                            if (obj.hue && obj.hue !== 0) {
+                                tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
+                            } else {
+                                tempCtx.filter = 'none';
+                            }
+                            tempCtx.translate(transform.x, transform.y);
+                            tempCtx.rotate(transform.angle * Math.PI / 180);
+                            tempCtx.scale(transform.scale, transform.scale);
+
+                            if (transform.image) {
+                                tempCtx.drawImage(
+                                    transform.image,
+                                    -transform.image.width / 2,
+                                    -transform.image.height / 2
+                                );
+                            }
+                            tempCtx.restore();
+                        }
+
+                        gif.addFrame(tempCanvas, { delay: 1000 / this.fps });
+
+                        // Yield to the browser so UI/progress can update
+                        showLoading(`Preparing GIF: ${f + 1}/${totalFrames}`, Math.round(((f + 1) / totalFrames) * 100));
+                        await new Promise(r => setTimeout(r, 10));
+                    }
+
+                    gif.on('progress', (p) => {
+                        showLoading(`Encoding GIF: ${Math.round(p * 100)}%`, Math.round(p * 100));
+                    });
+                    gif.on('finished', function (blob) {
+                        hideLoading();
+                        if (cancelled) return;
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = name + ".gif";
+                        a.click();
+                    });
+                    showLoading("Encoding GIF: 0%", 0);
+                    gif.render();
+                };
+
+                addFramesAsync();
+            } else {
+                // WebM/MP4 export using CCapture.js
+                let capturer = new CCapture({
+                    format: "webm",
+                    framerate: this.fps,
+                    verbose: true,
+                    name: name
+                });
+
+                let frameIdx = 0;
+                const totalFrames = activeFrames.length; // Use filtered active frames
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.canvasWidth;
+                tempCanvas.height = this.canvasHeight;
+                const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+
+                capturer.start();
+
+                const renderFrame = async () => {
+                    for (frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
+                        if (cancelled) {
+                            capturer.stop();
+                            hideLoading();
+                            return;
+                        }
+                        tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+                        const frame = activeFrames[frameIdx]; // Use filtered active frames
+                        for (let i = 0; i < frame.layers.length; i++) {
+                            const layer = frame.layers[i];
+                            if (!layer.isVisible) continue;
+                            tempCtx.globalAlpha = layer.opacity / 100;
+                            tempCtx.globalCompositeOperation = layer.blendMode;
+                            tempCtx.drawImage(layer.canvas, 0, 0);
+                        }
+                        tempCtx.globalAlpha = 1.0;
+                        tempCtx.globalCompositeOperation = 'source-over';
+
+                        capturer.capture(tempCanvas);
+                        showLoading(`Encoding WEBM: ${frameIdx + 1}/${totalFrames}`, Math.round(((frameIdx + 1) / totalFrames) * 100));
+                        // Wait for the correct frame interval
+                        await new Promise(r => setTimeout(r, 1000 / this.fps));
+                    }
+                    capturer.stop();
+                    setTimeout(() => {
+                        capturer.save();
+                        hideLoading();
+                    }, 500);
+                };
+                renderFrame();
+            }
+        }
+
+        triggerLivePreviewIfEnabled() {
+            const enablePreviewCheckbox = document.getElementById('enablePreview');
+            if (enablePreviewCheckbox && enablePreviewCheckbox.checked) {
+                // Pause and restart the animation to refresh preview
+                this.pauseAnimation();
+                this.playAnimation();
+            }
+        }
+
+        convertSelectionToObject() {
+            if (!this.selectionActive || !this.selectionData) return;
+
+            // Create a canvas from selection
+            const bounds = this.getAdjustedSelectionBounds();
+            const canvas = document.createElement('canvas');
+            canvas.width = bounds.width;
+            canvas.height = bounds.height;
+            const ctx = canvas.getContext('2d');
+            ctx.putImageData(this.selectionData, 0, 0);
+
+            // Create a new object definition for the library
+            const objDef = {
+                id: 'lib_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+                name: 'Object ' + (this.objectLibrary.length + 1),
+                image: canvas,
+                width: canvas.width,
+                height: canvas.height
             };
-            renderFrame();
-        }
-    }
+            this.objectLibrary.push(objDef);
+            this.updateObjectLibraryList();
 
-    triggerLivePreviewIfEnabled() {
-        const enablePreviewCheckbox = document.getElementById('enablePreview');
-        if (enablePreviewCheckbox && enablePreviewCheckbox.checked) {
-            // Pause and restart the animation to refresh preview
-            this.pauseAnimation();
-            this.playAnimation();
-        }
-    }
+            // Add an instance of the new object to the canvas at selection center
+            const centerX = bounds.x + bounds.width / 2;
+            const centerY = bounds.y + bounds.height / 2;
+            this.addObjectInstanceToCanvas(objDef.id, centerX, centerY);
 
-    convertSelectionToObject() {
-        if (!this.selectionActive || !this.selectionData) return;
+            // Clear the selection area from the layer (this is the new part)
+            this.clearSelectionAreaFromLayer();
 
-        // Create a canvas from selection
-        const bounds = this.getAdjustedSelectionBounds();
-        const canvas = document.createElement('canvas');
-        canvas.width = bounds.width;
-        canvas.height = bounds.height;
-        const ctx = canvas.getContext('2d');
-        ctx.putImageData(this.selectionData, 0, 0);
+            // Remove selection after creating object
+            this.clearSelection();
 
-        // Create a new object definition for the library
-        const objDef = {
-            id: 'lib_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
-            name: 'Object ' + (this.objectLibrary.length + 1),
-            image: canvas,
-            width: canvas.width,
-            height: canvas.height
-        };
-        this.objectLibrary.push(objDef);
-        this.updateObjectLibraryList();
+            // Switch to object tool and update UI
+            this.currentTool = 'object-tool';
+            document.querySelectorAll('.drawing-tool').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-tool') === 'object-tool');
+            });
 
-        // Add an instance of the new object to the canvas at selection center
-        const centerX = bounds.x + bounds.width / 2;
-        const centerY = bounds.y + bounds.height / 2;
-        this.addObjectInstanceToCanvas(objDef.id, centerX, centerY);
+            // Hide selection options panel
+            const selectionOptions = document.getElementById('selectionOptions');
+            if (selectionOptions) selectionOptions.style.display = 'none';
 
-        // Remove selection after creating object
-        this.clearSelection();
+            // Show object tool section
+            const objectToolSection = document.getElementById('objectToolSection');
+            if (objectToolSection) objectToolSection.style.display = 'block';
 
-        // Switch to object tool and update UI
-        this.currentTool = 'object-tool';
-        document.querySelectorAll('.drawing-tool').forEach(btn => {
-            btn.classList.toggle('active', btn.getAttribute('data-tool') === 'object-tool');
-        });
-
-        // Hide selection options panel
-        const selectionOptions = document.getElementById('selectionOptions');
-        if (selectionOptions) selectionOptions.style.display = 'none';
-
-        // Show object tool section
-        const objectToolSection = document.getElementById('objectToolSection');
-        if (objectToolSection) objectToolSection.style.display = 'block';
-
-        this.renderObjectsList();
-        this.renderCurrentFrameToMainCanvas();
-    }
-
-    // Selection Methods
-    startSelection(x, y) {
-        this.isCreatingSelection = true;
-        this.clearSelection();
-        this.startSelectionAnimation();
-
-        if (this.currentTool === 'rectangle-select') {
-            this.selectionBounds = { x, y, width: 0, height: 0 };
-            // Store the original start position
-            this.selectionStartX = x;
-            this.selectionStartY = y;
-        } else if (this.currentTool === 'lasso-select') {
-            this.selectionPath = [{ x, y }];
-        }
-    }
-
-    updateSelection(x, y) {
-        if (!this.isCreatingSelection) return;
-
-        if (this.currentTool === 'rectangle-select') {
-            // Store the original start position - don't modify it
-            const startX = this.selectionStartX || this.selectionBounds.x;
-            const startY = this.selectionStartY || this.selectionBounds.y;
-
-            // Calculate bounds properly for any direction
-            this.selectionBounds = {
-                x: Math.min(startX, x),
-                y: Math.min(startY, y),
-                width: Math.abs(x - startX),
-                height: Math.abs(y - startY)
-            };
-        } else if (this.currentTool === 'lasso-select') {
-            this.selectionPath.push({ x, y });
+            this.renderObjectsList();
+            this.renderCurrentFrameToMainCanvas();
         }
 
-        this.renderCurrentFrameToMainCanvas();
-        this.drawSelectionPreview();
-    }
+        clearSelectionAreaFromLayer() {
+            if (!this.selectionActive || !this.activeLayerId) return;
 
-    finishSelection() {
-        if (!this.isCreatingSelection) return;
+            const frame = this.frames[this.currentFrame];
+            const layer = frame.layers.find(l => l.id === this.activeLayerId);
+            const globalLayer = this.layers.find(l => l.id === this.activeLayerId);
 
-        this.isCreatingSelection = false;
+            if (!layer || !globalLayer) return;
 
-        if (this.currentTool === 'rectangle-select') {
-            if (this.selectionBounds.width > 0 && this.selectionBounds.height > 0) {
-                this.undoAdd(); // Add undo state when creating selection
-                this.selectionActive = true;
-                this.extractSelectionData();
+            // Create a mask canvas
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = this.canvasWidth;
+            maskCanvas.height = this.canvasHeight;
+            const maskCtx = maskCanvas.getContext('2d');
+
+            const bounds = this.getAdjustedSelectionBounds();
+
+            if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
+                maskCtx.fillStyle = 'white';
+                maskCtx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+            } else if (this.selectionPath.length > 0) {
+                maskCtx.fillStyle = 'white';
+                maskCtx.beginPath();
+                maskCtx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
+                for (let i = 1; i < this.selectionPath.length; i++) {
+                    maskCtx.lineTo(this.selectionPath[i].x, this.selectionPath[i].y);
+                }
+                maskCtx.closePath();
+                maskCtx.fill();
             }
-        } else if (this.currentTool === 'lasso-select') {
-            if (this.selectionPath.length > 2) {
-                this.undoAdd(); // Add undo state when creating selection
-                this.selectionActive = true;
-                this.extractSelectionData();
+
+            // Clear the selected area from both frame layer and global layer
+            [layer, globalLayer].forEach(targetLayer => {
+                const ctx = targetLayer.canvas.getContext('2d');
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.drawImage(maskCanvas, 0, 0);
+                ctx.globalCompositeOperation = 'source-over';
+            });
+        }
+
+        // Selection Methods
+        startSelection(x, y) {
+            this.isCreatingSelection = true;
+            this.clearSelection();
+            this.startSelectionAnimation();
+
+            if (this.currentTool === 'rectangle-select') {
+                this.selectionBounds = { x, y, width: 0, height: 0 };
+                // Store the original start position
+                this.selectionStartX = x;
+                this.selectionStartY = y;
+            } else if (this.currentTool === 'lasso-select') {
+                this.selectionPath = [{ x, y }];
             }
         }
 
-        this.renderCurrentFrameToMainCanvas();
-    }
+        updateSelection(x, y) {
+            if (!this.isCreatingSelection) return;
 
-    clearSelection() {
-        if (this.selectionActive && this.selectionData) {
-            // Apply any pending selection changes
-            this.applySelectionToLayer();
-        }
+            if (this.currentTool === 'rectangle-select') {
+                // Store the original start position - don't modify it
+                const startX = this.selectionStartX || this.selectionBounds.x;
+                const startY = this.selectionStartY || this.selectionBounds.y;
 
-        this.selectionActive = false;
-        this.selectionBounds = { x: 0, y: 0, width: 0, height: 0 };
-        this.selectionPath = [];
-        this.selectionData = null;
-        this.isDraggingSelection = false;
-        this.selectionOffset = { x: 0, y: 0 };
-        this.selectionStartX = 0;
-        this.selectionStartY = 0;
-        this.selectionRotation = 0;
-        this.selectionRotateButton = null; // Reset rotate button
-        this.stopSelectionAnimation();
-        this.renderCurrentFrameToMainCanvas();
-    }
-
-    startSelectionAnimation() {
-        if (this.selectionAnimationInterval) {
-            clearInterval(this.selectionAnimationInterval);
-        }
-
-        this.selectionAnimationInterval = setInterval(() => {
-            this.selectionAnimationPhase = (this.selectionAnimationPhase + 1) % 2;
-            if (this.selectionActive || this.isCreatingSelection) {
-                this.renderCurrentFrameToMainCanvas();
+                // Calculate bounds properly for any direction
+                this.selectionBounds = {
+                    x: Math.min(startX, x),
+                    y: Math.min(startY, y),
+                    width: Math.abs(x - startX),
+                    height: Math.abs(y - startY)
+                };
+            } else if (this.currentTool === 'lasso-select') {
+                this.selectionPath.push({ x, y });
             }
-        }, 500); // 0.5 seconds
-    }
 
-    stopSelectionAnimation() {
-        if (this.selectionAnimationInterval) {
-            clearInterval(this.selectionAnimationInterval);
-            this.selectionAnimationInterval = null;
+            this.renderCurrentFrameToMainCanvas();
+            this.drawSelectionPreview();
         }
-    }
 
-    drawSelectionPreview() {
-        if (this.currentTool === 'lasso-select' && this.selectionPath.length > 1) {
+        finishSelection() {
+            if (!this.isCreatingSelection) return;
+
+            this.isCreatingSelection = false;
+
+            if (this.currentTool === 'rectangle-select') {
+                if (this.selectionBounds.width > 0 && this.selectionBounds.height > 0) {
+                    this.undoAdd(); // Add undo state when creating selection
+                    this.selectionActive = true;
+                    this.extractSelectionData();
+                }
+            } else if (this.currentTool === 'lasso-select') {
+                if (this.selectionPath.length > 2) {
+                    this.undoAdd(); // Add undo state when creating selection
+                    this.selectionActive = true;
+                    this.extractSelectionData();
+                }
+            }
+
+            this.renderCurrentFrameToMainCanvas();
+        }
+
+        clearSelection() {
+            if (this.selectionActive && this.selectionData) {
+                // Apply any pending selection changes
+                this.applySelectionToLayer();
+            }
+
+            this.selectionActive = false;
+            this.selectionBounds = { x: 0, y: 0, width: 0, height: 0 };
+            this.selectionPath = [];
+            this.selectionData = null;
+            this.isDraggingSelection = false;
+            this.selectionOffset = { x: 0, y: 0 };
+            this.selectionStartX = 0;
+            this.selectionStartY = 0;
+            this.selectionRotation = 0;
+            this.selectionRotateButton = null; // Reset rotate button
+            this.stopSelectionAnimation();
+            this.renderCurrentFrameToMainCanvas();
+        }
+
+        startSelectionAnimation() {
+            if (this.selectionAnimationInterval) {
+                clearInterval(this.selectionAnimationInterval);
+            }
+
+            this.selectionAnimationInterval = setInterval(() => {
+                this.selectionAnimationPhase = (this.selectionAnimationPhase + 1) % 2;
+                if (this.selectionActive || this.isCreatingSelection) {
+                    this.renderCurrentFrameToMainCanvas();
+                }
+            }, 500); // 0.5 seconds
+        }
+
+        stopSelectionAnimation() {
+            if (this.selectionAnimationInterval) {
+                clearInterval(this.selectionAnimationInterval);
+                this.selectionAnimationInterval = null;
+            }
+        }
+
+        drawSelectionPreview() {
+            if (this.currentTool === 'lasso-select' && this.selectionPath.length > 1) {
+                this.ctx.save();
+
+                // Use same animated style as selection outline
+                const isDarkPhase = this.selectionAnimationPhase === 0;
+                this.ctx.strokeStyle = isDarkPhase ? '#000000' : '#ffffff';
+                this.ctx.lineWidth = 1;
+                this.ctx.setLineDash([4, 4]);
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
+                for (let i = 1; i < this.selectionPath.length; i++) {
+                    this.ctx.lineTo(this.selectionPath[i].x, this.selectionPath[i].y);
+                }
+                this.ctx.stroke();
+                this.ctx.setLineDash([]);
+                this.ctx.restore();
+            }
+        }
+
+        drawSelectionOutline() {
             this.ctx.save();
 
-            // Use same animated style as selection outline
+            // Animate between white and black dashes
             const isDarkPhase = this.selectionAnimationPhase === 0;
             this.ctx.strokeStyle = isDarkPhase ? '#000000' : '#ffffff';
             this.ctx.lineWidth = 1;
             this.ctx.setLineDash([4, 4]);
 
-            this.ctx.beginPath();
-            this.ctx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
-            for (let i = 1; i < this.selectionPath.length; i++) {
-                this.ctx.lineTo(this.selectionPath[i].x, this.selectionPath[i].y);
+            if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
+                const bounds = this.getAdjustedSelectionBounds();
+                this.ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+                // Draw rotate button at top-right corner
+                this.drawSelectionRotateButton(bounds);
+            } else if (this.selectionPath.length > 2) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
+                for (let i = 1; i < this.selectionPath.length; i++) {
+                    this.ctx.lineTo(this.selectionPath[i].x, this.selectionPath[i].y);
+                }
+                this.ctx.closePath();
+                this.ctx.stroke();
+
+                // Draw rotate button for lasso selection too
+                const bounds = this.getAdjustedSelectionBounds();
+                this.drawSelectionRotateButton(bounds);
             }
-            this.ctx.stroke();
+
             this.ctx.setLineDash([]);
             this.ctx.restore();
         }
-    }
 
-    drawSelectionOutline() {
-        this.ctx.save();
+        drawSelectionRotateButton(bounds) {
+            const buttonSize = 16;
+            const buttonX = bounds.x + bounds.width + 4;
+            const buttonY = bounds.y - 4;
 
-        // Animate between white and black dashes
-        const isDarkPhase = this.selectionAnimationPhase === 0;
-        this.ctx.strokeStyle = isDarkPhase ? '#000000' : '#ffffff';
-        this.ctx.lineWidth = 1;
-        this.ctx.setLineDash([4, 4]);
+            // Store button position for click detection
+            this.selectionRotateButton = {
+                x: buttonX,
+                y: buttonY,
+                size: buttonSize
+            };
 
-        if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
-            const bounds = this.getAdjustedSelectionBounds();
-            this.ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+            this.ctx.save();
+            this.ctx.setLineDash([]);
 
-            // Draw rotate button at top-right corner
-            this.drawSelectionRotateButton(bounds);
-        } else if (this.selectionPath.length > 2) {
+            // Button background
+            this.ctx.fillStyle = '#4CAF50';
+            this.ctx.globalAlpha = 0.9;
+            this.ctx.fillRect(buttonX, buttonY, buttonSize, buttonSize);
+
+            // Button border
+            this.ctx.strokeStyle = '#333';
+            this.ctx.lineWidth = 1;
+            this.ctx.globalAlpha = 1;
+            this.ctx.strokeRect(buttonX, buttonY, buttonSize, buttonSize);
+
+            // Rotation arrow icon
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 2;
+            this.ctx.lineCap = 'round';
+
+            const centerX = buttonX + buttonSize / 2;
+            const centerY = buttonY + buttonSize / 2;
+            const radius = 5;
+
+            // Draw circular arrow
             this.ctx.beginPath();
-            this.ctx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
-            for (let i = 1; i < this.selectionPath.length; i++) {
-                this.ctx.lineTo(this.selectionPath[i].x, this.selectionPath[i].y);
-            }
-            this.ctx.closePath();
+            this.ctx.arc(centerX, centerY, radius, -Math.PI / 2, Math.PI, false);
             this.ctx.stroke();
 
-            // Draw rotate button for lasso selection too
-            const bounds = this.getAdjustedSelectionBounds();
-            this.drawSelectionRotateButton(bounds);
+            // Arrow head
+            this.ctx.beginPath();
+            this.ctx.moveTo(centerX - radius, centerY);
+            this.ctx.lineTo(centerX - radius - 3, centerY - 2);
+            this.ctx.moveTo(centerX - radius, centerY);
+            this.ctx.lineTo(centerX - radius - 3, centerY + 2);
+            this.ctx.stroke();
+
+            this.ctx.restore();
         }
 
-        this.ctx.setLineDash([]);
-        this.ctx.restore();
-    }
+        isPointInSelection(x, y) {
+            if (!this.selectionActive) return false;
 
-    drawSelectionRotateButton(bounds) {
-        const buttonSize = 16;
-        const buttonX = bounds.x + bounds.width + 4;
-        const buttonY = bounds.y - 4;
-
-        // Store button position for click detection
-        this.selectionRotateButton = {
-            x: buttonX,
-            y: buttonY,
-            size: buttonSize
-        };
-
-        this.ctx.save();
-        this.ctx.setLineDash([]);
-
-        // Button background
-        this.ctx.fillStyle = '#4CAF50';
-        this.ctx.globalAlpha = 0.9;
-        this.ctx.fillRect(buttonX, buttonY, buttonSize, buttonSize);
-
-        // Button border
-        this.ctx.strokeStyle = '#333';
-        this.ctx.lineWidth = 1;
-        this.ctx.globalAlpha = 1;
-        this.ctx.strokeRect(buttonX, buttonY, buttonSize, buttonSize);
-
-        // Rotation arrow icon
-        this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = 2;
-        this.ctx.lineCap = 'round';
-
-        const centerX = buttonX + buttonSize / 2;
-        const centerY = buttonY + buttonSize / 2;
-        const radius = 5;
-
-        // Draw circular arrow
-        this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY, radius, -Math.PI / 2, Math.PI, false);
-        this.ctx.stroke();
-
-        // Arrow head
-        this.ctx.beginPath();
-        this.ctx.moveTo(centerX - radius, centerY);
-        this.ctx.lineTo(centerX - radius - 3, centerY - 2);
-        this.ctx.moveTo(centerX - radius, centerY);
-        this.ctx.lineTo(centerX - radius - 3, centerY + 2);
-        this.ctx.stroke();
-
-        this.ctx.restore();
-    }
-
-    isPointInSelection(x, y) {
-        if (!this.selectionActive) return false;
-
-        if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
-            const bounds = this.getAdjustedSelectionBounds();
-            return x >= bounds.x && x <= bounds.x + bounds.width &&
-                y >= bounds.y && y <= bounds.y + bounds.height;
-        } else if (this.selectionPath.length > 0) {
-            return this.isPointInPolygon(x, y, this.selectionPath);
-        }
-
-        return false;
-    }
-
-    isPointInPolygon(x, y, polygon) {
-        let inside = false;
-        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-            if (((polygon[i].y > y) !== (polygon[j].y > y)) &&
-                (x < (polygon[j].x - polygon[i].x) * (y - polygon[i].y) / (polygon[j].y - polygon[i].y) + polygon[i].x)) {
-                inside = !inside;
+            if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
+                const bounds = this.getAdjustedSelectionBounds();
+                return x >= bounds.x && x <= bounds.x + bounds.width &&
+                    y >= bounds.y && y <= bounds.y + bounds.height;
+            } else if (this.selectionPath.length > 0) {
+                return this.isPointInPolygon(x, y, this.selectionPath);
             }
-        }
-        return inside;
-    }
 
-    startDraggingSelection(x, y) {
-        // Add undo state before starting to drag - but only once per drag operation
-        if (!this.isDraggingSelection) {
-            this.undoAdd();
+            return false;
         }
 
-        this.isDraggingSelection = true;
-        const bounds = this.getAdjustedSelectionBounds();
-        this.selectionOffset = {
-            x: x - bounds.x,
-            y: y - bounds.y
-        };
-    }
+        isPointInPolygon(x, y, polygon) {
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                if (((polygon[i].y > y) !== (polygon[j].y > y)) &&
+                    (x < (polygon[j].x - polygon[i].x) * (y - polygon[i].y) / (polygon[j].y - polygon[i].y) + polygon[i].x)) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
 
-    updateSelectionDrag(x, y) {
-        if (!this.isDraggingSelection) return;
+        startDraggingSelection(x, y) {
+            // Add undo state before starting to drag - but only once per drag operation
+            if (!this.isDraggingSelection) {
+                this.undoAdd();
+            }
 
-        // Adjust for zoom
-        const mouseX = x;
-        const mouseY = y;
-
-        if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
-            const newX = mouseX - this.selectionOffset.x;
-            const newY = mouseY - this.selectionOffset.y;
-            this.selectionBounds.x = newX;
-            this.selectionBounds.y = newY;
-        } else if (this.selectionPath.length > 0) {
-            // Move entire path, snap to mouse position
+            this.isDraggingSelection = true;
             const bounds = this.getAdjustedSelectionBounds();
-            const dx = mouseX - bounds.x - this.selectionOffset.x;
-            const dy = mouseY - bounds.y - this.selectionOffset.y;
-            this.selectionPath = this.selectionPath.map(p => ({
-                x: p.x + dx,
-                y: p.y + dy
-            }));
+            this.selectionOffset = {
+                x: x - bounds.x,
+                y: y - bounds.y
+            };
         }
 
-        this.renderCurrentFrameToMainCanvas();
-    }
+        updateSelectionDrag(x, y) {
+            if (!this.isDraggingSelection) return;
 
-    stopDraggingSelection() {
-        this.isDraggingSelection = false;
-    }
+            // Adjust for zoom
+            const mouseX = x;
+            const mouseY = y;
 
-    getAdjustedSelectionBounds() {
-        if (this.selectionBounds.width > 0) {
+            if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
+                const newX = mouseX - this.selectionOffset.x;
+                const newY = mouseY - this.selectionOffset.y;
+                this.selectionBounds.x = newX;
+                this.selectionBounds.y = newY;
+            } else if (this.selectionPath.length > 0) {
+                // Move entire path, snap to mouse position
+                const bounds = this.getAdjustedSelectionBounds();
+                const dx = mouseX - bounds.x - this.selectionOffset.x;
+                const dy = mouseY - bounds.y - this.selectionOffset.y;
+                this.selectionPath = this.selectionPath.map(p => ({
+                    x: p.x + dx,
+                    y: p.y + dy
+                }));
+            }
+
+            this.renderCurrentFrameToMainCanvas();
+        }
+
+        stopDraggingSelection() {
+            this.isDraggingSelection = false;
+        }
+
+        getAdjustedSelectionBounds() {
+            if (this.selectionBounds.width > 0) {
+                return this.selectionBounds;
+            } else if (this.selectionPath.length > 0) {
+                // Calculate bounding box of lasso selection
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                for (const point of this.selectionPath) {
+                    minX = Math.min(minX, point.x);
+                    minY = Math.min(minY, point.y);
+                    maxX = Math.max(maxX, point.x);
+                    maxY = Math.max(maxY, point.y);
+                }
+                return {
+                    x: minX,
+                    y: minY,
+                    width: maxX - minX,
+                    height: maxY - minY
+                };
+            }
             return this.selectionBounds;
-        } else if (this.selectionPath.length > 0) {
-            // Calculate bounding box of lasso selection
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            for (const point of this.selectionPath) {
-                minX = Math.min(minX, point.x);
-                minY = Math.min(minY, point.y);
-                maxX = Math.max(maxX, point.x);
-                maxY = Math.max(maxY, point.y);
+        }
+
+        extractSelectionData() {
+            // Use the current frame's layers, not global layers!
+            const frame = this.frames[this.currentFrame];
+            const layer = frame.layers.find(l => l.id === this.activeLayerId);
+
+            if (!layer) return;
+
+            const bounds = this.getAdjustedSelectionBounds();
+            const canvas = document.createElement('canvas');
+            canvas.width = bounds.width;
+            canvas.height = bounds.height;
+            const ctx = canvas.getContext('2d');
+
+            // Create a mask for the selection
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = this.canvasWidth;
+            maskCanvas.height = this.canvasHeight;
+            const maskCtx = maskCanvas.getContext('2d');
+
+            if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
+                maskCtx.fillStyle = 'white';
+                maskCtx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+            } else if (this.selectionPath.length > 0) {
+                maskCtx.fillStyle = 'white';
+                maskCtx.beginPath();
+                maskCtx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
+                for (let i = 1; i < this.selectionPath.length; i++) {
+                    maskCtx.lineTo(this.selectionPath[i].x, this.selectionPath[i].y);
+                }
+                maskCtx.closePath();
+                maskCtx.fill();
             }
-            return {
-                x: minX,
-                y: minY,
-                width: maxX - minX,
-                height: maxY - minY
+
+            // Extract the selected area from the layer
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = this.canvasWidth;
+            tempCanvas.height = this.canvasHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // Draw the layer
+            tempCtx.drawImage(layer.canvas, 0, 0);
+
+            // Apply mask
+            tempCtx.globalCompositeOperation = 'destination-in';
+            tempCtx.drawImage(maskCanvas, 0, 0);
+
+            // Copy to selection canvas
+            ctx.drawImage(tempCanvas, bounds.x, bounds.y, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height);
+
+            this.selectionData = ctx.getImageData(0, 0, bounds.width, bounds.height);
+
+            // Clear the selected area from the original layer AND sync to global layer
+            const layerCtx = layer.canvas.getContext('2d');
+            layerCtx.globalCompositeOperation = 'destination-out';
+            layerCtx.drawImage(maskCanvas, 0, 0);
+            layerCtx.globalCompositeOperation = 'source-over';
+
+            // IMPORTANT: Also clear from the global layer immediately
+            const globalLayer = this.layers.find(l => l.id === this.activeLayerId);
+            if (globalLayer) {
+                const globalCtx = globalLayer.canvas.getContext('2d');
+                globalCtx.globalCompositeOperation = 'destination-out';
+                globalCtx.drawImage(maskCanvas, 0, 0);
+                globalCtx.globalCompositeOperation = 'source-over';
+            }
+        }
+
+        applySelectionToLayer() {
+            if (!this.selectionData || !this.selectionActive) return;
+
+            // Apply to BOTH the current frame's layer AND the global layer
+            const frame = this.frames[this.currentFrame];
+            const frameLayer = frame.layers.find(l => l.id === this.activeLayerId);
+            const globalLayer = this.layers.find(l => l.id === this.activeLayerId);
+
+            if (!frameLayer || !globalLayer) return;
+
+            const bounds = this.getAdjustedSelectionBounds();
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = bounds.width;
+            tempCanvas.height = bounds.height;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            tempCtx.putImageData(this.selectionData, 0, 0);
+
+            // Apply to frame layer
+            const frameLayerCtx = frameLayer.canvas.getContext('2d');
+            frameLayerCtx.drawImage(tempCanvas, bounds.x, bounds.y);
+
+            // Apply to global layer
+            const globalLayerCtx = globalLayer.canvas.getContext('2d');
+            globalLayerCtx.drawImage(tempCanvas, bounds.x, bounds.y);
+        }
+
+        clearSelection() {
+            if (this.selectionActive && this.selectionData) {
+                // Apply any pending selection changes before clearing
+                this.applySelectionToLayer();
+                // Sync the changes to ensure consistency
+                this.syncGlobalLayersToCurrentFrame();
+            }
+
+            this.selectionActive = false;
+            this.selectionBounds = { x: 0, y: 0, width: 0, height: 0 };
+            this.selectionPath = [];
+            this.selectionData = null;
+            this.isDraggingSelection = false;
+            this.selectionOffset = { x: 0, y: 0 };
+            this.selectionStartX = 0;
+            this.selectionStartY = 0;
+            this.selectionRotation = 0;
+            this.selectionRotateButton = null;
+            this.stopSelectionAnimation();
+            this.renderCurrentFrameToMainCanvas();
+        }
+
+        copySelection() {
+            if (!this.selectionActive || !this.selectionData) return;
+            // Store selection data and bounds for paste
+            this.copiedSelection = {
+                data: new ImageData(
+                    new Uint8ClampedArray(this.selectionData.data),
+                    this.selectionData.width,
+                    this.selectionData.height
+                ),
+                width: this.selectionData.width,
+                height: this.selectionData.height
             };
         }
-        return this.selectionBounds;
-    }
 
-    extractSelectionData() {
-        // Use the current frame's layers, not global layers!
-        const frame = this.frames[this.currentFrame];
-        const layer = frame.layers.find(l => l.id === this.activeLayerId);
+        cutSelection() {
+            if (!this.selectionActive || !this.selectionData) return;
 
-        if (!layer) return;
+            // Copy selection to clipboard
+            this.copySelection();
 
-        const bounds = this.getAdjustedSelectionBounds();
-        const canvas = document.createElement('canvas');
-        canvas.width = bounds.width;
-        canvas.height = bounds.height;
-        const ctx = canvas.getContext('2d');
-
-        // Create a mask for the selection
-        const maskCanvas = document.createElement('canvas');
-        maskCanvas.width = this.canvasWidth;
-        maskCanvas.height = this.canvasHeight;
-        const maskCtx = maskCanvas.getContext('2d');
-
-        if (this.currentTool === 'rectangle-select' || this.selectionBounds.width > 0) {
-            maskCtx.fillStyle = 'white';
-            maskCtx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-        } else if (this.selectionPath.length > 0) {
-            maskCtx.fillStyle = 'white';
-            maskCtx.beginPath();
-            maskCtx.moveTo(this.selectionPath[0].x, this.selectionPath[0].y);
-            for (let i = 1; i < this.selectionPath.length; i++) {
-                maskCtx.lineTo(this.selectionPath[i].x, this.selectionPath[i].y);
-            }
-            maskCtx.closePath();
-            maskCtx.fill();
+            // Delete the selection from the canvas
+            this.deleteSelection();
         }
 
-        // Extract the selected area from the layer
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = this.canvasWidth;
-        tempCanvas.height = this.canvasHeight;
-        const tempCtx = tempCanvas.getContext('2d');
+        pasteSelection() {
+            if (!this.copiedSelection) return;
 
-        // Draw the layer
-        tempCtx.drawImage(layer.canvas, 0, 0);
+            this.clearSelection();
 
-        // Apply mask
-        tempCtx.globalCompositeOperation = 'destination-in';
-        tempCtx.drawImage(maskCanvas, 0, 0);
+            // Create new selection at center of canvas
+            const centerX = Math.floor((this.canvasWidth - this.copiedSelection.width) / 2);
+            const centerY = Math.floor((this.canvasHeight - this.copiedSelection.height) / 2);
 
-        // Copy to selection canvas
-        ctx.drawImage(tempCanvas, bounds.x, bounds.y, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height);
+            this.selectionBounds = {
+                x: centerX,
+                y: centerY,
+                width: this.copiedSelection.width,
+                height: this.copiedSelection.height
+            };
 
-        this.selectionData = ctx.getImageData(0, 0, bounds.width, bounds.height);
+            this.selectionData = new ImageData(
+                new Uint8ClampedArray(this.copiedSelection.data.data),
+                this.copiedSelection.data.width,
+                this.copiedSelection.data.height
+            );
 
-        // Clear the selected area from the original layer AND sync to global layer
-        const layerCtx = layer.canvas.getContext('2d');
-        layerCtx.globalCompositeOperation = 'destination-out';
-        layerCtx.drawImage(maskCanvas, 0, 0);
-        layerCtx.globalCompositeOperation = 'source-over';
+            this.selectionActive = true;
+            this.currentTool = 'rectangle-select';
 
-        // IMPORTANT: Also clear from the global layer immediately
-        const globalLayer = this.layers.find(l => l.id === this.activeLayerId);
-        if (globalLayer) {
-            const globalCtx = globalLayer.canvas.getContext('2d');
-            globalCtx.globalCompositeOperation = 'destination-out';
-            globalCtx.drawImage(maskCanvas, 0, 0);
-            globalCtx.globalCompositeOperation = 'source-over';
+            // Start the selection animation for pasted selection
+            this.startSelectionAnimation();
+
+            this.renderCurrentFrameToMainCanvas();
         }
-    }
 
-    applySelectionToLayer() {
-        if (!this.selectionData || !this.selectionActive) return;
+        selectAll() {
+            this.clearSelection();
+            this.selectionBounds = {
+                x: 0,
+                y: 0,
+                width: this.canvasWidth,
+                height: this.canvasHeight
+            };
+            this.selectionActive = true;
+            this.currentTool = 'rectangle-select';
+            this.extractSelectionData();
+            this.startSelectionAnimation();
+            this.renderCurrentFrameToMainCanvas();
+        }
 
-        // Apply to BOTH the current frame's layer AND the global layer
-        const frame = this.frames[this.currentFrame];
-        const frameLayer = frame.layers.find(l => l.id === this.activeLayerId);
-        const globalLayer = this.layers.find(l => l.id === this.activeLayerId);
+        deleteSelection() {
+            if (!this.selectionActive) return;
 
-        if (!frameLayer || !globalLayer) return;
+            this.undoAdd();
 
-        const bounds = this.getAdjustedSelectionBounds();
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = bounds.width;
-        tempCanvas.height = bounds.height;
-        const tempCtx = tempCanvas.getContext('2d');
+            // The selected area is already cleared from extractSelectionData()
+            // Just clear the selection state
+            this.selectionActive = false;
+            this.selectionBounds = { x: 0, y: 0, width: 0, height: 0 };
+            this.selectionPath = [];
+            this.selectionData = null;
+            this.isDraggingSelection = false;
+            this.selectionOffset = { x: 0, y: 0 };
+            this.selectionStartX = 0;
+            this.selectionStartY = 0;
+            this.selectionRotation = 0;
+            this.selectionRotateButton = null;
+            this.stopSelectionAnimation();
 
-        tempCtx.putImageData(this.selectionData, 0, 0);
-
-        // Apply to frame layer
-        const frameLayerCtx = frameLayer.canvas.getContext('2d');
-        frameLayerCtx.drawImage(tempCanvas, bounds.x, bounds.y);
-
-        // Apply to global layer
-        const globalLayerCtx = globalLayer.canvas.getContext('2d');
-        globalLayerCtx.drawImage(tempCanvas, bounds.x, bounds.y);
-    }
-
-    clearSelection() {
-        if (this.selectionActive && this.selectionData) {
-            // Apply any pending selection changes before clearing
-            this.applySelectionToLayer();
-            // Sync the changes to ensure consistency
+            // Make sure both layers are synced
             this.syncGlobalLayersToCurrentFrame();
+            this.renderCurrentFrameToMainCanvas();
         }
 
-        this.selectionActive = false;
-        this.selectionBounds = { x: 0, y: 0, width: 0, height: 0 };
-        this.selectionPath = [];
-        this.selectionData = null;
-        this.isDraggingSelection = false;
-        this.selectionOffset = { x: 0, y: 0 };
-        this.selectionStartX = 0;
-        this.selectionStartY = 0;
-        this.selectionRotation = 0;
-        this.selectionRotateButton = null;
-        this.stopSelectionAnimation();
-        this.renderCurrentFrameToMainCanvas();
-    }
+        rotateSelection(degrees) {
+            if (!this.selectionActive || !this.selectionData) return;
 
-    copySelection() {
-        if (!this.selectionActive || !this.selectionData) return;
-        // Store selection data and bounds for paste
-        this.copiedSelection = {
-            data: new ImageData(
-                new Uint8ClampedArray(this.selectionData.data),
-                this.selectionData.width,
-                this.selectionData.height
-            ),
-            width: this.selectionData.width,
-            height: this.selectionData.height
-        };
-    }
+            this.undoAdd();
+            this.selectionRotation = (this.selectionRotation + degrees) % 360;
 
-    cutSelection() {
-        if (!this.selectionActive || !this.selectionData) return;
+            // Create a canvas for the original data
+            const originalCanvas = document.createElement('canvas');
+            originalCanvas.width = this.selectionData.width;
+            originalCanvas.height = this.selectionData.height;
+            const originalCtx = originalCanvas.getContext('2d');
+            originalCtx.putImageData(this.selectionData, 0, 0);
 
-        // Copy selection to clipboard
-        this.copySelection();
+            // For 90-degree rotations, we can do pixel-perfect rotation
+            if (Math.abs(degrees) === 90) {
+                let newWidth, newHeight;
 
-        // Delete the selection from the canvas
-        this.deleteSelection();
-    }
+                // For 90-degree rotations, swap dimensions
+                if (degrees === 90 || degrees === -270) {
+                    // 90 degrees clockwise
+                    newWidth = originalCanvas.height;
+                    newHeight = originalCanvas.width;
+                } else if (degrees === -90 || degrees === 270) {
+                    // 90 degrees counter-clockwise
+                    newWidth = originalCanvas.height;
+                    newHeight = originalCanvas.width;
+                } else if (Math.abs(degrees) === 180) {
+                    // 180 degrees
+                    newWidth = originalCanvas.width;
+                    newHeight = originalCanvas.height;
+                }
 
-    pasteSelection() {
-        if (!this.copiedSelection) return;
+                // Create rotated canvas
+                const rotatedCanvas = document.createElement('canvas');
+                rotatedCanvas.width = newWidth;
+                rotatedCanvas.height = newHeight;
+                const rotatedCtx = rotatedCanvas.getContext('2d');
 
-        this.clearSelection();
+                // Disable image smoothing for pixel-perfect rotation
+                rotatedCtx.imageSmoothingEnabled = false;
 
-        // Create new selection at center of canvas
-        const centerX = Math.floor((this.canvasWidth - this.copiedSelection.width) / 2);
-        const centerY = Math.floor((this.canvasHeight - this.copiedSelection.height) / 2);
+                // Apply the rotation transformation
+                rotatedCtx.translate(newWidth / 2, newHeight / 2);
+                rotatedCtx.rotate(degrees * Math.PI / 180);
+                rotatedCtx.translate(-originalCanvas.width / 2, -originalCanvas.height / 2);
 
-        this.selectionBounds = {
-            x: centerX,
-            y: centerY,
-            width: this.copiedSelection.width,
-            height: this.copiedSelection.height
-        };
+                // Draw the original image
+                rotatedCtx.drawImage(originalCanvas, 0, 0);
 
-        this.selectionData = new ImageData(
-            new Uint8ClampedArray(this.copiedSelection.data.data),
-            this.copiedSelection.data.width,
-            this.copiedSelection.data.height
-        );
+                // Update selection data and bounds
+                this.selectionData = rotatedCtx.getImageData(0, 0, newWidth, newHeight);
 
-        this.selectionActive = true;
-        this.currentTool = 'rectangle-select';
+                // Adjust bounds to keep selection centered
+                const bounds = this.getAdjustedSelectionBounds();
+                const centerX = bounds.x + bounds.width / 2;
+                const centerY = bounds.y + bounds.height / 2;
 
-        // Start the selection animation for pasted selection
-        this.startSelectionAnimation();
+                this.selectionBounds = {
+                    x: Math.floor(centerX - newWidth / 2),
+                    y: Math.floor(centerY - newHeight / 2),
+                    width: newWidth,
+                    height: newHeight
+                };
+            } else {
+                // For non-90-degree rotations, use the original method (with potential blur)
+                const radians = Math.abs(degrees * Math.PI / 180);
+                const sin = Math.sin(radians);
+                const cos = Math.cos(radians);
+                const newWidth = Math.ceil(originalCanvas.width * cos + originalCanvas.height * sin);
+                const newHeight = Math.ceil(originalCanvas.width * sin + originalCanvas.height * cos);
 
-        this.renderCurrentFrameToMainCanvas();
-    }
+                const rotatedCanvas = document.createElement('canvas');
+                rotatedCanvas.width = newWidth;
+                rotatedCanvas.height = newHeight;
+                const rotatedCtx = rotatedCanvas.getContext('2d');
 
-    selectAll() {
-        this.clearSelection();
-        this.selectionBounds = {
-            x: 0,
-            y: 0,
-            width: this.canvasWidth,
-            height: this.canvasHeight
-        };
-        this.selectionActive = true;
-        this.currentTool = 'rectangle-select';
-        this.extractSelectionData();
-        this.startSelectionAnimation();
-        this.renderCurrentFrameToMainCanvas();
-    }
+                rotatedCtx.translate(newWidth / 2, newHeight / 2);
+                rotatedCtx.rotate(degrees * Math.PI / 180);
+                rotatedCtx.translate(-originalCanvas.width / 2, -originalCanvas.height / 2);
+                rotatedCtx.drawImage(originalCanvas, 0, 0);
 
-    deleteSelection() {
-        if (!this.selectionActive) return;
+                this.selectionData = rotatedCtx.getImageData(0, 0, newWidth, newHeight);
 
-        this.undoAdd();
+                const bounds = this.getAdjustedSelectionBounds();
+                const centerX = bounds.x + bounds.width / 2;
+                const centerY = bounds.y + bounds.height / 2;
 
-        // The selected area is already cleared from extractSelectionData()
-        // Just clear the selection state
-        this.selectionActive = false;
-        this.selectionBounds = { x: 0, y: 0, width: 0, height: 0 };
-        this.selectionPath = [];
-        this.selectionData = null;
-        this.isDraggingSelection = false;
-        this.selectionOffset = { x: 0, y: 0 };
-        this.selectionStartX = 0;
-        this.selectionStartY = 0;
-        this.selectionRotation = 0;
-        this.selectionRotateButton = null;
-        this.stopSelectionAnimation();
-
-        // Make sure both layers are synced
-        this.syncGlobalLayersToCurrentFrame();
-        this.renderCurrentFrameToMainCanvas();
-    }
-
-    rotateSelection(degrees) {
-        if (!this.selectionActive || !this.selectionData) return;
-
-        this.undoAdd();
-        this.selectionRotation = (this.selectionRotation + degrees) % 360;
-
-        // Create a canvas for the original data
-        const originalCanvas = document.createElement('canvas');
-        originalCanvas.width = this.selectionData.width;
-        originalCanvas.height = this.selectionData.height;
-        const originalCtx = originalCanvas.getContext('2d');
-        originalCtx.putImageData(this.selectionData, 0, 0);
-
-        // For 90-degree rotations, we can do pixel-perfect rotation
-        if (Math.abs(degrees) === 90) {
-            let newWidth, newHeight;
-
-            // For 90-degree rotations, swap dimensions
-            if (degrees === 90 || degrees === -270) {
-                // 90 degrees clockwise
-                newWidth = originalCanvas.height;
-                newHeight = originalCanvas.width;
-            } else if (degrees === -90 || degrees === 270) {
-                // 90 degrees counter-clockwise
-                newWidth = originalCanvas.height;
-                newHeight = originalCanvas.width;
-            } else if (Math.abs(degrees) === 180) {
-                // 180 degrees
-                newWidth = originalCanvas.width;
-                newHeight = originalCanvas.height;
+                this.selectionBounds = {
+                    x: Math.floor(centerX - newWidth / 2),
+                    y: Math.floor(centerY - newHeight / 2),
+                    width: newWidth,
+                    height: newHeight
+                };
             }
 
-            // Create rotated canvas
-            const rotatedCanvas = document.createElement('canvas');
-            rotatedCanvas.width = newWidth;
-            rotatedCanvas.height = newHeight;
-            const rotatedCtx = rotatedCanvas.getContext('2d');
-
-            // Disable image smoothing for pixel-perfect rotation
-            rotatedCtx.imageSmoothingEnabled = false;
-
-            // Apply the rotation transformation
-            rotatedCtx.translate(newWidth / 2, newHeight / 2);
-            rotatedCtx.rotate(degrees * Math.PI / 180);
-            rotatedCtx.translate(-originalCanvas.width / 2, -originalCanvas.height / 2);
-
-            // Draw the original image
-            rotatedCtx.drawImage(originalCanvas, 0, 0);
-
-            // Update selection data and bounds
-            this.selectionData = rotatedCtx.getImageData(0, 0, newWidth, newHeight);
-
-            // Adjust bounds to keep selection centered
-            const bounds = this.getAdjustedSelectionBounds();
-            const centerX = bounds.x + bounds.width / 2;
-            const centerY = bounds.y + bounds.height / 2;
-
-            this.selectionBounds = {
-                x: Math.floor(centerX - newWidth / 2),
-                y: Math.floor(centerY - newHeight / 2),
-                width: newWidth,
-                height: newHeight
-            };
-        } else {
-            // For non-90-degree rotations, use the original method (with potential blur)
-            const radians = Math.abs(degrees * Math.PI / 180);
-            const sin = Math.sin(radians);
-            const cos = Math.cos(radians);
-            const newWidth = Math.ceil(originalCanvas.width * cos + originalCanvas.height * sin);
-            const newHeight = Math.ceil(originalCanvas.width * sin + originalCanvas.height * cos);
-
-            const rotatedCanvas = document.createElement('canvas');
-            rotatedCanvas.width = newWidth;
-            rotatedCanvas.height = newHeight;
-            const rotatedCtx = rotatedCanvas.getContext('2d');
-
-            rotatedCtx.translate(newWidth / 2, newHeight / 2);
-            rotatedCtx.rotate(degrees * Math.PI / 180);
-            rotatedCtx.translate(-originalCanvas.width / 2, -originalCanvas.height / 2);
-            rotatedCtx.drawImage(originalCanvas, 0, 0);
-
-            this.selectionData = rotatedCtx.getImageData(0, 0, newWidth, newHeight);
-
-            const bounds = this.getAdjustedSelectionBounds();
-            const centerX = bounds.x + bounds.width / 2;
-            const centerY = bounds.y + bounds.height / 2;
-
-            this.selectionBounds = {
-                x: Math.floor(centerX - newWidth / 2),
-                y: Math.floor(centerY - newHeight / 2),
-                width: newWidth,
-                height: newHeight
-            };
+            this.renderCurrentFrameToMainCanvas();
         }
 
-        this.renderCurrentFrameToMainCanvas();
-    }
+        // --- Spline Tool Event Handlers ---
+        handleSplineMouseDown(e) {
+            if (this.currentTool !== 'spline') return;
+            e.preventDefault();
 
-    // --- Spline Tool Event Handlers ---
-    handleSplineMouseDown(e) {
-        if (this.currentTool !== 'spline') return;
-        e.preventDefault();
-
-        const rect = this.mainCanvas.getBoundingClientRect();
-        const x = Math.floor((e.clientX - rect.left) / this.zoom);
-        const y = Math.floor((e.clientY - rect.top) / this.zoom);
-
-        // Check if clicking on apply button
-        if (this.splineApplyButton && this.isPointInApplyButton(x, y)) {
-            this.applySpline();
-            return;
-        }
-
-        // Check if clicking on existing point
-        for (let i = 0; i < this.splinePoints.length; i++) {
-            const point = this.splinePoints[i];
-            if (Math.hypot(point.x - x, point.y - y) < 12) {
-                this.isDraggingSplinePoint = true;
-                this.draggingSplinePointIndex = i;
-                return;
-            }
-        }
-
-        // Add new point
-        this.splinePoints.push({ x, y });
-        this.splineActive = true;
-        this.renderCurrentFrameToMainCanvas();
-        this.drawSplinePreview();
-    }
-
-    handleSplineMouseMove(e) {
-        if (this.currentTool !== 'spline') return;
-
-        if (this.isDraggingSplinePoint && this.draggingSplinePointIndex >= 0) {
             const rect = this.mainCanvas.getBoundingClientRect();
             const x = Math.floor((e.clientX - rect.left) / this.zoom);
             const y = Math.floor((e.clientY - rect.top) / this.zoom);
 
-            this.splinePoints[this.draggingSplinePointIndex] = { x, y };
+            // Check if clicking on apply button
+            if (this.splineApplyButton && this.isPointInApplyButton(x, y)) {
+                this.applySpline();
+                return;
+            }
+
+            // Check if clicking on existing point
+            for (let i = 0; i < this.splinePoints.length; i++) {
+                const point = this.splinePoints[i];
+                if (Math.hypot(point.x - x, point.y - y) < 12) {
+                    this.isDraggingSplinePoint = true;
+                    this.draggingSplinePointIndex = i;
+                    return;
+                }
+            }
+
+            // Add new point
+            this.splinePoints.push({ x, y });
+            this.splineActive = true;
             this.renderCurrentFrameToMainCanvas();
             this.drawSplinePreview();
         }
-    }
 
-    handleSplineMouseUp(e) {
-        if (this.currentTool !== 'spline') return;
+        handleSplineMouseMove(e) {
+            if (this.currentTool !== 'spline') return;
 
-        this.isDraggingSplinePoint = false;
-        this.draggingSplinePointIndex = -1;
-    }
+            if (this.isDraggingSplinePoint && this.draggingSplinePointIndex >= 0) {
+                const rect = this.mainCanvas.getBoundingClientRect();
+                const x = Math.floor((e.clientX - rect.left) / this.zoom);
+                const y = Math.floor((e.clientY - rect.top) / this.zoom);
 
-    handleSplineRightClick(e) {
-        if (this.currentTool !== 'spline') return;
-
-        const rect = this.mainCanvas.getBoundingClientRect();
-        const x = Math.floor((e.clientX - rect.left) / this.zoom);
-        const y = Math.floor((e.clientY - rect.top) / this.zoom);
-
-        // Remove point if right-clicking near one
-        for (let i = 0; i < this.splinePoints.length; i++) {
-            const point = this.splinePoints[i];
-            if (Math.hypot(point.x - x, point.y - y) < 12) {
-                this.splinePoints.splice(i, 1);
-                if (this.splinePoints.length === 0) {
-                    this.splineActive = false;
-                    this.splineApplyButton = null;
-                }
+                this.splinePoints[this.draggingSplinePointIndex] = { x, y };
                 this.renderCurrentFrameToMainCanvas();
                 this.drawSplinePreview();
-                return;
             }
         }
-    }
 
-    bezierSpline(p1, p2, p3, t, intensity) {
-        // Quadratic Bezier interpolation
-        const cpx = p2.x + (p3.x - p1.x) * intensity * this.splineTension * 0.3;
-        const cpy = p2.y + (p3.y - p1.y) * intensity * this.splineTension * 0.3;
+        handleSplineMouseUp(e) {
+            if (this.currentTool !== 'spline') return;
 
-        const x = (1 - t) * (1 - t) * p1.x + 2 * (1 - t) * t * cpx + t * t * p2.x;
-        const y = (1 - t) * (1 - t) * p1.y + 2 * (1 - t) * t * cpy + t * t * p2.y;
-
-        return { x, y };
-    }
-
-    bSplineInterpolate(p0, p1, p2, p3, t, intensity) {
-        // Simplified B-spline interpolation
-        const t2 = t * t;
-        const t3 = t2 * t;
-
-        const factor = intensity * this.splineTension;
-
-        const x = factor * (
-            (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3 +
-            (3 * p0.x - 6 * p1.x + 3 * p2.x) * t2 +
-            (-3 * p0.x + 3 * p2.x) * t +
-            (p0.x + 4 * p1.x + p2.x)
-        ) / 6;
-
-        const y = factor * (
-            (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3 +
-            (3 * p0.y - 6 * p1.y + 3 * p2.y) * t2 +
-            (-3 * p0.y + 3 * p2.y) * t +
-            (p0.y + 4 * p1.y + p2.y)
-        ) / 6;
-
-        return { x, y };
-    }
-
-    // --- Draw Spline Preview and Controls ---
-    drawSplinePreview() {
-        if (!this.ctx || this.splinePoints.length === 0) return;
-
-        // Draw the spline curve
-        if (this.splinePoints.length > 1) {
-            this.ctx.save();
-            this.ctx.globalAlpha = 0.8;
-            this.ctx.strokeStyle = this.primaryColor;
-            this.ctx.lineWidth = this.brushSize;
-            this.ctx.setLineDash([6, 4]);
-            this.drawSplineCurve(this.ctx, this.splinePoints, this.splineIntensity);
-            this.ctx.setLineDash([]);
-            this.ctx.restore();
+            this.isDraggingSplinePoint = false;
+            this.draggingSplinePointIndex = -1;
         }
 
-        // Draw control points
-        for (let i = 0; i < this.splinePoints.length; i++) {
-            const pt = this.splinePoints[i];
-            this.ctx.save();
+        handleSplineRightClick(e) {
+            if (this.currentTool !== 'spline') return;
 
-            // Point background
-            this.ctx.beginPath();
-            this.ctx.arc(pt.x, pt.y, 8, 0, 2 * Math.PI);
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.globalAlpha = 0.9;
-            this.ctx.fill();
+            const rect = this.mainCanvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / this.zoom);
+            const y = Math.floor((e.clientY - rect.top) / this.zoom);
 
-            // Point border
-            this.ctx.lineWidth = 2;
-            this.ctx.strokeStyle = this.isDraggingSplinePoint && this.draggingSplinePointIndex === i ?
-                this.primaryColor : '#333333';
-            this.ctx.globalAlpha = 1;
-            this.ctx.stroke();
+            // Remove point if right-clicking near one
+            for (let i = 0; i < this.splinePoints.length; i++) {
+                const point = this.splinePoints[i];
+                if (Math.hypot(point.x - x, point.y - y) < 12) {
+                    this.splinePoints.splice(i, 1);
+                    if (this.splinePoints.length === 0) {
+                        this.splineActive = false;
+                        this.splineApplyButton = null;
+                    }
+                    this.renderCurrentFrameToMainCanvas();
+                    this.drawSplinePreview();
+                    return;
+                }
+            }
+        }
 
-            // Point number (if enabled)
-            if (this.splineShowNumbers) {
-                this.ctx.fillStyle = '#333333';
-                this.ctx.font = 'bold 10px sans-serif';
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText((i + 1).toString(), pt.x, pt.y);
+        bezierSpline(p1, p2, p3, t, intensity) {
+            // Quadratic Bezier interpolation
+            const cpx = p2.x + (p3.x - p1.x) * intensity * this.splineTension * 0.3;
+            const cpy = p2.y + (p3.y - p1.y) * intensity * this.splineTension * 0.3;
+
+            const x = (1 - t) * (1 - t) * p1.x + 2 * (1 - t) * t * cpx + t * t * p2.x;
+            const y = (1 - t) * (1 - t) * p1.y + 2 * (1 - t) * t * cpy + t * t * p2.y;
+
+            return { x, y };
+        }
+
+        bSplineInterpolate(p0, p1, p2, p3, t, intensity) {
+            // Simplified B-spline interpolation
+            const t2 = t * t;
+            const t3 = t2 * t;
+
+            const factor = intensity * this.splineTension;
+
+            const x = factor * (
+                (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3 +
+                (3 * p0.x - 6 * p1.x + 3 * p2.x) * t2 +
+                (-3 * p0.x + 3 * p2.x) * t +
+                (p0.x + 4 * p1.x + p2.x)
+            ) / 6;
+
+            const y = factor * (
+                (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3 +
+                (3 * p0.y - 6 * p1.y + 3 * p2.y) * t2 +
+                (-3 * p0.y + 3 * p2.y) * t +
+                (p0.y + 4 * p1.y + p2.y)
+            ) / 6;
+
+            return { x, y };
+        }
+
+        // --- Draw Spline Preview and Controls ---
+        drawSplinePreview() {
+            if (!this.ctx || this.splinePoints.length === 0) return;
+
+            // Draw the spline curve
+            if (this.splinePoints.length > 1) {
+                this.ctx.save();
+                this.ctx.globalAlpha = 0.8;
+                this.ctx.strokeStyle = this.primaryColor;
+                this.ctx.lineWidth = this.brushSize;
+                this.ctx.setLineDash([6, 4]);
+                this.drawSplineCurve(this.ctx, this.splinePoints, this.splineIntensity);
+                this.ctx.setLineDash([]);
+                this.ctx.restore();
             }
 
-            this.ctx.restore();
-        }
-
-        // Draw connection lines between points (if enabled)
-        if (this.splineShowControlLines && this.splinePoints.length > 1) {
-            this.ctx.save();
-            this.ctx.strokeStyle = '#888888';
-            this.ctx.lineWidth = 1;
-            this.ctx.setLineDash([2, 4]);
-            this.ctx.globalAlpha = 0.5;
-            this.ctx.beginPath();
+            // Draw control points
             for (let i = 0; i < this.splinePoints.length; i++) {
                 const pt = this.splinePoints[i];
-                if (i === 0) this.ctx.moveTo(pt.x, pt.y);
-                else this.ctx.lineTo(pt.x, pt.y);
+                this.ctx.save();
+
+                // Point background
+                this.ctx.beginPath();
+                this.ctx.arc(pt.x, pt.y, 8, 0, 2 * Math.PI);
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.globalAlpha = 0.9;
+                this.ctx.fill();
+
+                // Point border
+                this.ctx.lineWidth = 2;
+                this.ctx.strokeStyle = this.isDraggingSplinePoint && this.draggingSplinePointIndex === i ?
+                    this.primaryColor : '#333333';
+                this.ctx.globalAlpha = 1;
+                this.ctx.stroke();
+
+                // Point number (if enabled)
+                if (this.splineShowNumbers) {
+                    this.ctx.fillStyle = '#333333';
+                    this.ctx.font = 'bold 10px sans-serif';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText((i + 1).toString(), pt.x, pt.y);
+                }
+
+                this.ctx.restore();
             }
+
+            // Draw connection lines between points (if enabled)
+            if (this.splineShowControlLines && this.splinePoints.length > 1) {
+                this.ctx.save();
+                this.ctx.strokeStyle = '#888888';
+                this.ctx.lineWidth = 1;
+                this.ctx.setLineDash([2, 4]);
+                this.ctx.globalAlpha = 0.5;
+                this.ctx.beginPath();
+                for (let i = 0; i < this.splinePoints.length; i++) {
+                    const pt = this.splinePoints[i];
+                    if (i === 0) this.ctx.moveTo(pt.x, pt.y);
+                    else this.ctx.lineTo(pt.x, pt.y);
+                }
+                this.ctx.stroke();
+                this.ctx.setLineDash([]);
+                this.ctx.restore();
+            }
+
+            // Draw apply button
+            if (this.splinePoints.length > 1) {
+                this.drawSplineApplyButton();
+            } else {
+                this.splineApplyButton = null;
+            }
+        }
+
+        drawSplineApplyButton() {
+            // Position apply button at bottom-right of canvas
+            const buttonSize = 32;
+            const margin = 16;
+            const buttonX = this.canvasWidth - buttonSize - margin;
+            const buttonY = this.canvasHeight - buttonSize - margin;
+
+            this.splineApplyButton = {
+                x: buttonX,
+                y: buttonY,
+                size: buttonSize
+            };
+
+            this.ctx.save();
+
+            // Button background
+            this.ctx.fillStyle = '#4CAF50';
+            this.ctx.globalAlpha = 0.9;
+            this.ctx.fillRect(buttonX, buttonY, buttonSize, buttonSize);
+
+            // Button border
+            this.ctx.strokeStyle = '#333333';
+            this.ctx.lineWidth = 2;
+            this.ctx.globalAlpha = 1;
+            this.ctx.strokeRect(buttonX, buttonY, buttonSize, buttonSize);
+
+            // Check mark icon
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 3;
+            this.ctx.lineCap = 'round';
+            this.ctx.beginPath();
+            this.ctx.moveTo(buttonX + 8, buttonY + 16);
+            this.ctx.lineTo(buttonX + 14, buttonY + 22);
+            this.ctx.lineTo(buttonX + 24, buttonY + 10);
             this.ctx.stroke();
-            this.ctx.setLineDash([]);
+
+            // "Apply" text
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = 'bold 8px sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'bottom';
+            this.ctx.fillText('Apply', buttonX + buttonSize / 2, buttonY + buttonSize - 2);
+
             this.ctx.restore();
         }
 
-        // Draw apply button
-        if (this.splinePoints.length > 1) {
-            this.drawSplineApplyButton();
-        } else {
-            this.splineApplyButton = null;
+        isPointInApplyButton(x, y) {
+            if (!this.splineApplyButton) return false;
+            const btn = this.splineApplyButton;
+            return x >= btn.x && x <= btn.x + btn.size &&
+                y >= btn.y && y <= btn.y + btn.size;
         }
-    }
 
-    drawSplineApplyButton() {
-        // Position apply button at bottom-right of canvas
-        const buttonSize = 32;
-        const margin = 16;
-        const buttonX = this.canvasWidth - buttonSize - margin;
-        const buttonY = this.canvasHeight - buttonSize - margin;
+        // --- Draw Spline Curve with Intensity ---
+        drawSplineCurve(ctx, points, intensity) {
+            if (points.length < 2) return;
 
-        this.splineApplyButton = {
-            x: buttonX,
-            y: buttonY,
-            size: buttonSize
-        };
-
-        this.ctx.save();
-
-        // Button background
-        this.ctx.fillStyle = '#4CAF50';
-        this.ctx.globalAlpha = 0.9;
-        this.ctx.fillRect(buttonX, buttonY, buttonSize, buttonSize);
-
-        // Button border
-        this.ctx.strokeStyle = '#333333';
-        this.ctx.lineWidth = 2;
-        this.ctx.globalAlpha = 1;
-        this.ctx.strokeRect(buttonX, buttonY, buttonSize, buttonSize);
-
-        // Check mark icon
-        this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = 3;
-        this.ctx.lineCap = 'round';
-        this.ctx.beginPath();
-        this.ctx.moveTo(buttonX + 8, buttonY + 16);
-        this.ctx.lineTo(buttonX + 14, buttonY + 22);
-        this.ctx.lineTo(buttonX + 24, buttonY + 10);
-        this.ctx.stroke();
-
-        // "Apply" text
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = 'bold 8px sans-serif';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'bottom';
-        this.ctx.fillText('Apply', buttonX + buttonSize / 2, buttonY + buttonSize - 2);
-
-        this.ctx.restore();
-    }
-
-    isPointInApplyButton(x, y) {
-        if (!this.splineApplyButton) return false;
-        const btn = this.splineApplyButton;
-        return x >= btn.x && x <= btn.x + btn.size &&
-            y >= btn.y && y <= btn.y + btn.size;
-    }
-
-    // --- Draw Spline Curve with Intensity ---
-    drawSplineCurve(ctx, points, intensity) {
-        if (points.length < 2) return;
-
-        if (this.pixelDrawingMode && this.brushSize === 1) {
-            this.drawPixelSpline(ctx, points, intensity);
-        } else {
-            this.drawSmoothSpline(ctx, points, intensity);
+            if (this.pixelDrawingMode && this.brushSize === 1) {
+                this.drawPixelSpline(ctx, points, intensity);
+            } else {
+                this.drawSmoothSpline(ctx, points, intensity);
+            }
         }
-    }
 
-    drawSmoothSpline(ctx, points, intensity) {
-        if (points.length === 2) {
-            // Just a straight line for 2 points
+        drawSmoothSpline(ctx, points, intensity) {
+            if (points.length === 2) {
+                // Just a straight line for 2 points
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                ctx.lineTo(points[1].x, points[1].y);
+                ctx.stroke();
+                return;
+            }
+
             ctx.beginPath();
             ctx.moveTo(points[0].x, points[0].y);
-            ctx.lineTo(points[1].x, points[1].y);
+
+            switch (this.splineType) {
+                case 'catmull-rom':
+                    this.drawCatmullRomSpline(ctx, points, intensity);
+                    break;
+                case 'bezier':
+                    this.drawBezierSpline(ctx, points, intensity);
+                    break;
+                case 'b-spline':
+                    this.drawBSpline(ctx, points, intensity);
+                    break;
+                default:
+                    this.drawCatmullRomSpline(ctx, points, intensity);
+            }
+
             ctx.stroke();
-            return;
         }
 
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
+        drawBezierSpline(ctx, points, intensity) {
+            // Quadratic Bezier curves between consecutive points
+            for (let i = 0; i < points.length - 1; i++) {
+                const p1 = points[i];
+                const p2 = points[i + 1];
 
-        switch (this.splineType) {
-            case 'catmull-rom':
-                this.drawCatmullRomSpline(ctx, points, intensity);
-                break;
-            case 'bezier':
-                this.drawBezierSpline(ctx, points, intensity);
-                break;
-            case 'b-spline':
-                this.drawBSpline(ctx, points, intensity);
-                break;
-            default:
-                this.drawCatmullRomSpline(ctx, points, intensity);
-        }
-
-        ctx.stroke();
-    }
-
-    drawBezierSpline(ctx, points, intensity) {
-        // Quadratic Bezier curves between consecutive points
-        for (let i = 0; i < points.length - 1; i++) {
-            const p1 = points[i];
-            const p2 = points[i + 1];
-
-            if (i < points.length - 2) {
-                // Use next point to influence control point
-                const p3 = points[i + 2];
-                const cpx = p2.x + (p3.x - p1.x) * intensity * this.splineTension * 0.3;
-                const cpy = p2.y + (p3.y - p1.y) * intensity * this.splineTension * 0.3;
-                ctx.quadraticCurveTo(cpx, cpy, p2.x, p2.y);
-            } else {
-                ctx.lineTo(p2.x, p2.y);
-            }
-        }
-    }
-
-    drawBSpline(ctx, points, intensity) {
-        // B-spline implementation for smoother curves
-        if (points.length < 3) {
-            for (let i = 1; i < points.length; i++) {
-                ctx.lineTo(points[i].x, points[i].y);
-            }
-            return;
-        }
-
-        const degree = 3; // Cubic B-spline
-        for (let i = 0; i < points.length - 1; i++) {
-            for (let t = 0; t <= 1; t += this.splineSmoothing * 2) {
-                const point = this.bSplinePoint(points, i, t, degree, intensity);
-                if (t === 0 && i === 0) {
-                    ctx.moveTo(point.x, point.y);
+                if (i < points.length - 2) {
+                    // Use next point to influence control point
+                    const p3 = points[i + 2];
+                    const cpx = p2.x + (p3.x - p1.x) * intensity * this.splineTension * 0.3;
+                    const cpy = p2.y + (p3.y - p1.y) * intensity * this.splineTension * 0.3;
+                    ctx.quadraticCurveTo(cpx, cpy, p2.x, p2.y);
                 } else {
-                    ctx.lineTo(point.x, point.y);
+                    ctx.lineTo(p2.x, p2.y);
                 }
             }
         }
-    }
 
-    bSplinePoint(points, segment, t, degree, intensity) {
-        // Simplified B-spline calculation
-        const n = points.length - 1;
-        let x = 0, y = 0;
-
-        for (let i = 0; i <= n; i++) {
-            const basis = this.bSplineBasis(i, degree, t, n);
-            x += basis * points[i].x * intensity;
-            y += basis * points[i].y * intensity;
-        }
-
-        return { x, y };
-    }
-
-    bSplineBasis(i, k, t, n) {
-        // Simplified basis function calculation
-        if (k === 0) {
-            return (i <= t * n && t * n < i + 1) ? 1 : 0;
-        }
-
-        const c1 = (t * n - i) / k;
-        const c2 = (i + k + 1 - t * n) / k;
-
-        return c1 * this.bSplineBasis(i, k - 1, t, n) +
-            c2 * this.bSplineBasis(i + 1, k - 1, t, n);
-    }
-
-    drawPixelSpline(ctx, points, intensity) {
-        // Enhanced pixel spline with different curve types
-        const samples = [];
-
-        if (points.length === 2) {
-            this._drawPixelLine(ctx, points[0].x, points[0].y, points[1].x, points[1].y,
-                this.primaryColor, this.brushSize, false);
-            return;
-        }
-
-        // Sample the spline curve with configurable smoothing
-        for (let i = 0; i < points.length - 1; i++) {
-            const p0 = points[i - 1] || points[i];
-            const p1 = points[i];
-            const p2 = points[i + 1];
-            const p3 = points[i + 2] || points[i + 1];
-
-            for (let t = 0; t < 1; t += this.splineSmoothing) {
-                let point;
-                switch (this.splineType) {
-                    case 'catmull-rom':
-                        point = this.catmullRomSpline(p0, p1, p2, p3, t, intensity);
-                        break;
-                    case 'bezier':
-                        point = this.bezierSpline(p1, p2, p3, t, intensity);
-                        break;
-                    case 'b-spline':
-                        point = this.bSplineInterpolate(p0, p1, p2, p3, t, intensity);
-                        break;
-                    default:
-                        point = this.catmullRomSpline(p0, p1, p2, p3, t, intensity);
+        drawBSpline(ctx, points, intensity) {
+            // B-spline implementation for smoother curves
+            if (points.length < 3) {
+                for (let i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i].x, points[i].y);
                 }
-                samples.push(point);
+                return;
             }
-        }
 
-        // Add the last point
-        samples.push(points[points.length - 1]);
-
-        // Draw pixel lines between sampled points
-        for (let i = 0; i < samples.length - 1; i++) {
-            const p1 = samples[i];
-            const p2 = samples[i + 1];
-            this._drawPixelLine(ctx, Math.round(p1.x), Math.round(p1.y),
-                Math.round(p2.x), Math.round(p2.y), this.primaryColor, this.brushSize, false);
-        }
-    }
-
-    drawCatmullRomSpline(ctx, points, intensity) {
-        for (let i = 0; i < points.length - 1; i++) {
-            const p0 = points[i - 1] || points[i];
-            const p1 = points[i];
-            const p2 = points[i + 1];
-            const p3 = points[i + 2] || points[i + 1];
-
-            // Enhanced control with tension
-            const tension = this.splineTension;
-            const cp1x = p1.x + (p2.x - p0.x) * intensity * tension * 0.16;
-            const cp1y = p1.y + (p2.y - p0.y) * intensity * tension * 0.16;
-            const cp2x = p2.x - (p3.x - p1.x) * intensity * tension * 0.16;
-            const cp2y = p2.y - (p3.y - p1.y) * intensity * tension * 0.16;
-
-            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
-        }
-    }
-
-    catmullRomSpline(p0, p1, p2, p3, t, intensity) {
-        const t2 = t * t;
-        const t3 = t2 * t;
-
-        // Apply intensity to the curve calculation
-        const factor = intensity * 0.5;
-
-        return {
-            x: factor * ((-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3 +
-                (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
-                (-p0.x + p2.x) * t) + p1.x,
-            y: factor * ((-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3 +
-                (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
-                (-p0.y + p2.y) * t) + p1.y
-        };
-    }
-
-    // --- Apply Spline to Layer ---
-    applySpline() {
-        if (!this.activeLayerId || this.splinePoints.length < 2) return;
-
-        this.undoAdd();
-        const layer = this.layers.find(l => l.id === this.activeLayerId);
-        if (layer) {
-            const ctx = layer.canvas.getContext('2d');
-            ctx.save();
-            ctx.globalAlpha = this.opacity / 100;
-            ctx.strokeStyle = this.primaryColor;
-            ctx.lineWidth = this.brushSize;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            this.drawSplineCurve(ctx, this.splinePoints, this.splineIntensity);
-            ctx.restore();
-        }
-
-        // Clear spline state
-        this.splinePoints = [];
-        this.splineActive = false;
-        this.splineApplyButton = null;
-        this.renderCurrentFrameToMainCanvas();
-        this.syncGlobalLayersToCurrentFrame();
-    }
-
-    // OBJECTS
-    initializeObjectTool() {
-        // Object library controls
-        const addObjectBtn = document.getElementById('addObjectToLibrary');
-        const clearLibraryBtn = document.getElementById('clearObjectLibrary');
-        const objectImageInput = document.getElementById('objectImageInput');
-        const deleteObjectBtn = document.getElementById('deleteObject');
-
-        if (addObjectBtn) {
-            addObjectBtn.addEventListener('click', () => {
-                objectImageInput.click();
-            });
-        }
-
-        if (clearLibraryBtn) {
-            clearLibraryBtn.addEventListener('click', () => {
-                if (confirm('Clear all objects from library?')) {
-                    this.objectLibrary = [];
-                    this.updateObjectLibraryList();
+            const degree = 3; // Cubic B-spline
+            for (let i = 0; i < points.length - 1; i++) {
+                for (let t = 0; t <= 1; t += this.splineSmoothing * 2) {
+                    const point = this.bSplinePoint(points, i, t, degree, intensity);
+                    if (t === 0 && i === 0) {
+                        ctx.moveTo(point.x, point.y);
+                    } else {
+                        ctx.lineTo(point.x, point.y);
+                    }
                 }
-            });
-        }
-
-        if (objectImageInput) {
-            objectImageInput.addEventListener('change', (e) => {
-                this.handleObjectImageUpload(e);
-            });
-        }
-
-        if (deleteObjectBtn) {
-            deleteObjectBtn.addEventListener('click', () => {
-                this.deleteSelectedObject();
-            });
-        }
-
-        // Object properties controls
-        const objectName = document.getElementById('objectName');
-        const objectX = document.getElementById('objectX');
-        const objectY = document.getElementById('objectY');
-        const objectScale = document.getElementById('objectScale');
-        const objectAngle = document.getElementById('objectAngle');
-        const objectLayer = document.getElementById('objectLayer');
-        const objectTween = document.getElementById('objectTween');
-        const objectSetKeyframe = document.getElementById('objectSetKeyframe');
-        const objectRemoveKeyframe = document.getElementById('objectRemoveKeyframe');
-        const objectCenter = document.getElementById('objectCenter');
-
-        // Real-time updates for all inputs
-        [objectName, objectX, objectY, objectScale, objectAngle].forEach(input => {
-            if (input) {
-                // Use 'input' event for real-time updates as user types
-                input.addEventListener('input', () => {
-                    this.updateSelectedObjectProperties();
-                });
-                // Also listen for 'change' event for when focus is lost
-                input.addEventListener('change', () => {
-                    this.updateSelectedObjectProperties();
-                });
             }
-        });
+        }
 
-        // Checkbox and select elements use 'change' event
-        [objectTween, objectLayer].forEach(input => {
-            if (input) {
-                input.addEventListener('change', () => {
-                    this.updateSelectedObjectProperties();
-                });
+        bSplinePoint(points, segment, t, degree, intensity) {
+            // Simplified B-spline calculation
+            const n = points.length - 1;
+            let x = 0, y = 0;
+
+            for (let i = 0; i <= n; i++) {
+                const basis = this.bSplineBasis(i, degree, t, n);
+                x += basis * points[i].x * intensity;
+                y += basis * points[i].y * intensity;
             }
-        });
 
-        [objectName, objectX, objectY, objectScale, objectAngle, objectTween].forEach(input => {
-            if (input) {
-                input.addEventListener('input', () => {
-                    this.updateSelectedObjectProperties();
-                });
+            return { x, y };
+        }
+
+        bSplineBasis(i, k, t, n) {
+            // Simplified basis function calculation
+            if (k === 0) {
+                return (i <= t * n && t * n < i + 1) ? 1 : 0;
             }
-        });
 
-        if (objectLayer) {
-            objectLayer.addEventListener('change', () => {
-                this.updateSelectedObjectProperties();
-            });
+            const c1 = (t * n - i) / k;
+            const c2 = (i + k + 1 - t * n) / k;
+
+            return c1 * this.bSplineBasis(i, k - 1, t, n) +
+                c2 * this.bSplineBasis(i + 1, k - 1, t, n);
         }
 
-        if (objectSetKeyframe) {
-            objectSetKeyframe.addEventListener('click', () => {
-                this.setObjectKeyframe();
-            });
-        }
+        drawPixelSpline(ctx, points, intensity) {
+            // Enhanced pixel spline with different curve types
+            const samples = [];
 
-        if (objectRemoveKeyframe) {
-            objectRemoveKeyframe.addEventListener('click', () => {
-                this.removeObjectKeyframe();
-            });
-        }
-
-        if (objectCenter) {
-            objectCenter.addEventListener('click', () => {
-                this.centerSelectedObject();
-            });
-        }
-
-        // Initialize drag and drop
-        this.initializeObjectToolDragDrop();
-
-        // Initialize library
-        this.updateObjectLibraryList();
-        this.updateObjectPropertiesPanel();
-    }
-
-    refreshObjectLayerDropdown() {
-        const objectLayer = document.getElementById('objectLayer');
-        if (!objectLayer) return;
-
-        const currentValue = objectLayer.value;
-        objectLayer.innerHTML = '';
-
-        this.layers.forEach(layer => {
-            const option = document.createElement('option');
-            option.value = layer.id;
-            option.textContent = layer.name;
-            if (layer.id === currentValue) {
-                option.selected = true;
+            if (points.length === 2) {
+                this._drawPixelLine(ctx, points[0].x, points[0].y, points[1].x, points[1].y,
+                    this.primaryColor, this.brushSize, false);
+                return;
             }
-            objectLayer.appendChild(option);
-        });
-    }
 
-    handleObjectImageUpload(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+            // Sample the spline curve with configurable smoothing
+            for (let i = 0; i < points.length - 1; i++) {
+                const p0 = points[i - 1] || points[i];
+                const p1 = points[i];
+                const p2 = points[i + 1];
+                const p3 = points[i + 2] || points[i + 1];
 
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            const img = new Image();
-            img.onload = () => {
-                this.addObjectToLibrary(img, file.name);
+                for (let t = 0; t < 1; t += this.splineSmoothing) {
+                    let point;
+                    switch (this.splineType) {
+                        case 'catmull-rom':
+                            point = this.catmullRomSpline(p0, p1, p2, p3, t, intensity);
+                            break;
+                        case 'bezier':
+                            point = this.bezierSpline(p1, p2, p3, t, intensity);
+                            break;
+                        case 'b-spline':
+                            point = this.bSplineInterpolate(p0, p1, p2, p3, t, intensity);
+                            break;
+                        default:
+                            point = this.catmullRomSpline(p0, p1, p2, p3, t, intensity);
+                    }
+                    samples.push(point);
+                }
+            }
+
+            // Add the last point
+            samples.push(points[points.length - 1]);
+
+            // Draw pixel lines between sampled points
+            for (let i = 0; i < samples.length - 1; i++) {
+                const p1 = samples[i];
+                const p2 = samples[i + 1];
+                this._drawPixelLine(ctx, Math.round(p1.x), Math.round(p1.y),
+                    Math.round(p2.x), Math.round(p2.y), this.primaryColor, this.brushSize, false);
+            }
+        }
+
+        drawCatmullRomSpline(ctx, points, intensity) {
+            for (let i = 0; i < points.length - 1; i++) {
+                const p0 = points[i - 1] || points[i];
+                const p1 = points[i];
+                const p2 = points[i + 1];
+                const p3 = points[i + 2] || points[i + 1];
+
+                // Enhanced control with tension
+                const tension = this.splineTension;
+                const cp1x = p1.x + (p2.x - p0.x) * intensity * tension * 0.16;
+                const cp1y = p1.y + (p2.y - p0.y) * intensity * tension * 0.16;
+                const cp2x = p2.x - (p3.x - p1.x) * intensity * tension * 0.16;
+                const cp2y = p2.y - (p3.y - p1.y) * intensity * tension * 0.16;
+
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+            }
+        }
+
+        catmullRomSpline(p0, p1, p2, p3, t, intensity) {
+            const t2 = t * t;
+            const t3 = t2 * t;
+
+            // Apply intensity to the curve calculation
+            const factor = intensity * 0.5;
+
+            return {
+                x: factor * ((-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3 +
+                    (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+                    (-p0.x + p2.x) * t) + p1.x,
+                y: factor * ((-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3 +
+                    (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+                    (-p0.y + p2.y) * t) + p1.y
             };
-            img.src = evt.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-
-    addObjectToLibrary(image, name) {
-        const objectDef = {
-            id: 'lib_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
-            name: name.replace(/\.[^/.]+$/, ""), // Remove file extension
-            image: image,
-            width: image.width,
-            height: image.height
-        };
-
-        this.objectLibrary.push(objectDef);
-        this.updateObjectLibraryList();
-    }
-
-    updateObjectLibraryList() {
-        const list = document.getElementById('objectLibraryList');
-        if (!list) return;
-
-        list.innerHTML = '';
-
-        if (this.objectLibrary.length === 0) {
-            list.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No objects in library. Add some images to get started!</p>';
-            return;
         }
 
-        this.objectLibrary.forEach(objDef => {
-            const item = document.createElement('div');
-            item.className = 'object-library-item';
-            item.dataset.objectId = objDef.id;
-            item.draggable = true;
+        // --- Apply Spline to Layer ---
+        applySpline() {
+            if (!this.activeLayerId || this.splinePoints.length < 2) return;
 
-            // Thumbnail
-            const thumbnail = document.createElement('div');
-            thumbnail.className = 'object-library-thumbnail';
-            if (objDef.image) {
-                const img = document.createElement('img');
-                img.src = objDef.image.src;
-                img.style.width = '100%';
-                img.style.height = '100%';
-                img.style.objectFit = 'cover';
-                thumbnail.appendChild(img);
-            } else {
-                thumbnail.textContent = '📦';
+            this.undoAdd();
+            const layer = this.layers.find(l => l.id === this.activeLayerId);
+            if (layer) {
+                const ctx = layer.canvas.getContext('2d');
+                ctx.save();
+                ctx.globalAlpha = this.opacity / 100;
+                ctx.strokeStyle = this.primaryColor;
+                ctx.lineWidth = this.brushSize;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                this.drawSplineCurve(ctx, this.splinePoints, this.splineIntensity);
+                ctx.restore();
             }
 
-            // Info
-            const info = document.createElement('div');
-            info.className = 'object-library-info';
-
-            const nameDiv = document.createElement('div');
-            nameDiv.className = 'object-library-name';
-            nameDiv.textContent = objDef.name;
-
-            const sizeDiv = document.createElement('div');
-            sizeDiv.className = 'object-library-size';
-            sizeDiv.textContent = `${objDef.width}×${objDef.height}`;
-
-            info.appendChild(nameDiv);
-            info.appendChild(sizeDiv);
-
-            item.appendChild(thumbnail);
-            item.appendChild(info);
-
-            // Events
-            item.addEventListener('click', () => {
-                this.selectObjectInLibrary(objDef.id);
-            });
-
-            item.addEventListener('dblclick', () => {
-                this.addObjectInstanceToCanvas(objDef.id);
-            });
-
-            item.addEventListener('dragstart', (e) => {
-                e.dataTransfer.setData('text/plain', objDef.id);
-                item.classList.add('dragging');
-            });
-
-            item.addEventListener('dragend', () => {
-                item.classList.remove('dragging');
-            });
-
-            list.appendChild(item);
-        });
-    }
-
-    selectObjectInLibrary(objectId) {
-        // Remove previous selection
-        document.querySelectorAll('.object-library-item').forEach(item => {
-            item.classList.remove('selected');
-        });
-
-        // Add selection to clicked item
-        const item = document.querySelector(`[data-object-id="${objectId}"]`);
-        if (item) {
-            item.classList.add('selected');
+            // Clear spline state
+            this.splinePoints = [];
+            this.splineActive = false;
+            this.splineApplyButton = null;
+            this.renderCurrentFrameToMainCanvas();
+            this.syncGlobalLayersToCurrentFrame();
         }
 
-        this.selectedObject = this.objectLibrary.find(obj => obj.id === objectId);
-    }
+        // OBJECTS
+        initializeObjectTool() {
+            // Object library controls
+            const addObjectBtn = document.getElementById('addObjectToLibrary');
+            const clearLibraryBtn = document.getElementById('clearObjectLibrary');
+            const objectImageInput = document.getElementById('objectImageInput');
+            const deleteObjectBtn = document.getElementById('deleteObject');
 
-    addObjectInstanceToCanvas(objectId, x = null, y = null) {
-        const objDef = this.objectLibrary.find(obj => obj.id === objectId);
-        if (!objDef) return;
+            if (addObjectBtn) {
+                addObjectBtn.addEventListener('click', () => {
+                    objectImageInput.click();
+                });
+            }
 
-        // Default position at canvas center
-        if (x === null) x = this.canvasWidth / 2;
-        if (y === null) y = this.canvasHeight / 2;
+            if (clearLibraryBtn) {
+                clearLibraryBtn.addEventListener('click', () => {
+                    if (confirm('Clear all objects from library?')) {
+                        this.objectLibrary = [];
+                        this.updateObjectLibraryList();
+                    }
+                });
+            }
 
-        const instance = new SpriteObject({
-            name: objDef.name,
-            x: x,
-            y: y,
-            scale: 1,
-            angle: 0,
-            image: objDef.image
-        });
+            if (objectImageInput) {
+                objectImageInput.addEventListener('change', (e) => {
+                    this.handleObjectImageUpload(e);
+                });
+            }
 
-        // Set initial keyframe
-        instance.setKeyframe(this.currentFrame, {
-            x: x,
-            y: y,
-            scale: 1,
-            angle: 0,
-            image: objDef.image
-        });
+            if (deleteObjectBtn) {
+                deleteObjectBtn.addEventListener('click', () => {
+                    this.deleteSelectedObject();
+                });
+            }
 
-        this.objectInstances.push(instance);
-        this.selectedObjectInstance = instance;
+            // Object properties controls
+            const objectName = document.getElementById('objectName');
+            const objectX = document.getElementById('objectX');
+            const objectY = document.getElementById('objectY');
+            const objectScale = document.getElementById('objectScale');
+            const objectAngle = document.getElementById('objectAngle');
+            const objectLayer = document.getElementById('objectLayer');
+            const objectTween = document.getElementById('objectTween');
+            const objectSetKeyframe = document.getElementById('objectSetKeyframe');
+            const objectRemoveKeyframe = document.getElementById('objectRemoveKeyframe');
+            const objectCenter = document.getElementById('objectCenter');
 
-        this.renderCurrentFrameToMainCanvas();
-        this.updateObjectPropertiesPanel();
-    }
+            // Real-time updates for all inputs
+            [objectName, objectX, objectY, objectScale, objectAngle].forEach(input => {
+                if (input) {
+                    // Use 'input' event for real-time updates as user types
+                    input.addEventListener('input', () => {
+                        this.updateSelectedObjectProperties();
+                    });
+                    // Also listen for 'change' event for when focus is lost
+                    input.addEventListener('change', () => {
+                        this.updateSelectedObjectProperties();
+                    });
+                }
+            });
 
-    updateObjectPropertiesPanel() {
-        const panel = document.getElementById('objectPropertiesPanel');
-        const objectName = document.getElementById('objectName');
-        const objectX = document.getElementById('objectX');
-        const objectY = document.getElementById('objectY');
-        const objectScale = document.getElementById('objectScale');
-        const objectAngle = document.getElementById('objectAngle');
-        const objectLayer = document.getElementById('objectLayer');
-        const objectTween = document.getElementById('objectTween');
+            // Checkbox and select elements use 'change' event
+            [objectTween, objectLayer].forEach(input => {
+                if (input) {
+                    input.addEventListener('change', () => {
+                        this.updateSelectedObjectProperties();
+                    });
+                }
+            });
 
-        if (!panel) return;
+            [objectName, objectX, objectY, objectScale, objectAngle, objectTween].forEach(input => {
+                if (input) {
+                    input.addEventListener('input', () => {
+                        this.updateSelectedObjectProperties();
+                    });
+                }
+            });
 
-        if (!this.selectedObjectInstance) {
-            panel.style.display = 'none';
-            return;
+            if (objectLayer) {
+                objectLayer.addEventListener('change', () => {
+                    this.updateSelectedObjectProperties();
+                });
+            }
+
+            if (objectSetKeyframe) {
+                objectSetKeyframe.addEventListener('click', () => {
+                    this.setObjectKeyframe();
+                });
+            }
+
+            if (objectRemoveKeyframe) {
+                objectRemoveKeyframe.addEventListener('click', () => {
+                    this.removeObjectKeyframe();
+                });
+            }
+
+            if (objectCenter) {
+                objectCenter.addEventListener('click', () => {
+                    this.centerSelectedObject();
+                });
+            }
+
+            // Initialize drag and drop
+            this.initializeObjectToolDragDrop();
+
+            // Initialize library
+            this.updateObjectLibraryList();
+            this.updateObjectPropertiesPanel();
         }
 
-        panel.style.display = 'block';
+        refreshObjectLayerDropdown() {
+            const objectLayer = document.getElementById('objectLayer');
+            if (!objectLayer) return;
 
-        const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
-
-        // Update input values without triggering events
-        if (objectName) objectName.value = this.selectedObjectInstance.name;
-        if (objectX) objectX.value = Math.round(transform.x * 10) / 10; // One decimal place
-        if (objectY) objectY.value = Math.round(transform.y * 10) / 10;
-        if (objectScale) objectScale.value = Math.round(transform.scale * 100) / 100; // Two decimal places
-        if (objectAngle) objectAngle.value = Math.round(transform.angle);
-        if (objectTween) objectTween.checked = this.selectedObjectInstance.tween || false;
-
-        // Update layer dropdown
-        if (objectLayer) {
+            const currentValue = objectLayer.value;
             objectLayer.innerHTML = '';
+
             this.layers.forEach(layer => {
                 const option = document.createElement('option');
                 option.value = layer.id;
                 option.textContent = layer.name;
-                if (this.selectedObjectInstance.layerId === layer.id) {
+                if (layer.id === currentValue) {
                     option.selected = true;
                 }
                 objectLayer.appendChild(option);
             });
         }
-    }
 
-    updateSelectedObjectProperties() {
-        if (!this.selectedObjectInstance) return;
+        handleObjectImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        const objectName = document.getElementById('objectName');
-        const objectX = document.getElementById('objectX');
-        const objectY = document.getElementById('objectY');
-        const objectScale = document.getElementById('objectScale');
-        const objectAngle = document.getElementById('objectAngle');
-        const objectLayer = document.getElementById('objectLayer');
-        const objectTween = document.getElementById('objectTween');
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const img = new Image();
+                img.onload = () => {
+                    this.addObjectToLibrary(img, file.name);
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
 
-        // Update object properties
-        if (objectName) this.selectedObjectInstance.name = objectName.value;
-        if (objectLayer) this.selectedObjectInstance.layerId = objectLayer.value;
-        if (objectTween) this.selectedObjectInstance.tween = objectTween.checked;
+        addObjectToLibrary(image, name) {
+            const objectDef = {
+                id: 'lib_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+                name: name.replace(/\.[^/.]+$/, ""), // Remove file extension
+                image: image,
+                width: image.width,
+                height: image.height
+            };
 
-        const currentTransform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+            this.objectLibrary.push(objectDef);
+            this.updateObjectLibraryList();
+        }
 
-        // Parse and validate numeric inputs
-        const newX = objectX ? parseFloat(objectX.value) : currentTransform.x;
-        const newY = objectY ? parseFloat(objectY.value) : currentTransform.y;
-        const newScale = objectScale ? parseFloat(objectScale.value) : currentTransform.scale;
-        const newAngle = objectAngle ? parseFloat(objectAngle.value) : currentTransform.angle;
+        updateObjectLibraryList() {
+            const list = document.getElementById('objectLibraryList');
+            if (!list) return;
 
-        // Validate values and provide sensible defaults
-        const validX = isNaN(newX) ? currentTransform.x : Math.max(0, Math.min(newX, this.canvasWidth));
-        const validY = isNaN(newY) ? currentTransform.y : Math.max(0, Math.min(newY, this.canvasHeight));
-        const validScale = isNaN(newScale) ? currentTransform.scale : Math.max(0.1, Math.min(newScale, 10));
-        const validAngle = isNaN(newAngle) ? currentTransform.angle : ((newAngle % 360) + 360) % 360;
+            list.innerHTML = '';
 
-        // Update transform properties
-        const newTransform = {
-            x: validX,
-            y: validY,
-            scale: validScale,
-            angle: validAngle,
-            image: currentTransform.image
-        };
-
-        // Set the keyframe with new transform
-        this.selectedObjectInstance.setKeyframe(this.currentFrame, newTransform);
-
-        // Re-render to show changes immediately
-        this.renderCurrentFrameToMainCanvas();
-    }
-
-    setObjectKeyframe() {
-        if (!this.selectedObjectInstance) return;
-
-        const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
-        this.selectedObjectInstance.setKeyframe(this.currentFrame, transform);
-        this.renderCurrentFrameToMainCanvas();
-    }
-
-    removeObjectKeyframe() {
-        if (!this.selectedObjectInstance) return;
-
-        this.selectedObjectInstance.removeKeyframe(this.currentFrame);
-        this.updateObjectPropertiesPanel();
-        this.renderCurrentFrameToMainCanvas();
-    }
-
-    centerSelectedObject() {
-        if (!this.selectedObjectInstance) return;
-
-        const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
-        const newTransform = {
-            ...transform,
-            x: this.canvasWidth / 2,
-            y: this.canvasHeight / 2
-        };
-
-        this.selectedObjectInstance.setKeyframe(this.currentFrame, newTransform);
-        this.updateObjectPropertiesPanel();
-        this.renderCurrentFrameToMainCanvas();
-    }
-
-    deleteSelectedObject() {
-        if (!this.selectedObjectInstance) return;
-
-        if (confirm('Are you sure you want to delete this object?')) {
-            const index = this.objectInstances.indexOf(this.selectedObjectInstance);
-            if (index > -1) {
-                this.objectInstances.splice(index, 1);
+            if (this.objectLibrary.length === 0) {
+                list.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No objects in library. Add some images to get started!</p>';
+                return;
             }
 
-            this.selectedObjectInstance = null;
+            this.objectLibrary.forEach(objDef => {
+                const item = document.createElement('div');
+                item.className = 'object-library-item';
+                item.dataset.objectId = objDef.id;
+                item.draggable = true;
+
+                // Thumbnail
+                const thumbnail = document.createElement('div');
+                thumbnail.className = 'object-library-thumbnail';
+                if (objDef.image) {
+                    const img = document.createElement('img');
+                    img.src = objDef.image.src;
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.objectFit = 'cover';
+                    thumbnail.appendChild(img);
+                } else {
+                    thumbnail.textContent = '📦';
+                }
+
+                // Info
+                const info = document.createElement('div');
+                info.className = 'object-library-info';
+
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'object-library-name';
+                nameDiv.textContent = objDef.name;
+
+                const sizeDiv = document.createElement('div');
+                sizeDiv.className = 'object-library-size';
+                sizeDiv.textContent = `${objDef.width}×${objDef.height}`;
+
+                info.appendChild(nameDiv);
+                info.appendChild(sizeDiv);
+
+                item.appendChild(thumbnail);
+                item.appendChild(info);
+
+                // Events
+                item.addEventListener('click', () => {
+                    this.selectObjectInLibrary(objDef.id);
+                });
+
+                item.addEventListener('dblclick', () => {
+                    this.addObjectInstanceToCanvas(objDef.id);
+                });
+
+                item.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', objDef.id);
+                    item.classList.add('dragging');
+                });
+
+                item.addEventListener('dragend', () => {
+                    item.classList.remove('dragging');
+                });
+
+                list.appendChild(item);
+            });
+        }
+
+        selectObjectInLibrary(objectId) {
+            // Remove previous selection
+            document.querySelectorAll('.object-library-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+
+            // Add selection to clicked item
+            const item = document.querySelector(`[data-object-id="${objectId}"]`);
+            if (item) {
+                item.classList.add('selected');
+            }
+
+            this.selectedObject = this.objectLibrary.find(obj => obj.id === objectId);
+        }
+
+        addObjectInstanceToCanvas(objectId, x = null, y = null) {
+            const objDef = this.objectLibrary.find(obj => obj.id === objectId);
+            if (!objDef) return;
+
+            // Default position at canvas center
+            if (x === null) x = this.canvasWidth / 2;
+            if (y === null) y = this.canvasHeight / 2;
+
+            const instance = new SpriteObject({
+                name: objDef.name,
+                x: x,
+                y: y,
+                scale: 1,
+                angle: 0,
+                image: objDef.image
+            });
+
+            // Set initial keyframe
+            instance.setKeyframe(this.currentFrame, {
+                x: x,
+                y: y,
+                scale: 1,
+                angle: 0,
+                image: objDef.image
+            });
+
+            this.objectInstances.push(instance);
+            this.selectedObjectInstance = instance;
+
+            this.renderCurrentFrameToMainCanvas();
+            this.updateObjectPropertiesPanel();
+        }
+
+        updateObjectPropertiesPanel() {
+            const panel = document.getElementById('objectPropertiesPanel');
+            const objectName = document.getElementById('objectName');
+            const objectX = document.getElementById('objectX');
+            const objectY = document.getElementById('objectY');
+            const objectScale = document.getElementById('objectScale');
+            const objectAngle = document.getElementById('objectAngle');
+            const objectLayer = document.getElementById('objectLayer');
+            const objectTween = document.getElementById('objectTween');
+
+            if (!panel) return;
+
+            if (!this.selectedObjectInstance) {
+                panel.style.display = 'none';
+                return;
+            }
+
+            panel.style.display = 'block';
+
+            const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+
+            // Update input values without triggering events
+            if (objectName) objectName.value = this.selectedObjectInstance.name;
+            if (objectX) objectX.value = Math.round(transform.x * 10) / 10; // One decimal place
+            if (objectY) objectY.value = Math.round(transform.y * 10) / 10;
+            if (objectScale) objectScale.value = Math.round(transform.scale * 100) / 100; // Two decimal places
+            if (objectAngle) objectAngle.value = Math.round(transform.angle);
+            if (objectTween) objectTween.checked = this.selectedObjectInstance.tween || false;
+
+            // Update layer dropdown
+            if (objectLayer) {
+                objectLayer.innerHTML = '';
+                this.layers.forEach(layer => {
+                    const option = document.createElement('option');
+                    option.value = layer.id;
+                    option.textContent = layer.name;
+                    if (this.selectedObjectInstance.layerId === layer.id) {
+                        option.selected = true;
+                    }
+                    objectLayer.appendChild(option);
+                });
+            }
+        }
+
+        updateSelectedObjectProperties() {
+            if (!this.selectedObjectInstance) return;
+
+            const objectName = document.getElementById('objectName');
+            const objectX = document.getElementById('objectX');
+            const objectY = document.getElementById('objectY');
+            const objectScale = document.getElementById('objectScale');
+            const objectAngle = document.getElementById('objectAngle');
+            const objectLayer = document.getElementById('objectLayer');
+            const objectTween = document.getElementById('objectTween');
+
+            // Update object properties
+            if (objectName) this.selectedObjectInstance.name = objectName.value;
+            if (objectLayer) this.selectedObjectInstance.layerId = objectLayer.value;
+            if (objectTween) this.selectedObjectInstance.tween = objectTween.checked;
+
+            const currentTransform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+
+            // Parse and validate numeric inputs
+            const newX = objectX ? parseFloat(objectX.value) : currentTransform.x;
+            const newY = objectY ? parseFloat(objectY.value) : currentTransform.y;
+            const newScale = objectScale ? parseFloat(objectScale.value) : currentTransform.scale;
+            const newAngle = objectAngle ? parseFloat(objectAngle.value) : currentTransform.angle;
+
+            // Validate values and provide sensible defaults
+            const validX = isNaN(newX) ? currentTransform.x : Math.max(0, Math.min(newX, this.canvasWidth));
+            const validY = isNaN(newY) ? currentTransform.y : Math.max(0, Math.min(newY, this.canvasHeight));
+            const validScale = isNaN(newScale) ? currentTransform.scale : Math.max(0.1, Math.min(newScale, 10));
+            const validAngle = isNaN(newAngle) ? currentTransform.angle : ((newAngle % 360) + 360) % 360;
+
+            // Update transform properties
+            const newTransform = {
+                x: validX,
+                y: validY,
+                scale: validScale,
+                angle: validAngle,
+                image: currentTransform.image
+            };
+
+            // Set the keyframe with new transform
+            this.selectedObjectInstance.setKeyframe(this.currentFrame, newTransform);
+
+            // Re-render to show changes immediately
+            this.renderCurrentFrameToMainCanvas();
+        }
+
+        setObjectKeyframe() {
+            if (!this.selectedObjectInstance) return;
+
+            const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+            this.selectedObjectInstance.setKeyframe(this.currentFrame, transform);
+            this.renderCurrentFrameToMainCanvas();
+        }
+
+        removeObjectKeyframe() {
+            if (!this.selectedObjectInstance) return;
+
+            this.selectedObjectInstance.removeKeyframe(this.currentFrame);
             this.updateObjectPropertiesPanel();
             this.renderCurrentFrameToMainCanvas();
         }
-    }
 
-    initializeObjectToolDragDrop() {
-        const canvasContainer = document.getElementById('canvasContainer');
-        if (!canvasContainer) return;
+        centerSelectedObject() {
+            if (!this.selectedObjectInstance) return;
 
-        canvasContainer.addEventListener('dragover', (e) => {
-            if (this.currentTool === 'object-tool') {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'copy';
-            }
-        });
-
-        canvasContainer.addEventListener('drop', (e) => {
-            if (this.currentTool !== 'object-tool') return;
-
-            e.preventDefault();
-            const objectId = e.dataTransfer.getData('text/plain');
-
-            if (objectId && this.objectLibrary.find(obj => obj.id === objectId)) {
-                const rect = this.mainCanvas.getBoundingClientRect();
-                const x = (e.clientX - rect.left) / this.zoom;
-                const y = (e.clientY - rect.top) / this.zoom;
-
-                this.addObjectInstanceToCanvas(objectId, x, y);
-            }
-        });
-    }
-
-    // Object tool mouse handling
-    handleObjectToolMouseDown(e) {
-        if (this.currentTool !== 'object-tool') return;
-
-        const rect = this.mainCanvas.getBoundingClientRect();
-        // Convert screen coordinates to canvas coordinates accounting for zoom
-        const x = (e.clientX - rect.left) / this.zoom;
-        const y = (e.clientY - rect.top) / this.zoom;
-
-        // Check if clicking on transform controls (resize/rotate handles)
-        if (this.selectedObjectInstance) {
             const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
-            if (transform.image) {
-                const handle = this.getObjectTransformHandle(x, y, transform);
-                if (handle === 'resize') {
-                    this.isResizingObject = true;
-                    // Store the current transform state and mouse position
-                    this.objectResizeStartData = {
-                        x: transform.x, // Object center, not mouse position
-                        y: transform.y,
-                        scale: transform.scale,
-                        angle: transform.angle,
-                        image: transform.image,
-                        mouseStartDistance: Math.sqrt((x - transform.x) ** 2 + (y - transform.y) ** 2)
-                    };
-                    return;
+            const newTransform = {
+                ...transform,
+                x: this.canvasWidth / 2,
+                y: this.canvasHeight / 2
+            };
+
+            this.selectedObjectInstance.setKeyframe(this.currentFrame, newTransform);
+            this.updateObjectPropertiesPanel();
+            this.renderCurrentFrameToMainCanvas();
+        }
+
+        deleteSelectedObject() {
+            if (!this.selectedObjectInstance) return;
+
+            if (confirm('Are you sure you want to delete this object?')) {
+                const index = this.objectInstances.indexOf(this.selectedObjectInstance);
+                if (index > -1) {
+                    this.objectInstances.splice(index, 1);
                 }
-                if (handle === 'rotate') {
-                    this.isRotatingObject = true;
-                    this.objectRotateStartData = {
-                        x: transform.x,
-                        y: transform.y,
-                        scale: transform.scale,
-                        angle: transform.angle,
-                        image: transform.image,
-                        startAngle: Math.atan2(y - transform.y, x - transform.x) * 180 / Math.PI
-                    };
-                    return;
-                }
+
+                this.selectedObjectInstance = null;
+                this.updateObjectPropertiesPanel();
+                this.renderCurrentFrameToMainCanvas();
             }
         }
 
-        // Check if clicking on an object instance (top to bottom)
-        for (let i = this.objectInstances.length - 1; i >= 0; i--) {
-            const obj = this.objectInstances[i];
-            const transform = obj.getTransformAt(this.currentFrame);
-            if (!transform.image) continue;
-            if (this.isPointInObject(x, y, transform)) {
-                this.selectedObjectInstance = obj;
-                this.isDraggingObject = true;
-                this.objectDragOffset = {
-                    x: x - transform.x,
-                    y: y - transform.y
-                };
+        initializeObjectToolDragDrop() {
+            const canvasContainer = document.getElementById('canvasContainer');
+            if (!canvasContainer) return;
+
+            canvasContainer.addEventListener('dragover', (e) => {
+                if (this.currentTool === 'object-tool') {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
+                }
+            });
+
+            canvasContainer.addEventListener('drop', (e) => {
+                if (this.currentTool !== 'object-tool') return;
+
+                e.preventDefault();
+                const objectId = e.dataTransfer.getData('text/plain');
+
+                if (objectId && this.objectLibrary.find(obj => obj.id === objectId)) {
+                    const rect = this.mainCanvas.getBoundingClientRect();
+                    const x = (e.clientX - rect.left) / this.zoom;
+                    const y = (e.clientY - rect.top) / this.zoom;
+
+                    this.addObjectInstanceToCanvas(objectId, x, y);
+                }
+            });
+        }
+
+        // Object tool mouse handling
+        handleObjectToolMouseDown(e) {
+            if (this.currentTool !== 'object-tool') return;
+
+            const rect = this.mainCanvas.getBoundingClientRect();
+            // Convert screen coordinates to canvas coordinates accounting for zoom
+            const x = (e.clientX - rect.left) / this.zoom;
+            const y = (e.clientY - rect.top) / this.zoom;
+
+            // Check if clicking on transform controls (resize/rotate handles)
+            if (this.selectedObjectInstance) {
+                const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+                if (transform.image) {
+                    const handle = this.getObjectTransformHandle(x, y, transform);
+                    if (handle === 'resize') {
+                        this.isResizingObject = true;
+                        // Store the current transform state and mouse position
+                        this.objectResizeStartData = {
+                            x: transform.x, // Object center, not mouse position
+                            y: transform.y,
+                            scale: transform.scale,
+                            angle: transform.angle,
+                            image: transform.image,
+                            mouseStartDistance: Math.sqrt((x - transform.x) ** 2 + (y - transform.y) ** 2)
+                        };
+                        return;
+                    }
+                    if (handle === 'rotate') {
+                        this.isRotatingObject = true;
+                        this.objectRotateStartData = {
+                            x: transform.x,
+                            y: transform.y,
+                            scale: transform.scale,
+                            angle: transform.angle,
+                            image: transform.image,
+                            startAngle: Math.atan2(y - transform.y, x - transform.x) * 180 / Math.PI
+                        };
+                        return;
+                    }
+                }
+            }
+
+            // Check if clicking on an object instance (top to bottom)
+            for (let i = this.objectInstances.length - 1; i >= 0; i--) {
+                const obj = this.objectInstances[i];
+                const transform = obj.getTransformAt(this.currentFrame);
+                if (!transform.image) continue;
+                if (this.isPointInObject(x, y, transform)) {
+                    this.selectedObjectInstance = obj;
+                    this.isDraggingObject = true;
+                    this.objectDragOffset = {
+                        x: x - transform.x,
+                        y: y - transform.y
+                    };
+                    this.updateObjectPropertiesPanel();
+                    this.renderCurrentFrameToMainCanvas();
+                    e.preventDefault();
+                    return;
+                }
+            }
+
+            // Deselect only if not clicking on object or handles
+            this.selectedObjectInstance = null;
+            this.isDraggingObject = false;
+            this.isResizingObject = false;
+            this.isRotatingObject = false;
+            this.updateObjectPropertiesPanel();
+            this.renderCurrentFrameToMainCanvas();
+        }
+
+        handleObjectToolMouseMove(e) {
+            if (this.currentTool !== 'object-tool') return;
+            const rect = this.mainCanvas.getBoundingClientRect();
+            // Convert screen coordinates to canvas coordinates accounting for zoom
+            const x = (e.clientX - rect.left) / this.zoom;
+            const y = (e.clientY - rect.top) / this.zoom;
+
+            // Dragging object
+            if (this.isDraggingObject && this.selectedObjectInstance) {
+                const obj = this.selectedObjectInstance;
+                const newX = x - this.objectDragOffset.x;
+                const newY = y - this.objectDragOffset.y;
+                const transform = obj.getTransformAt(this.currentFrame);
+                obj.setKeyframe(this.currentFrame, { ...transform, x: newX, y: newY });
                 this.updateObjectPropertiesPanel();
                 this.renderCurrentFrameToMainCanvas();
-                e.preventDefault();
+                return;
+            }
+
+            // Resizing object - coordinates are already in canvas space
+            if (this.isResizingObject && this.selectedObjectInstance) {
+                const obj = this.selectedObjectInstance;
+                const start = this.objectResizeStartData;
+
+                // Calculate current distance from object center (in canvas coordinates)
+                const currentDistance = Math.sqrt((x - start.x) ** 2 + (y - start.y) ** 2);
+
+                // Calculate scale factor based on distance change
+                const scaleFactor = currentDistance / start.mouseStartDistance;
+                const newScale = Math.max(0.1, Math.min(5.0, start.scale * scaleFactor));
+
+                obj.setKeyframe(this.currentFrame, {
+                    x: start.x,
+                    y: start.y,
+                    scale: newScale,
+                    angle: start.angle,
+                    image: start.image
+                });
+                this.updateObjectPropertiesPanel();
+                this.renderCurrentFrameToMainCanvas();
+                return;
+            }
+
+            // Rotating object - coordinates are already in canvas space
+            if (this.isRotatingObject && this.selectedObjectInstance) {
+                const obj = this.selectedObjectInstance;
+                const start = this.objectRotateStartData;
+
+                // Calculate current angle from object center (in canvas coordinates)
+                const currentAngle = Math.atan2(y - start.y, x - start.x) * 180 / Math.PI;
+                const angleDiff = currentAngle - start.startAngle;
+                let newAngle = (start.angle + angleDiff + 360) % 360;
+
+                obj.setKeyframe(this.currentFrame, {
+                    x: start.x,
+                    y: start.y,
+                    scale: start.scale,
+                    angle: newAngle,
+                    image: start.image
+                });
+                this.updateObjectPropertiesPanel();
+                this.renderCurrentFrameToMainCanvas();
                 return;
             }
         }
 
-        // Deselect only if not clicking on object or handles
-        this.selectedObjectInstance = null;
-        this.isDraggingObject = false;
-        this.isResizingObject = false;
-        this.isRotatingObject = false;
-        this.updateObjectPropertiesPanel();
-        this.renderCurrentFrameToMainCanvas();
-    }
-
-    handleObjectToolMouseMove(e) {
-        if (this.currentTool !== 'object-tool') return;
-        const rect = this.mainCanvas.getBoundingClientRect();
-        // Convert screen coordinates to canvas coordinates accounting for zoom
-        const x = (e.clientX - rect.left) / this.zoom;
-        const y = (e.clientY - rect.top) / this.zoom;
-
-        // Dragging object
-        if (this.isDraggingObject && this.selectedObjectInstance) {
-            const obj = this.selectedObjectInstance;
-            const newX = x - this.objectDragOffset.x;
-            const newY = y - this.objectDragOffset.y;
-            const transform = obj.getTransformAt(this.currentFrame);
-            obj.setKeyframe(this.currentFrame, { ...transform, x: newX, y: newY });
-            this.updateObjectPropertiesPanel();
-            this.renderCurrentFrameToMainCanvas();
-            return;
+        handleObjectToolMouseUp(e) {
+            if (this.currentTool !== 'object-tool') return;
+            this.isDraggingObject = false;
+            this.isResizingObject = false;
+            this.isRotatingObject = false;
         }
 
-        // Resizing object - coordinates are already in canvas space
-        if (this.isResizingObject && this.selectedObjectInstance) {
-            const obj = this.selectedObjectInstance;
-            const start = this.objectResizeStartData;
-
-            // Calculate current distance from object center (in canvas coordinates)
-            const currentDistance = Math.sqrt((x - start.x) ** 2 + (y - start.y) ** 2);
-
-            // Calculate scale factor based on distance change
-            const scaleFactor = currentDistance / start.mouseStartDistance;
-            const newScale = Math.max(0.1, Math.min(5.0, start.scale * scaleFactor));
-
-            obj.setKeyframe(this.currentFrame, {
-                x: start.x,
-                y: start.y,
-                scale: newScale,
-                angle: start.angle,
-                image: start.image
-            });
-            this.updateObjectPropertiesPanel();
-            this.renderCurrentFrameToMainCanvas();
-            return;
+        // --- Touch support for object tool ---
+        mainCanvasTouchHandler(e) {
+            if (this.currentTool !== 'object-tool') return;
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                const rect = this.mainCanvas.getBoundingClientRect();
+                const x = (touch.clientX - rect.left) / this.zoom;
+                const y = (touch.clientY - rect.top) / this.zoom;
+                // Simulate mouse down/move/up
+                if (e.type === 'touchstart') this.handleObjectToolMouseDown({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => { } });
+                if (e.type === 'touchmove') this.handleObjectToolMouseMove({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => { } });
+                if (e.type === 'touchend' || e.type === 'touchcancel') this.handleObjectToolMouseUp({});
+                e.preventDefault();
+            }
         }
 
-        // Rotating object - coordinates are already in canvas space
-        if (this.isRotatingObject && this.selectedObjectInstance) {
-            const obj = this.selectedObjectInstance;
-            const start = this.objectRotateStartData;
+        isPointInObject(x, y, transform) {
+            if (!transform.image) {
+                // For objects without images, use a default 48x48 size
+                const halfW = 24;
+                const halfH = 24;
 
-            // Calculate current angle from object center (in canvas coordinates)
-            const currentAngle = Math.atan2(y - start.y, x - start.x) * 180 / Math.PI;
-            const angleDiff = currentAngle - start.startAngle;
-            let newAngle = (start.angle + angleDiff + 360) % 360;
+                const dx = x - transform.x;
+                const dy = y - transform.y;
 
-            obj.setKeyframe(this.currentFrame, {
-                x: start.x,
-                y: start.y,
-                scale: start.scale,
-                angle: newAngle,
-                image: start.image
-            });
-            this.updateObjectPropertiesPanel();
-            this.renderCurrentFrameToMainCanvas();
-            return;
-        }
-    }
+                if (transform.angle === 0) {
+                    return Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
+                } else {
+                    // With rotation - transform point to object space
+                    const cos = Math.cos(-transform.angle * Math.PI / 180);
+                    const sin = Math.sin(-transform.angle * Math.PI / 180);
+                    const localX = dx * cos - dy * sin;
+                    const localY = dx * sin + dy * cos;
 
-    handleObjectToolMouseUp(e) {
-        if (this.currentTool !== 'object-tool') return;
-        this.isDraggingObject = false;
-        this.isResizingObject = false;
-        this.isRotatingObject = false;
-    }
+                    return Math.abs(localX) <= halfW && Math.abs(localY) <= halfH;
+                }
+            }
 
-    // --- Touch support for object tool ---
-    mainCanvasTouchHandler(e) {
-        if (this.currentTool !== 'object-tool') return;
-        if (e.touches.length === 1) {
-            const touch = e.touches[0];
-            const rect = this.mainCanvas.getBoundingClientRect();
-            const x = (touch.clientX - rect.left) / this.zoom;
-            const y = (touch.clientY - rect.top) / this.zoom;
-            // Simulate mouse down/move/up
-            if (e.type === 'touchstart') this.handleObjectToolMouseDown({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => { } });
-            if (e.type === 'touchmove') this.handleObjectToolMouseMove({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => { } });
-            if (e.type === 'touchend' || e.type === 'touchcancel') this.handleObjectToolMouseUp({});
-            e.preventDefault();
-        }
-    }
+            // Calculate the bounds of the object considering scale and rotation
+            const img = transform.image;
+            const halfW = (img.width * transform.scale) / 2;
+            const halfH = (img.height * transform.scale) / 2;
 
-    isPointInObject(x, y, transform) {
-        if (!transform.image) {
-            // For objects without images, use a default 48x48 size
-            const halfW = 24;
-            const halfH = 24;
-
+            // Simple bounding box check first (for performance)
             const dx = x - transform.x;
             const dy = y - transform.y;
 
+            // For simple hit detection, check if point is within scaled bounds
             if (transform.angle === 0) {
+                // No rotation - simple bounding box
                 return Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
             } else {
                 // With rotation - transform point to object space
@@ -10095,150 +10219,200 @@ Create drawing commands for this animation frame:`;
             }
         }
 
-        // Calculate the bounds of the object considering scale and rotation
-        const img = transform.image;
-        const halfW = (img.width * transform.scale) / 2;
-        const halfH = (img.height * transform.scale) / 2;
+        // Add object rendering to your renderCurrentFrame method
+        renderObjectInstances() {
+            // FIX: Use this.objects instead of this.objectInstances
+            this.objectInstances.forEach(instance => {
+                const transform = instance.getTransformAt(this.currentFrame);
+                if (!transform.image && !instance.name) return; // Skip if no image and no name
 
-        // Simple bounding box check first (for performance)
-        const dx = x - transform.x;
-        const dy = y - transform.y;
+                this.ctx.save();
+                this.ctx.translate(transform.x, transform.y);
+                this.ctx.rotate(transform.angle * Math.PI / 180);
+                this.ctx.scale(transform.scale, transform.scale);
 
-        // For simple hit detection, check if point is within scaled bounds
-        if (transform.angle === 0) {
-            // No rotation - simple bounding box
-            return Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
-        } else {
-            // With rotation - transform point to object space
-            const cos = Math.cos(-transform.angle * Math.PI / 180);
-            const sin = Math.sin(-transform.angle * Math.PI / 180);
-            const localX = dx * cos - dy * sin;
-            const localY = dx * sin + dy * cos;
+                // Apply object-level alpha and hue
+                this.ctx.globalAlpha = instance.alpha !== undefined ? instance.alpha : 1;
+                if (instance.hue && instance.hue !== 0) {
+                    this.ctx.filter = `hue-rotate(${instance.hue}deg)`;
+                } else {
+                    this.ctx.filter = 'none';
+                }
 
-            return Math.abs(localX) <= halfW && Math.abs(localY) <= halfH;
+                if (transform.image) {
+                    const img = transform.image;
+                    this.ctx.drawImage(img, -img.width / 2, -img.height / 2, img.width, img.height);
+                } else {
+                    // Draw default placeholder for objects without images
+                    this.ctx.fillStyle = '#888';
+                    this.ctx.beginPath();
+                    this.ctx.arc(0, 0, 24, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = '#333';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.stroke();
+                    this.ctx.fillStyle = '#fff';
+                    this.ctx.font = 'bold 12px sans-serif';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText(instance.name[0] || '?', 0, 2);
+                }
+
+                this.ctx.restore();
+
+                // Draw selection outline and controls if selected - FIX: Check selectedObjectInstance instead of selectedObjectId
+                if (instance === this.selectedObjectInstance && this.currentTool === 'object-tool') {
+                    this.drawObjectTransformControls(transform, transform.image);
+                }
+            });
         }
-    }
 
-    // Add object rendering to your renderCurrentFrame method
-    renderObjectInstances() {
-        // FIX: Use this.objects instead of this.objectInstances
-        this.objectInstances.forEach(instance => {
-            const transform = instance.getTransformAt(this.currentFrame);
-            if (!transform.image && !instance.name) return; // Skip if no image and no name
-
-            this.ctx.save();
-            this.ctx.translate(transform.x, transform.y);
-            this.ctx.rotate(transform.angle * Math.PI / 180);
-            this.ctx.scale(transform.scale, transform.scale);
-
-            // Apply object-level alpha and hue
-            this.ctx.globalAlpha = instance.alpha !== undefined ? instance.alpha : 1;
-            if (instance.hue && instance.hue !== 0) {
-                this.ctx.filter = `hue-rotate(${instance.hue}deg)`;
-            } else {
-                this.ctx.filter = 'none';
+        getTransformAt(frame) {
+            // If tweening is disabled, return exact keyframe or default
+            if (!this.tween) {
+                return this.keyframes[frame] || this.getDefaultTransform();
             }
 
-            if (transform.image) {
-                const img = transform.image;
-                this.ctx.drawImage(img, -img.width / 2, -img.height / 2, img.width, img.height);
-            } else {
-                // Draw default placeholder for objects without images
-                this.ctx.fillStyle = '#888';
-                this.ctx.beginPath();
-                this.ctx.arc(0, 0, 24, 0, 2 * Math.PI);
-                this.ctx.fill();
-                this.ctx.strokeStyle = '#333';
-                this.ctx.lineWidth = 2;
-                this.ctx.stroke();
-                this.ctx.fillStyle = '#fff';
-                this.ctx.font = 'bold 12px sans-serif';
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText(instance.name[0] || '?', 0, 2);
+            // Find surrounding keyframes for interpolation
+            const frames = Object.keys(this.keyframes).map(Number).sort((a, b) => a - b);
+
+            // If no keyframes, return default
+            if (frames.length === 0) {
+                return this.getDefaultTransform();
             }
 
-            this.ctx.restore();
-
-            // Draw selection outline and controls if selected - FIX: Check selectedObjectInstance instead of selectedObjectId
-            if (instance === this.selectedObjectInstance && this.currentTool === 'object-tool') {
-                this.drawObjectTransformControls(transform, transform.image);
+            // If exact keyframe exists, return it
+            if (this.keyframes[frame]) {
+                return { ...this.keyframes[frame] };
             }
-        });
-    }
 
-    getTransformAt(frame) {
-        // If tweening is disabled, return exact keyframe or default
-        if (!this.tween) {
-            return this.keyframes[frame] || this.getDefaultTransform();
-        }
+            // Find the two keyframes to interpolate between
+            let beforeFrame = -1;
+            let afterFrame = -1;
 
-        // Find surrounding keyframes for interpolation
-        const frames = Object.keys(this.keyframes).map(Number).sort((a, b) => a - b);
-
-        // If no keyframes, return default
-        if (frames.length === 0) {
-            return this.getDefaultTransform();
-        }
-
-        // If exact keyframe exists, return it
-        if (this.keyframes[frame]) {
-            return { ...this.keyframes[frame] };
-        }
-
-        // Find the two keyframes to interpolate between
-        let beforeFrame = -1;
-        let afterFrame = -1;
-
-        for (let i = 0; i < frames.length; i++) {
-            if (frames[i] < frame) {
-                beforeFrame = frames[i];
-            } else if (frames[i] > frame && afterFrame === -1) {
-                afterFrame = frames[i];
-                break;
+            for (let i = 0; i < frames.length; i++) {
+                if (frames[i] < frame) {
+                    beforeFrame = frames[i];
+                } else if (frames[i] > frame && afterFrame === -1) {
+                    afterFrame = frames[i];
+                    break;
+                }
             }
+
+            // If only keyframes after current frame, use the first one
+            if (beforeFrame === -1) {
+                return { ...this.keyframes[afterFrame] };
+            }
+
+            // If only keyframes before current frame, use the last one
+            if (afterFrame === -1) {
+                return { ...this.keyframes[beforeFrame] };
+            }
+
+            // Interpolate between the two keyframes
+            const beforeTransform = this.keyframes[beforeFrame];
+            const afterTransform = this.keyframes[afterFrame];
+            const progress = (frame - beforeFrame) / (afterFrame - beforeFrame);
+
+            return {
+                x: this.lerp(beforeTransform.x, afterTransform.x, progress),
+                y: this.lerp(beforeTransform.y, afterTransform.y, progress),
+                scale: this.lerp(beforeTransform.scale, afterTransform.scale, progress),
+                angle: this.lerpAngle(beforeTransform.angle, afterTransform.angle, progress),
+                image: afterTransform.image || beforeTransform.image
+            };
         }
 
-        // If only keyframes after current frame, use the first one
-        if (beforeFrame === -1) {
-            return { ...this.keyframes[afterFrame] };
+        lerp(a, b, t) {
+            return a + (b - a) * t;
         }
 
-        // If only keyframes before current frame, use the last one
-        if (afterFrame === -1) {
-            return { ...this.keyframes[beforeFrame] };
+        lerpAngle(a, b, t) {
+            // Handle angle wrapping for smooth rotation
+            let diff = b - a;
+            if (diff > 180) diff -= 360;
+            if (diff < -180) diff += 360;
+            return a + diff * t;
         }
 
-        // Interpolate between the two keyframes
-        const beforeTransform = this.keyframes[beforeFrame];
-        const afterTransform = this.keyframes[afterFrame];
-        const progress = (frame - beforeFrame) / (afterFrame - beforeFrame);
+        // UNDO/REDO functionality
+        undoAdd() {
+            const state = {
+                frames: this.frames.map(frame => ({
+                    layers: frame.layers.map(layer => ({
+                        ...layer,
+                        canvas: (() => {
+                            const c = document.createElement('canvas');
+                            c.width = layer.canvas.width;
+                            c.height = layer.canvas.height;
+                            c.getContext('2d').drawImage(layer.canvas, 0, 0);
+                            return c;
+                        })()
+                    }))
+                })),
+                layers: this.layers.map(layer => ({
+                    ...layer,
+                    canvas: (() => {
+                        const c = document.createElement('canvas');
+                        c.width = layer.canvas.width;
+                        c.height = layer.canvas.height;
+                        c.getContext('2d').drawImage(layer.canvas, 0, 0);
+                        return c;
+                    })()
+                })),
+                currentFrame: this.currentFrame,
+                activeLayerId: this.activeLayerId
+            };
+            this.undoStack.push(state);
+            if (this.undoStack.length > this.maxUndoSteps) this.undoStack.shift();
+            this.redoStack = [];
+        }
 
-        return {
-            x: this.lerp(beforeTransform.x, afterTransform.x, progress),
-            y: this.lerp(beforeTransform.y, afterTransform.y, progress),
-            scale: this.lerp(beforeTransform.scale, afterTransform.scale, progress),
-            angle: this.lerpAngle(beforeTransform.angle, afterTransform.angle, progress),
-            image: afterTransform.image || beforeTransform.image
-        };
-    }
+        undo() {
+            if (this.undoStack.length === 0) return;
+            const prev = this.undoStack.pop();
+            this.redoStack.push(this._getCurrentState());
+            this._restoreState(prev);
+        }
 
-    lerp(a, b, t) {
-        return a + (b - a) * t;
-    }
+        redo() {
+            if (this.redoStack.length === 0) return;
+            const next = this.redoStack.pop();
+            this.undoStack.push(this._getCurrentState());
+            this._restoreState(next);
+        }
 
-    lerpAngle(a, b, t) {
-        // Handle angle wrapping for smooth rotation
-        let diff = b - a;
-        if (diff > 180) diff -= 360;
-        if (diff < -180) diff += 360;
-        return a + diff * t;
-    }
+        _getCurrentState() {
+            return {
+                frames: this.frames.map(frame => ({
+                    layers: frame.layers.map(layer => ({
+                        ...layer,
+                        canvas: (() => {
+                            const c = document.createElement('canvas');
+                            c.width = layer.canvas.width;
+                            c.height = layer.canvas.height;
+                            c.getContext('2d').drawImage(layer.canvas, 0, 0);
+                            return c;
+                        })()
+                    }))
+                })),
+                layers: this.layers.map(layer => ({
+                    ...layer,
+                    canvas: (() => {
+                        const c = document.createElement('canvas');
+                        c.width = layer.canvas.width;
+                        c.height = layer.canvas.height;
+                        c.getContext('2d').drawImage(layer.canvas, 0, 0);
+                        return c;
+                    })()
+                })),
+                currentFrame: this.currentFrame,
+                activeLayerId: this.activeLayerId
+            };
+        }
 
-    // UNDO/REDO functionality
-    undoAdd() {
-        const state = {
-            frames: this.frames.map(frame => ({
+        _restoreState(state) {
+            this.frames = state.frames.map(frame => ({
                 layers: frame.layers.map(layer => ({
                     ...layer,
                     canvas: (() => {
@@ -10249,8 +10423,8 @@ Create drawing commands for this animation frame:`;
                         return c;
                     })()
                 }))
-            })),
-            layers: this.layers.map(layer => ({
+            }));
+            this.layers = state.layers.map(layer => ({
                 ...layer,
                 canvas: (() => {
                     const c = document.createElement('canvas');
@@ -10259,111 +10433,48 @@ Create drawing commands for this animation frame:`;
                     c.getContext('2d').drawImage(layer.canvas, 0, 0);
                     return c;
                 })()
-            })),
-            currentFrame: this.currentFrame,
-            activeLayerId: this.activeLayerId
-        };
-        this.undoStack.push(state);
-        if (this.undoStack.length > this.maxUndoSteps) this.undoStack.shift();
-        this.redoStack = [];
-    }
+            }));
+            this.currentFrame = state.currentFrame;
+            this.activeLayerId = state.activeLayerId;
+            this.renderLayersList();
+            this.updateFramesList();
+            this.renderCurrentFrameToMainCanvas();
+        }
 
-    undo() {
-        if (this.undoStack.length === 0) return;
-        const prev = this.undoStack.pop();
-        this.redoStack.push(this._getCurrentState());
-        this._restoreState(prev);
-    }
-
-    redo() {
-        if (this.redoStack.length === 0) return;
-        const next = this.redoStack.pop();
-        this.undoStack.push(this._getCurrentState());
-        this._restoreState(next);
-    }
-
-    _getCurrentState() {
-        return {
-            frames: this.frames.map(frame => ({
-                layers: frame.layers.map(layer => ({
-                    ...layer,
-                    canvas: (() => {
-                        const c = document.createElement('canvas');
-                        c.width = layer.canvas.width;
-                        c.height = layer.canvas.height;
-                        c.getContext('2d').drawImage(layer.canvas, 0, 0);
-                        return c;
-                    })()
-                }))
-            })),
-            layers: this.layers.map(layer => ({
-                ...layer,
-                canvas: (() => {
-                    const c = document.createElement('canvas');
-                    c.width = layer.canvas.width;
-                    c.height = layer.canvas.height;
-                    c.getContext('2d').drawImage(layer.canvas, 0, 0);
-                    return c;
-                })()
-            })),
-            currentFrame: this.currentFrame,
-            activeLayerId: this.activeLayerId
-        };
-    }
-
-    _restoreState(state) {
-        this.frames = state.frames.map(frame => ({
-            layers: frame.layers.map(layer => ({
-                ...layer,
-                canvas: (() => {
-                    const c = document.createElement('canvas');
-                    c.width = layer.canvas.width;
-                    c.height = layer.canvas.height;
-                    c.getContext('2d').drawImage(layer.canvas, 0, 0);
-                    return c;
-                })()
-            }))
-        }));
-        this.layers = state.layers.map(layer => ({
-            ...layer,
-            canvas: (() => {
-                const c = document.createElement('canvas');
-                c.width = layer.canvas.width;
-                c.height = layer.canvas.height;
-                c.getContext('2d').drawImage(layer.canvas, 0, 0);
-                return c;
-            })()
-        }));
-        this.currentFrame = state.currentFrame;
-        this.activeLayerId = state.activeLayerId;
-        this.renderLayersList();
-        this.updateFramesList();
-        this.renderCurrentFrameToMainCanvas();
-    }
-
-    _serializeState(state) {
-        // Helper to serialize a state object (undo/redo)
-        return {
-            frames: state.frames.map(frame => ({
-                layers: frame.layers.map(layer => ({
+        _serializeState(state) {
+            // Helper to serialize a state object (undo/redo)
+            return {
+                frames: state.frames.map(frame => ({
+                    layers: frame.layers.map(layer => ({
+                        ...layer,
+                        canvas: layer.canvas.toDataURL()
+                    }))
+                })),
+                layers: state.layers.map(layer => ({
                     ...layer,
                     canvas: layer.canvas.toDataURL()
-                }))
-            })),
-            layers: state.layers.map(layer => ({
-                ...layer,
-                canvas: layer.canvas.toDataURL()
-            })),
-            currentFrame: state.currentFrame,
-            activeLayerId: state.activeLayerId
-        };
-    }
+                })),
+                currentFrame: state.currentFrame,
+                activeLayerId: state.activeLayerId
+            };
+        }
 
-    _restoreStateFromSerialized(state) {
-        // Helper to restore a state object (undo/redo) from serialized data
-        return {
-            frames: state.frames.map(frame => ({
-                layers: frame.layers.map(layer => {
+        _restoreStateFromSerialized(state) {
+            // Helper to restore a state object (undo/redo) from serialized data
+            return {
+                frames: state.frames.map(frame => ({
+                    layers: frame.layers.map(layer => {
+                        const canvas = this.createLayerCanvas();
+                        const ctx = canvas.getContext('2d');
+                        if (layer.canvas) {
+                            const img = new window.Image();
+                            img.src = layer.canvas;
+                            img.onload = () => ctx.drawImage(img, 0, 0);
+                        }
+                        return { ...layer, canvas };
+                    })
+                })),
+                layers: state.layers.map(layer => {
                     const canvas = this.createLayerCanvas();
                     const ctx = canvas.getContext('2d');
                     if (layer.canvas) {
@@ -10372,23 +10483,12 @@ Create drawing commands for this animation frame:`;
                         img.onload = () => ctx.drawImage(img, 0, 0);
                     }
                     return { ...layer, canvas };
-                })
-            })),
-            layers: state.layers.map(layer => {
-                const canvas = this.createLayerCanvas();
-                const ctx = canvas.getContext('2d');
-                if (layer.canvas) {
-                    const img = new window.Image();
-                    img.src = layer.canvas;
-                    img.onload = () => ctx.drawImage(img, 0, 0);
-                }
-                return { ...layer, canvas };
-            }),
-            currentFrame: state.currentFrame,
-            activeLayerId: state.activeLayerId
-        };
+                }),
+                currentFrame: state.currentFrame,
+                activeLayerId: state.activeLayerId
+            };
+        }
     }
-}
 
 // --- Mobile Panel Toggle Logic ---
 function setMobilePanel(panel) {
