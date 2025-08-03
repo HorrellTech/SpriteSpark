@@ -4329,6 +4329,10 @@ Create drawing commands for this animation frame:`;
         const frameData = this.frames[frameIndexToRender];
         if (!frameData || !frameData.layers) return;
 
+        // Calculate scale factor from main canvas to preview canvas
+        const scaleX = this.livePreviewCanvas.width / this.canvasWidth;
+        const scaleY = this.livePreviewCanvas.height / this.canvasHeight;
+
         // Draw all layers for this frame, bottom to top
         for (let i = 0; i < frameData.layers.length; i++) {
             const layer = frameData.layers[i];
@@ -4343,26 +4347,47 @@ Create drawing commands for this animation frame:`;
         this.livePreviewCtx.globalAlpha = 1.0;
         this.livePreviewCtx.globalCompositeOperation = 'source-over';
 
-        // Draw sprite objects on the live preview
+        // Draw sprite objects on the live preview with proper scaling
         const lpCtx = this.livePreviewCtx;
-        for (const obj of this.objects) {
+        for (const obj of this.objectInstances) {
             if (obj.visible === false) continue;
             const transform = obj.getTransformAt(frameIndexToRender);
 
             lpCtx.save();
             lpCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
             lpCtx.filter = obj.hue ? `hue-rotate(${obj.hue}deg)` : 'none';
-            lpCtx.translate(transform.x, transform.y);
+
+            // Scale the transform coordinates to match the preview canvas
+            lpCtx.translate(transform.x * scaleX, transform.y * scaleY);
             lpCtx.rotate(transform.angle * Math.PI / 180);
-            lpCtx.scale(transform.scale, transform.scale);
+
+            // Scale the object size to match the preview canvas scale
+            lpCtx.scale(transform.scale * scaleX, transform.scale * scaleY);
 
             if (transform.image) {
                 lpCtx.drawImage(
                     transform.image,
                     -transform.image.width / 2,
-                    -transform.image.height / 2
+                    -transform.image.height / 2,
+                    transform.image.width,
+                    transform.image.height
                 );
+            } else {
+                // Draw default placeholder for objects without images
+                lpCtx.fillStyle = '#888';
+                lpCtx.beginPath();
+                lpCtx.arc(0, 0, 24, 0, 2 * Math.PI);
+                lpCtx.fill();
+                lpCtx.strokeStyle = '#333';
+                lpCtx.lineWidth = 2;
+                lpCtx.stroke();
+                lpCtx.fillStyle = '#fff';
+                lpCtx.font = 'bold 12px sans-serif';
+                lpCtx.textAlign = 'center';
+                lpCtx.textBaseline = 'middle';
+                lpCtx.fillText(obj.name[0] || '?', 0, 2);
             }
+
             lpCtx.restore();
         }
 
@@ -6902,12 +6927,53 @@ Create drawing commands for this animation frame:`;
                     }
                 }
 
+                // FIX: Draw sprite objects on thumbnails
                 thumbCtx.globalAlpha = 1.0;
                 thumbCtx.globalCompositeOperation = 'source-over';
+
+                // Calculate scale factor to fit objects properly in thumbnail
+                const scaleX = w / this.canvasWidth;
+                const scaleY = h / this.canvasHeight;
+
+                for (const obj of this.objectInstances) {
+                    if (obj.visible === false) continue;
+                    const transform = obj.getTransformAt(idx);
+
+                    thumbCtx.save();
+                    thumbCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+                    if (obj.hue && obj.hue !== 0) {
+                        thumbCtx.filter = `hue-rotate(${obj.hue}deg)`;
+                    } else {
+                        thumbCtx.filter = 'none';
+                    }
+
+                    // Scale object position and size to fit thumbnail
+                    thumbCtx.translate(transform.x * scaleX, transform.y * scaleY);
+                    thumbCtx.rotate(transform.angle * Math.PI / 180);
+                    thumbCtx.scale(transform.scale * scaleX, transform.scale * scaleY);
+
+                    if (transform.image) {
+                        thumbCtx.drawImage(
+                            transform.image,
+                            -transform.image.width / 2,
+                            -transform.image.height / 2
+                        );
+                    } else {
+                        // Draw default placeholder for objects without images
+                        thumbCtx.fillStyle = '#888';
+                        thumbCtx.beginPath();
+                        thumbCtx.arc(0, 0, 8, 0, 2 * Math.PI);
+                        thumbCtx.fill();
+                        thumbCtx.strokeStyle = '#333';
+                        thumbCtx.lineWidth = 1;
+                        thumbCtx.stroke();
+                    }
+                    thumbCtx.restore();
+                }
+
                 thumbDiv.appendChild(thumbCanvas);
                 item.appendChild(thumbDiv);
             }
-            // Note: For simple mode, we don't add any thumbnail at all
 
             item.addEventListener('click', () => this.selectFrame(idx));
             framesList.appendChild(item);
@@ -8180,6 +8246,8 @@ Create drawing commands for this animation frame:`;
                     tempCanvas.height = this.canvasHeight;
                     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
                     const frame = activeFrames[f]; // Use filtered active frames
+
+                    // Draw layers
                     for (let i = 0; i < frame.layers.length; i++) {
                         const layer = frame.layers[i];
                         if (!layer.isVisible) continue;
@@ -8187,8 +8255,36 @@ Create drawing commands for this animation frame:`;
                         tempCtx.globalCompositeOperation = layer.blendMode;
                         tempCtx.drawImage(layer.canvas, 0, 0);
                     }
+
+                    // FIX: Draw objects for this frame
                     tempCtx.globalAlpha = 1.0;
                     tempCtx.globalCompositeOperation = 'source-over';
+
+                    for (const obj of this.objectInstances) {
+                        if (obj.visible === false) continue;
+                        const transform = obj.getTransformAt(f); // Use frame index f
+
+                        tempCtx.save();
+                        tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+                        if (obj.hue && obj.hue !== 0) {
+                            tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
+                        } else {
+                            tempCtx.filter = 'none';
+                        }
+                        tempCtx.translate(transform.x, transform.y);
+                        tempCtx.rotate(transform.angle * Math.PI / 180);
+                        tempCtx.scale(transform.scale, transform.scale);
+
+                        if (transform.image) {
+                            tempCtx.drawImage(
+                                transform.image,
+                                -transform.image.width / 2,
+                                -transform.image.height / 2
+                            );
+                        }
+                        tempCtx.restore();
+                    }
+
                     gif.addFrame(tempCanvas, { delay: 1000 / this.fps });
 
                     // Yield to the browser so UI/progress can update
@@ -10025,30 +10121,49 @@ Create drawing commands for this animation frame:`;
 
     // Add object rendering to your renderCurrentFrame method
     renderObjectInstances() {
+        // FIX: Use this.objects instead of this.objectInstances
         this.objectInstances.forEach(instance => {
             const transform = instance.getTransformAt(this.currentFrame);
-            if (!transform.image) return;
+            if (!transform.image && !instance.name) return; // Skip if no image and no name
 
             this.ctx.save();
-
-            // --- Apply zoom and pan before drawing object ---
-            //this.ctx.scale(this.zoom, this.zoom);
-            // If you have canvasContainer scroll, add:
-            // this.ctx.translate(this.mainCanvas.parentElement.scrollLeft, this.mainCanvas.parentElement.scrollTop);
-
             this.ctx.translate(transform.x, transform.y);
             this.ctx.rotate(transform.angle * Math.PI / 180);
             this.ctx.scale(transform.scale, transform.scale);
 
-            const img = transform.image;
-            this.ctx.drawImage(img, -img.width / 2, -img.height / 2, img.width, img.height);
+            // Apply object-level alpha and hue
+            this.ctx.globalAlpha = instance.alpha !== undefined ? instance.alpha : 1;
+            if (instance.hue && instance.hue !== 0) {
+                this.ctx.filter = `hue-rotate(${instance.hue}deg)`;
+            } else {
+                this.ctx.filter = 'none';
+            }
 
-            // Draw selection outline and controls if selected
-            if (instance === this.selectedObjectInstance && this.currentTool === 'object-tool') {
-                this.drawObjectTransformControls(transform, img);
+            if (transform.image) {
+                const img = transform.image;
+                this.ctx.drawImage(img, -img.width / 2, -img.height / 2, img.width, img.height);
+            } else {
+                // Draw default placeholder for objects without images
+                this.ctx.fillStyle = '#888';
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, 24, 0, 2 * Math.PI);
+                this.ctx.fill();
+                this.ctx.strokeStyle = '#333';
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+                this.ctx.fillStyle = '#fff';
+                this.ctx.font = 'bold 12px sans-serif';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(instance.name[0] || '?', 0, 2);
             }
 
             this.ctx.restore();
+
+            // Draw selection outline and controls if selected - FIX: Check selectedObjectInstance instead of selectedObjectId
+            if (instance === this.selectedObjectInstance && this.currentTool === 'object-tool') {
+                this.drawObjectTransformControls(transform, transform.image);
+            }
         });
     }
 
