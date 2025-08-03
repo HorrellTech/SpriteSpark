@@ -5772,9 +5772,9 @@ Create drawing commands for this animation frame:`;
         const centerY = transform.y;
         const angle = transform.angle * Math.PI / 180;
 
-        // Use separate X and Y scales if available, otherwise fall back to single scale
-        const scaleX = transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1);
-        const scaleY = transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1);
+        // Use separate X and Y scales
+        const scaleX = transform.scaleX || 1;
+        const scaleY = transform.scaleY || 1;
 
         const halfWidth = (image.width * Math.abs(scaleX)) / 2;
         const halfHeight = (image.height * Math.abs(scaleY)) / 2;
@@ -5833,17 +5833,20 @@ Create drawing commands for this animation frame:`;
             ctx.strokeRect(corner.x - handleSize / 2, corner.y - handleSize / 2, handleSize, handleSize);
         });
 
-        // Draw edge skew handles
+        // Draw edge skew handles - now with diamond shape to differentiate from resize handles
         const edgeHandleSize = 8;
-        ctx.fillStyle = '#4CAF50';
+        ctx.fillStyle = '#FF9800'; // Orange color for skew handles
 
         worldEdges.forEach(edge => {
-            ctx.beginPath();
-            ctx.arc(edge.x, edge.y, edgeHandleSize / 2, 0, 2 * Math.PI);
-            ctx.fill();
+            // Draw diamond shape for skew handles
+            ctx.save();
+            ctx.translate(edge.x, edge.y);
+            ctx.rotate(Math.PI / 4); // 45 degree rotation for diamond
+            ctx.fillRect(-edgeHandleSize / 2, -edgeHandleSize / 2, edgeHandleSize, edgeHandleSize);
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 1;
-            ctx.stroke();
+            ctx.strokeRect(-edgeHandleSize / 2, -edgeHandleSize / 2, edgeHandleSize, edgeHandleSize);
+            ctx.restore();
         });
 
         // Draw rotation handle
@@ -5894,8 +5897,8 @@ Create drawing commands for this animation frame:`;
         ctx.lineWidth = 1;
         ctx.strokeRect(hFlipButton.x - flipButtonSize / 2, hFlipButton.y - flipButtonSize / 2, flipButtonSize, flipButtonSize);
 
-        // H icon
-        ctx.fillStyle = '#ffffff';
+        // H icon with flip indicator
+        ctx.fillStyle = transform.flipX ? '#ffffff' : '#333333';
         ctx.font = 'bold 10px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -5913,8 +5916,8 @@ Create drawing commands for this animation frame:`;
         ctx.lineWidth = 1;
         ctx.strokeRect(vFlipButton.x - flipButtonSize / 2, vFlipButton.y - flipButtonSize / 2, flipButtonSize, flipButtonSize);
 
-        // V icon
-        ctx.fillStyle = '#ffffff';
+        // V icon with flip indicator
+        ctx.fillStyle = transform.flipY ? '#ffffff' : '#333333';
         ctx.font = 'bold 10px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -7128,9 +7131,9 @@ Create drawing commands for this animation frame:`;
         const centerY = transform.y;
         const angle = transform.angle * Math.PI / 180;
 
-        // Use separate X and Y scales if available, otherwise fall back to single scale
-        const scaleX = transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1);
-        const scaleY = transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1);
+        // Use separate X and Y scales
+        const scaleX = transform.scaleX || 1;
+        const scaleY = transform.scaleY || 1;
 
         // Calculate the corners of the bounding box in world space
         const halfWidth = (img.width * Math.abs(scaleX)) / 2;
@@ -7179,7 +7182,7 @@ Create drawing commands for this animation frame:`;
             }
         }
 
-        // Check skew handles (edge midpoints)
+        // Check skew handles (edge midpoints) - Now actually implemented
         for (const edge of worldEdges) {
             if (Math.abs(canvasX - edge.x) < edgeHandleSize / 2 && Math.abs(canvasY - edge.y) < edgeHandleSize / 2) {
                 return { type: 'skew', handle: edge.handle };
@@ -8234,7 +8237,7 @@ Create drawing commands for this animation frame:`;
             currentFrame: this.currentFrame,
             activeLayerId: this.activeLayerId,
             fps: this.fps,
-            // Save sprite objects using objectInstances
+            // Save sprite objects with flip and skew data
             objectInstances: this.objectInstances.map(obj => ({
                 id: obj.id,
                 name: obj.name,
@@ -8252,7 +8255,10 @@ Create drawing commands for this animation frame:`;
                             scaleX: transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1),
                             scaleY: transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1),
                             angle: transform.angle,
-                            // FIX: Properly convert image to data URL
+                            flipX: transform.flipX || false,
+                            flipY: transform.flipY || false,
+                            skewX: transform.skewX || 0,
+                            skewY: transform.skewY || 0,
                             image: transform.image ? this.imageToDataURL(transform.image) : null
                         }
                     ])
@@ -8264,7 +8270,6 @@ Create drawing commands for this animation frame:`;
                 name: objDef.name,
                 width: objDef.width,
                 height: objDef.height,
-                // FIX: Properly convert image to data URL
                 image: objDef.image ? this.imageToDataURL(objDef.image) : null
             }))
         };
@@ -10656,11 +10661,13 @@ Create drawing commands for this animation frame:`;
                         this.objectResizeStartData = {
                             x: transform.x,
                             y: transform.y,
-                            // Store both old and new scale formats for compatibility
-                            scale: transform.scale || 1,
-                            scaleX: transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1),
-                            scaleY: transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1),
+                            scaleX: transform.scaleX,
+                            scaleY: transform.scaleY,
                             angle: transform.angle,
+                            flipX: transform.flipX,
+                            flipY: transform.flipY,
+                            skewX: transform.skewX,
+                            skewY: transform.skewY,
                             image: transform.image,
                             mouseStartX: x,
                             mouseStartY: y,
@@ -10673,18 +10680,35 @@ Create drawing commands for this animation frame:`;
                         this.objectRotateStartData = {
                             x: transform.x,
                             y: transform.y,
-                            // Store both scale formats
-                            scale: transform.scale || 1,
-                            scaleX: transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1),
-                            scaleY: transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1),
+                            scaleX: transform.scaleX,
+                            scaleY: transform.scaleY,
                             angle: transform.angle,
+                            flipX: transform.flipX,
+                            flipY: transform.flipY,
+                            skewX: transform.skewX,
+                            skewY: transform.skewY,
                             image: transform.image,
                             startAngle: Math.atan2(y - transform.y, x - transform.x) * 180 / Math.PI
                         };
                         return;
                     }
                     if (handle.type === 'skew') {
-                        // Skip skewing for now
+                        this.isSkewingObject = true;
+                        this.objectSkewStartData = {
+                            x: transform.x,
+                            y: transform.y,
+                            scaleX: transform.scaleX,
+                            scaleY: transform.scaleY,
+                            angle: transform.angle,
+                            flipX: transform.flipX,
+                            flipY: transform.flipY,
+                            skewX: transform.skewX,
+                            skewY: transform.skewY,
+                            image: transform.image,
+                            mouseStartX: x,
+                            mouseStartY: y,
+                            skewHandle: handle.handle
+                        };
                         return;
                     }
                     if (handle.type === 'flip') {
@@ -10740,7 +10764,18 @@ Create drawing commands for this animation frame:`;
             const newX = x - this.objectDragOffset.x;
             const newY = y - this.objectDragOffset.y;
             const transform = obj.getTransformAt(this.currentFrame);
-            obj.setKeyframe(this.currentFrame, { ...transform, x: newX, y: newY });
+            obj.setKeyframe(this.currentFrame, {
+                x: newX,
+                y: newY,
+                scaleX: transform.scaleX,
+                scaleY: transform.scaleY,
+                angle: transform.angle,
+                flipX: transform.flipX,
+                flipY: transform.flipY,
+                skewX: transform.skewX,
+                skewY: transform.skewY,
+                image: transform.image
+            });
             this.updateObjectPropertiesPanel();
             this.renderCurrentFrameToMainCanvas();
             return;
@@ -10763,10 +10798,8 @@ Create drawing commands for this animation frame:`;
             const img = start.image;
             if (!img) return;
 
-            // Get current scale values (handle both old single scale and new separate scales)
-            let baseScaleX = start.scaleX !== undefined ? start.scaleX : (start.scale || 1);
-            let baseScaleY = start.scaleY !== undefined ? start.scaleY : (start.scale || 1);
-
+            const baseScaleX = start.scaleX;
+            const baseScaleY = start.scaleY;
             const baseWidth = img.width * Math.abs(baseScaleX);
             const baseHeight = img.height * Math.abs(baseScaleY);
 
@@ -10800,9 +10833,11 @@ Create drawing commands for this animation frame:`;
                 scaleX: newScaleX,
                 scaleY: newScaleY,
                 angle: start.angle,
-                image: start.image,
-                // Remove old scale property
-                scale: undefined
+                flipX: start.flipX,
+                flipY: start.flipY,
+                skewX: start.skewX,
+                skewY: start.skewY,
+                image: start.image
             });
             this.updateObjectPropertiesPanel();
             this.renderCurrentFrameToMainCanvas();
@@ -10821,21 +10856,62 @@ Create drawing commands for this animation frame:`;
             obj.setKeyframe(this.currentFrame, {
                 x: start.x,
                 y: start.y,
-                scaleX: start.scaleX !== undefined ? start.scaleX : start.scale,
-                scaleY: start.scaleY !== undefined ? start.scaleY : start.scale,
+                scaleX: start.scaleX,
+                scaleY: start.scaleY,
                 angle: newAngle,
-                image: start.image,
-                // Remove old scale property
-                scale: undefined
+                flipX: start.flipX,
+                flipY: start.flipY,
+                skewX: start.skewX,
+                skewY: start.skewY,
+                image: start.image
             });
             this.updateObjectPropertiesPanel();
             this.renderCurrentFrameToMainCanvas();
             return;
         }
 
-        // Skewing - you can implement this later if needed
+        // Skewing object - NEW IMPLEMENTATION
         if (this.isSkewingObject && this.selectedObjectInstance) {
-            // For now, just do nothing - skewing can be complex to implement properly
+            const obj = this.selectedObjectInstance;
+            const start = this.objectSkewStartData;
+
+            const deltaX = x - start.mouseStartX;
+            const deltaY = y - start.mouseStartY;
+
+            const img = start.image;
+            if (!img) return;
+
+            let newSkewX = start.skewX;
+            let newSkewY = start.skewY;
+
+            const maxSkew = 45; // Maximum skew in degrees
+            const skewSensitivity = 0.2; // How sensitive the skewing is
+
+            switch (start.skewHandle) {
+                case 'n': // Top edge - skew X
+                case 's': // Bottom edge - skew X
+                    newSkewX = Math.max(-maxSkew, Math.min(maxSkew, start.skewX + deltaX * skewSensitivity));
+                    break;
+                case 'e': // Right edge - skew Y  
+                case 'w': // Left edge - skew Y
+                    newSkewY = Math.max(-maxSkew, Math.min(maxSkew, start.skewY + deltaY * skewSensitivity));
+                    break;
+            }
+
+            obj.setKeyframe(this.currentFrame, {
+                x: start.x,
+                y: start.y,
+                scaleX: start.scaleX,
+                scaleY: start.scaleY,
+                angle: start.angle,
+                flipX: start.flipX,
+                flipY: start.flipY,
+                skewX: newSkewX,
+                skewY: newSkewY,
+                image: start.image
+            });
+            this.updateObjectPropertiesPanel();
+            this.renderCurrentFrameToMainCanvas();
             return;
         }
     }
@@ -10871,25 +10947,26 @@ Create drawing commands for this animation frame:`;
 
         const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
 
-        // Store the current scale values (handle both old single scale and new separate scales)
-        let currentScaleX = transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1);
-        let currentScaleY = transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1);
-
         if (direction === 'horizontal') {
-            // Flip horizontally by negating scaleX
-            currentScaleX = -currentScaleX;
+            // Toggle horizontal flip
+            transform.flipX = !transform.flipX;
         } else if (direction === 'vertical') {
-            // Flip vertically by negating scaleY
-            currentScaleY = -currentScaleY;
+            // Toggle vertical flip
+            transform.flipY = !transform.flipY;
         }
 
-        // Update the transform with separate X and Y scales
+        // Update the transform with flip states
         this.selectedObjectInstance.setKeyframe(this.currentFrame, {
-            ...transform,
-            scaleX: currentScaleX,
-            scaleY: currentScaleY,
-            // Remove the old single scale property if it exists
-            scale: undefined
+            x: transform.x,
+            y: transform.y,
+            scaleX: transform.scaleX,
+            scaleY: transform.scaleY,
+            angle: transform.angle,
+            flipX: transform.flipX,
+            flipY: transform.flipY,
+            skewX: transform.skewX,
+            skewY: transform.skewY,
+            image: transform.image
         });
 
         this.updateObjectPropertiesPanel();
@@ -10968,10 +11045,15 @@ Create drawing commands for this animation frame:`;
                 this.ctx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
             }
 
-            // Apply separate X and Y scaling
-            const scaleX = transform.scaleX || transform.scale || 1;
-            const scaleY = transform.scaleY || transform.scale || 1;
-            this.ctx.scale(scaleX, scaleY);
+            // Apply scaling with flip support
+            let finalScaleX = transform.scaleX || 1;
+            let finalScaleY = transform.scaleY || 1;
+
+            // Apply flipping by negating scale
+            if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+            if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+
+            this.ctx.scale(finalScaleX, finalScaleY);
 
             // Apply object-level alpha and hue
             this.ctx.globalAlpha = instance.alpha !== undefined ? instance.alpha : 1;

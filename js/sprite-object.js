@@ -17,14 +17,31 @@ class SpriteObject {
             scaleX: options.scaleX !== undefined ? options.scaleX : (options.scale || 1),
             scaleY: options.scaleY !== undefined ? options.scaleY : (options.scale || 1),  
             angle: options.angle || 0,
+
+            flipX: options.flipX || false,
+            flipY: options.flipY || false,
+            
+            skewX: options.skewX || 0,
+            skewY: options.skewY || 0,
+
             image: options.image || null
         };
 
         this.setKeyframe(0, initialTransform);
     }
 
-    setKeyframe(frame, { x, y, scaleX, scaleY, angle, image }) {
-        this.keyframes[frame] = { x, y, scaleX, scaleY, angle, image };
+    setKeyframe(frame, { x, y, scaleX, scaleY, angle, flipX, flipY, skewX, skewY, image }) {
+        this.keyframes[frame] = { 
+            x, y, 
+            scaleX: scaleX || 1, 
+            scaleY: scaleY || 1, 
+            angle: angle || 0,
+            flipX: flipX || false,
+            flipY: flipY || false,
+            skewX: skewX || 0,
+            skewY: skewY || 0,
+            image 
+        };
     }
 
     removeKeyframe(frame) {
@@ -129,8 +146,12 @@ class SpriteObject {
             y: this.lerp(beforeTransform.y, afterTransform.y, progress),
             scaleX: this.lerp(beforeScaleX, afterScaleX, progress),
             scaleY: this.lerp(beforeScaleY, afterScaleY, progress),
-            scale: undefined, // Scale is not used in this context
-            angle: this.lerpAngle(beforeTransform.angle, afterTransform.angle, progress),
+            // For boolean values like flip, use the "after" value when progress > 0.5
+            flipX: progress > 0.5 ? afterTransform.flipX : beforeTransform.flipX,
+            flipY: progress > 0.5 ? afterTransform.flipY : beforeTransform.flipY,
+            // Interpolate skew values
+            skewX: this.lerp(beforeTransform.skewX, afterTransform.skewX, progress),
+            skewY: this.lerp(beforeTransform.skewY, afterTransform.skewY, progress),
             image: afterTransform.image || beforeTransform.image
         };
     }
@@ -151,14 +172,32 @@ class SpriteObject {
         return (a + diff * t) % 360;
     }
 
+    normalizeTransform(keyframe) {
+        return {
+            x: keyframe.x || 0,
+            y: keyframe.y || 0,
+            scaleX: keyframe.scaleX !== undefined ? keyframe.scaleX : (keyframe.scale || 1),
+            scaleY: keyframe.scaleY !== undefined ? keyframe.scaleY : (keyframe.scale || 1),
+            angle: keyframe.angle || 0,
+            flipX: keyframe.flipX || false,
+            flipY: keyframe.flipY || false,
+            skewX: keyframe.skewX || 0,
+            skewY: keyframe.skewY || 0,
+            image: keyframe.image
+        };
+    }
+
     getDefaultTransform() {
         return {
             x: this.canvasWidth / 2 || 160,
             y: this.canvasHeight / 2 || 120,
             scaleX: 1,
             scaleY: 1,
-            scale: 1,
             angle: 0,
+            flipX: false,
+            flipY: false,
+            skewX: 0,
+            skewY: 0,
             image: null
         };
     }
