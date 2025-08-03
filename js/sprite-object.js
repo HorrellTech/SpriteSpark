@@ -18,32 +18,89 @@ class SpriteObject {
     }
 
     getTransformAt(frame) {
-        // If exact keyframe, return it
-        if (this.keyframes[frame]) return { ...this.keyframes[frame] };
-
-        // Find previous and next keyframes for tweening
-        const frames = Object.keys(this.keyframes).map(Number).sort((a, b) => a - b);
-        if (frames.length === 0) return { ...this.defaultTransform };
-
-        let prev = frames[0], next = frames[frames.length - 1];
-        for (let i = 0; i < frames.length; i++) {
-            if (frames[i] <= frame) prev = frames[i];
-            if (frames[i] > frame) { next = frames[i]; break; }
+        // If tweening is disabled, return exact keyframe or default
+        if (!this.tween) {
+            return this.keyframes[frame] || this.getDefaultTransform();
         }
 
-        // If before first or after last keyframe
-        if (frame <= frames[0]) return { ...this.keyframes[frames[0]] };
-        if (frame >= frames[frames.length - 1]) return { ...this.keyframes[frames[frames.length - 1]] };
+        // Find surrounding keyframes for interpolation
+        const frames = Object.keys(this.keyframes).map(Number).sort((a, b) => a - b);
 
-        // Tween between prev and next
-        const t = (frame - prev) / (next - prev);
-        const a = this.keyframes[prev], b = this.keyframes[next];
+        // If no keyframes, return default
+        if (frames.length === 0) {
+            return this.getDefaultTransform();
+        }
+
+        // If exact keyframe exists, return it
+        if (this.keyframes[frame]) {
+            return { ...this.keyframes[frame] };
+        }
+
+        // Find the two keyframes to interpolate between
+        let beforeFrame = -1;
+        let afterFrame = -1;
+
+        for (let i = 0; i < frames.length; i++) {
+            if (frames[i] < frame) {
+                beforeFrame = frames[i];
+            } else if (frames[i] > frame && afterFrame === -1) {
+                afterFrame = frames[i];
+                break;
+            }
+        }
+
+        // If only keyframes after current frame, use the first one
+        if (beforeFrame === -1) {
+            return { ...this.keyframes[afterFrame] };
+        }
+
+        // If only keyframes before current frame, use the last one
+        if (afterFrame === -1) {
+            return { ...this.keyframes[beforeFrame] };
+        }
+
+        // Interpolate between the two keyframes with easing
+        const beforeTransform = this.keyframes[beforeFrame];
+        const afterTransform = this.keyframes[afterFrame];
+        const totalFrames = afterFrame - beforeFrame;
+        const currentProgress = frame - beforeFrame;
+        const progress = currentProgress / totalFrames;
+
+        // Apply easing for smoother animation (ease-in-out)
+        const easedProgress = this.easeInOutCubic(progress);
+
         return {
-            x: a.x + (b.x - a.x) * t,
-            y: a.y + (b.y - a.y) * t,
-            scale: a.scale + (b.scale - a.scale) * t,
-            angle: a.angle + (b.angle - a.angle) * t,
-            image: b.image || a.image // No image tween, just snap to next if set
+            x: this.lerp(beforeTransform.x, afterTransform.x, easedProgress),
+            y: this.lerp(beforeTransform.y, afterTransform.y, easedProgress),
+            scale: this.lerp(beforeTransform.scale, afterTransform.scale, easedProgress),
+            angle: this.lerpAngle(beforeTransform.angle, afterTransform.angle, easedProgress),
+            image: afterTransform.image || beforeTransform.image
+        };
+    }
+
+    easeInOutCubic(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    lerp(a, b, t) {
+        return a + (b - a) * t;
+    }
+
+    lerpAngle(a, b, t) {
+        // Handle angle wrapping for smooth rotation
+        let diff = b - a;
+        if (diff > 180) diff -= 360;
+        if (diff < -180) diff += 360;
+        return (a + diff * t) % 360;
+    }
+
+    getDefaultTransform() {
+        return {
+            x: this.canvasWidth / 2 || 160,
+            y: this.canvasHeight / 2 || 120,
+            scale: 1,
+            angle: 0,
+            image: null
         };
     }
 }

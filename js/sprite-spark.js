@@ -4272,7 +4272,6 @@ Create drawing commands for this animation frame:`;
             startIndex++;
         }
         if (startIndex >= this.frames.length) {
-            // No active frames found after current, start from beginning
             startIndex = 0;
             while (startIndex < this.frames.length && this.frames[startIndex].isActive === false) {
                 startIndex++;
@@ -4282,39 +4281,186 @@ Create drawing commands for this animation frame:`;
         this.currentFrameIndex = startIndex;
         const frameDuration = 1000 / this.fps;
 
+        // Enhanced animation with sub-frame object interpolation for smoother tweening
+        let subFrameTime = 0;
+        const subFrameSteps = 4; // Render objects at 4x frame rate for smoother motion
+        const subFrameDuration = frameDuration / subFrameSteps;
+
         this.animationInterval = setInterval(() => {
+            // Calculate sub-frame progress for smooth object tweening
+            const subFrameProgress = subFrameTime / frameDuration;
+            const currentDisplayFrame = this.currentFrameIndex + subFrameProgress;
+
             // Only render if current frame is active
             if (this.frames[this.currentFrameIndex] && this.frames[this.currentFrameIndex].isActive !== false) {
-                this.renderFrameToLivePreview(this.currentFrameIndex);
+                // For smooth object animation, we'll render with sub-frame interpolation
+                this.renderFrameToLivePreviewWithSubFrame(this.currentFrameIndex, subFrameProgress);
             }
 
-            // Find next active frame
-            let nextIndex = this.currentFrameIndex + 1;
-            while (nextIndex < this.frames.length && this.frames[nextIndex].isActive === false) {
-                nextIndex++;
-            }
+            subFrameTime += subFrameDuration;
 
-            if (nextIndex >= this.frames.length) {
-                if (this.loopAnimation) {
-                    // Loop back to first active frame
-                    nextIndex = 0;
-                    while (nextIndex < this.frames.length && this.frames[nextIndex].isActive === false) {
-                        nextIndex++;
-                    }
-                    if (nextIndex >= this.frames.length) {
-                        // No active frames at all, stop animation
+            // When we've completed a full frame duration, move to next frame
+            if (subFrameTime >= frameDuration) {
+                subFrameTime = 0;
+
+                // Find next active frame
+                let nextIndex = this.currentFrameIndex + 1;
+                while (nextIndex < this.frames.length && this.frames[nextIndex].isActive === false) {
+                    nextIndex++;
+                }
+
+                if (nextIndex >= this.frames.length) {
+                    if (this.loopAnimation) {
+                        // Loop back to first active frame
+                        nextIndex = 0;
+                        while (nextIndex < this.frames.length && this.frames[nextIndex].isActive === false) {
+                            nextIndex++;
+                        }
+                        if (nextIndex >= this.frames.length) {
+                            // No active frames at all, stop animation
+                            this.pauseAnimation();
+                            return;
+                        }
+                    } else {
+                        // No loop, stop at last active frame
                         this.pauseAnimation();
                         return;
                     }
-                } else {
-                    // No loop, stop at last active frame
-                    this.pauseAnimation();
-                    return;
+                }
+
+                this.currentFrameIndex = nextIndex;
+            }
+        }, subFrameDuration);
+    }
+
+    renderFrameToLivePreviewWithSubFrame(frameIndex, subFrameProgress) {
+        if (!this.livePreviewCtx || !this.livePreviewCanvas || this.frames.length === 0) return;
+        this.livePreviewCtx.clearRect(0, 0, this.livePreviewCanvas.width, this.livePreviewCanvas.height);
+
+        const frameData = this.frames[frameIndex];
+        if (!frameData || !frameData.layers) return;
+
+        // Calculate scale factor from main canvas to preview canvas
+        const scaleX = this.livePreviewCanvas.width / this.canvasWidth;
+        const scaleY = this.livePreviewCanvas.height / this.canvasHeight;
+
+        // Draw onion skin frames first (if enabled) - ONLY PREVIOUS FRAMES
+        if (this.showOnionSkin && this.frames.length > 1) {
+            for (let offset = -this.onionSkinFrames; offset < 0; offset++) {
+                const onionFrameIdx = frameIndex + offset;
+                if (onionFrameIdx < 0 || onionFrameIdx >= this.frames.length) continue;
+
+                const onionFrame = this.frames[onionFrameIdx];
+                const distance = Math.abs(offset);
+                const maxDistance = this.onionSkinFrames;
+                const alpha = 0.3 * (1 - (distance - 1) / maxDistance);
+
+                // Draw onion skin layers
+                for (let i = 0; i < onionFrame.layers.length; i++) {
+                    const layer = onionFrame.layers[i];
+                    if (layer.isVisible !== false && layer.canvas instanceof HTMLCanvasElement) {
+                        this.livePreviewCtx.globalAlpha = alpha;
+                        this.livePreviewCtx.globalCompositeOperation = 'source-over';
+                        this.livePreviewCtx.drawImage(layer.canvas, 0, 0, this.livePreviewCanvas.width, this.livePreviewCanvas.height);
+                    }
+                }
+
+                // Draw onion skin objects
+                this.renderOnionSkinObjectsInPreview(onionFrameIdx, alpha, scaleX, scaleY);
+            }
+        }
+
+        // Draw current frame layers
+        for (let i = 0; i < frameData.layers.length; i++) {
+            const layer = frameData.layers[i];
+            if (layer.isVisible !== false && layer.canvas instanceof HTMLCanvasElement) {
+                this.livePreviewCtx.globalAlpha = layer.opacity / 100 || 1;
+                this.livePreviewCtx.globalCompositeOperation = layer.blendMode || 'source-over';
+                this.livePreviewCtx.drawImage(layer.canvas, 0, 0, this.livePreviewCanvas.width, this.livePreviewCanvas.height);
+            }
+        }
+
+        // Reset composition settings for objects
+        this.livePreviewCtx.globalAlpha = 1.0;
+        this.livePreviewCtx.globalCompositeOperation = 'source-over';
+
+        // Draw objects with sub-frame interpolation for smooth tweening
+        const lpCtx = this.livePreviewCtx;
+        for (const obj of this.objectInstances) {
+            if (obj.visible === false) continue;
+
+            // Check if the object's layer is visible
+            if (obj.layerId) {
+                const objectLayer = this.layers.find(l => l.id === obj.layerId);
+                if (objectLayer && !objectLayer.isVisible) {
+                    continue;
                 }
             }
 
-            this.currentFrameIndex = nextIndex;
-        }, frameDuration);
+            // Get interpolated transform for smooth animation
+            let transform;
+            if (obj.tween && subFrameProgress > 0) {
+                // Calculate sub-frame interpolated position
+                const currentTransform = obj.getTransformAt(frameIndex);
+                const nextFrameIndex = frameIndex + 1;
+
+                if (nextFrameIndex < this.frames.length) {
+                    const nextTransform = obj.getTransformAt(nextFrameIndex);
+
+                    // Interpolate between current and next frame
+                    transform = {
+                        x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
+                        y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
+                        scale: this.lerp(currentTransform.scale, nextTransform.scale, subFrameProgress),
+                        angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
+                        image: currentTransform.image || nextTransform.image
+                    };
+                } else {
+                    transform = currentTransform;
+                }
+            } else {
+                transform = obj.getTransformAt(frameIndex);
+            }
+
+            lpCtx.save();
+            lpCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+            lpCtx.filter = obj.hue ? `hue-rotate(${obj.hue}deg)` : 'none';
+
+            // Scale the transform coordinates to match the preview canvas
+            lpCtx.translate(transform.x * scaleX, transform.y * scaleY);
+            lpCtx.rotate(transform.angle * Math.PI / 180);
+            lpCtx.scale(transform.scale * scaleX, transform.scale * scaleY);
+
+            if (transform.image) {
+                lpCtx.drawImage(
+                    transform.image,
+                    -transform.image.width / 2,
+                    -transform.image.height / 2,
+                    transform.image.width,
+                    transform.image.height
+                );
+            } else {
+                // Draw default placeholder for objects without images
+                lpCtx.fillStyle = '#888';
+                lpCtx.beginPath();
+                lpCtx.arc(0, 0, 24, 0, 2 * Math.PI);
+                lpCtx.fill();
+                lpCtx.strokeStyle = '#333';
+                lpCtx.lineWidth = 2;
+                lpCtx.stroke();
+                lpCtx.fillStyle = '#fff';
+                lpCtx.font = 'bold 12px sans-serif';
+                lpCtx.textAlign = 'center';
+                lpCtx.textBaseline = 'middle';
+                lpCtx.fillText(obj.name[0] || '?', 0, 2);
+            }
+
+            lpCtx.restore();
+        }
+
+        // Reset final composition settings
+        this.livePreviewCtx.globalAlpha = 1.0;
+        this.livePreviewCtx.globalCompositeOperation = 'source-over';
     }
 
     pauseAnimation() {
@@ -4333,19 +4479,18 @@ Create drawing commands for this animation frame:`;
         const scaleX = this.livePreviewCanvas.width / this.canvasWidth;
         const scaleY = this.livePreviewCanvas.height / this.canvasHeight;
 
-        // Draw onion skin frames first (if enabled)
+        // Draw onion skin frames first (if enabled) - ONLY PREVIOUS FRAMES
         if (this.showOnionSkin && this.frames.length > 1) {
-            for (let offset = -this.onionSkinFrames; offset <= this.onionSkinFrames; offset++) {
-                if (offset === 0) continue;
+            for (let offset = -this.onionSkinFrames; offset < 0; offset++) { // Changed: offset < 0 instead of <= 0
                 const onionFrameIdx = frameIndexToRender + offset;
                 if (onionFrameIdx < 0 || onionFrameIdx >= this.frames.length) continue;
 
                 const onionFrame = this.frames[onionFrameIdx];
 
-                // Calculate alpha based on distance
+                // Calculate alpha based on distance (more recent = more visible)
                 const distance = Math.abs(offset);
                 const maxDistance = this.onionSkinFrames;
-                const alpha = 0.2 * (1 - (distance - 1) / maxDistance);
+                const alpha = 0.3 * (1 - (distance - 1) / maxDistance);
 
                 // Draw onion skin layers
                 for (let i = 0; i < onionFrame.layers.length; i++) {
@@ -4380,7 +4525,7 @@ Create drawing commands for this animation frame:`;
         const lpCtx = this.livePreviewCtx;
         for (const obj of this.objectInstances) {
             if (obj.visible === false) continue;
-        
+
             // NEW: Check if the object's layer is visible
             if (obj.layerId) {
                 const objectLayer = this.layers.find(l => l.id === obj.layerId);
@@ -4388,7 +4533,7 @@ Create drawing commands for this animation frame:`;
                     continue; // Skip rendering if layer is hidden
                 }
             }
-            
+
             const transform = obj.getTransformAt(frameIndexToRender);
 
             lpCtx.save();
@@ -5440,19 +5585,18 @@ Create drawing commands for this animation frame:`;
         this.ctx.clearRect(0, 0, this.mainCanvas.width, this.mainCanvas.height);
         this.drawCheckerboardBackground();
 
-        // Onion skin: draw previous/next frames with transparency
+        // Onion skin: draw ONLY previous frames with transparency
         if (this.showOnionSkin && this.frames.length > 1) {
-            for (let offset = -this.onionSkinFrames; offset <= this.onionSkinFrames; offset++) {
-                if (offset === 0) continue;
+            for (let offset = -this.onionSkinFrames; offset < 0; offset++) { // Changed: offset < 0 instead of <= 0
                 const frameIdx = this.currentFrame + offset;
                 if (frameIdx < 0 || frameIdx >= this.frames.length) continue;
 
                 const frame = this.frames[frameIdx];
 
-                // Calculate alpha based on distance from current frame
+                // Calculate alpha based on distance from current frame (more recent = more visible)
                 const distance = Math.abs(offset);
                 const maxDistance = this.onionSkinFrames;
-                const alpha = 0.3 * (1 - (distance - 1) / maxDistance); // Fade from 0.3 to near 0
+                const alpha = 0.3 * (1 - (distance - 1) / maxDistance);
 
                 // Draw frame layers with onion skin alpha
                 frame.layers.forEach((layer, i) => {
@@ -5463,7 +5607,7 @@ Create drawing commands for this animation frame:`;
                 });
 
                 // Draw onion skin objects for this frame
-                //this.renderOnionSkinObjects(frameIdx, alpha);
+                this.renderOnionSkinObjects(frameIdx, alpha);
             }
         }
 
@@ -6883,15 +7027,14 @@ Create drawing commands for this animation frame:`;
             hue: 0,
             layerId: this.activeLayerId || (this.layers[0] && this.layers[0].id)
         });
-        obj.visible = true;
-        obj.alpha = 1;
-        obj.hue = 0;
-        obj.layerId = this.activeLayerId || (this.layers[0] && this.layers[0].id);
+
         this.objects.push(obj);
         this.selectedObjectId = obj.id;
+        this.selectedObjectInstance = obj;
         this.renderObjectsList();
         this.renderCurrentFrameToMainCanvas();
-        this.showObjectPropertiesPanel(obj, obj.getTransformAt(this.currentFrame));
+        //this.showObjectPropertiesPanel(obj, obj.getTransformAt(this.currentFrame));
+        this.updateObjectPropertiesPanel();
     }
 
     getObjectTransformHandle(x, y, transform) {
@@ -6962,20 +7105,20 @@ Create drawing commands for this animation frame:`;
         const list = document.getElementById('objectsList');
         if (!list) return;
         list.innerHTML = '';
-        if (this.objects.length === 0) {
+        if (this.objectInstances.length === 0) {
             list.style.display = 'none';
             return;
         }
         list.style.display = '';
-        this.objects.forEach(obj => {
+        this.objectInstances.forEach(obj => {
             const item = document.createElement('div');
-            item.className = 'object-list-item' + (obj.id === this.selectedObjectId ? ' selected' : '');
+            item.className = 'object-list-item' + (obj === this.selectedObjectInstance ? ' selected' : '');
             item.textContent = obj.name;
             item.title = obj.name;
             item.onclick = () => {
-                this.selectedObjectId = obj.id;
+                this.selectedObjectInstance = obj;
                 this.renderCurrentFrameToMainCanvas();
-                this.showObjectPropertiesPanel(obj, obj.getTransformAt(this.currentFrame));
+                this.updateObjectPropertiesPanel();
                 this.renderObjectsList();
             };
             list.appendChild(item);
@@ -7938,7 +8081,7 @@ Create drawing commands for this animation frame:`;
             canvasWidth: this.canvasWidth,
             canvasHeight: this.canvasHeight,
             frames: this.frames.map((frame, frameIndex) => ({
-                isActive: frame.isActive !== undefined ? frame.isActive : true, // Include active state
+                isActive: frame.isActive !== undefined ? frame.isActive : true,
                 layers: frame.layers.map((layer, layerIndex) => ({
                     id: layer.id,
                     name: layer.name,
@@ -7947,7 +8090,7 @@ Create drawing commands for this animation frame:`;
                     blendMode: layer.blendMode || 'source-over',
                     image: layer.canvas && layer.canvas.width > 0 && layer.canvas.height > 0
                         ? layer.canvas.toDataURL('image/png')
-                        : null // Don't save empty canvases
+                        : null
                 }))
             })),
             layers: this.layers.map((layer, layerIndex) => ({
@@ -7960,8 +8103,8 @@ Create drawing commands for this animation frame:`;
             currentFrame: this.currentFrame,
             activeLayerId: this.activeLayerId,
             fps: this.fps,
-            // Save sprite objects
-            objects: this.objects.map(obj => ({
+            // Save sprite objects using objectInstances
+            objectInstances: this.objectInstances.map(obj => ({
                 id: obj.id,
                 name: obj.name,
                 visible: obj.visible,
@@ -7977,7 +8120,8 @@ Create drawing commands for this animation frame:`;
                             y: transform.y,
                             scale: transform.scale,
                             angle: transform.angle,
-                            image: transform.image ? transform.image.src : null
+                            // FIX: Properly convert image to data URL
+                            image: transform.image ? this.imageToDataURL(transform.image) : null
                         }
                     ])
                 )
@@ -7988,9 +8132,65 @@ Create drawing commands for this animation frame:`;
                 name: objDef.name,
                 width: objDef.width,
                 height: objDef.height,
-                image: objDef.image ? objDef.image.src : null
+                // FIX: Properly convert image to data URL
+                image: objDef.image ? this.imageToDataURL(objDef.image) : null
             }))
         };
+    }
+
+    imageToDataURL(image) {
+        if (!image) return null;
+
+        // If it's already a data URL string, return as-is
+        if (typeof image === 'string' && image.startsWith('data:')) {
+            return image;
+        }
+
+        // If it's an Image object with src, return the src
+        if (image instanceof Image && image.src) {
+            return image.src;
+        }
+
+        // If it's a Canvas object, convert to data URL
+        if (image instanceof HTMLCanvasElement) {
+            return image.toDataURL('image/png');
+        }
+
+        // For any other image object, try to draw it to a canvas and convert
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = image.width || image.naturalWidth || 100;
+            canvas.height = image.height || image.naturalHeight || 100;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(image, 0, 0);
+            return canvas.toDataURL('image/png');
+        } catch (e) {
+            console.warn('Failed to convert image to data URL:', e);
+            return null;
+        }
+    }
+
+    loadImageFromDataURL(dataURL) {
+        return new Promise((resolve, reject) => {
+            if (!dataURL || typeof dataURL !== 'string') {
+                reject(new Error('Invalid data URL'));
+                return;
+            }
+
+            const img = new Image();
+
+            img.onload = () => {
+                resolve(img);
+            };
+
+            img.onerror = (err) => {
+                reject(new Error('Failed to load image: ' + err.message));
+            };
+
+            // Set crossOrigin before src to handle potential CORS issues
+            img.crossOrigin = 'anonymous';
+            img.src = dataURL;
+        });
     }
 
     loadProjectData(data) {
@@ -8002,9 +8202,9 @@ Create drawing commands for this animation frame:`;
         this.fps = data.fps || 12;
 
         // Clear existing objects and library
-        this.objects = [];
+        this.objectInstances = [];
         this.objectLibrary = [];
-        this.selectedObjectId = null;
+        this.selectedObjectInstance = null;
 
         // Restore layers structure first
         this.layers = data.layers.map(l => ({
@@ -8024,13 +8224,14 @@ Create drawing commands for this animation frame:`;
         });
 
         // Count object images
-        if (data.objects) {
-            data.objects.forEach(objData => {
-                Object.values(objData.keyframes || {}).forEach(transform => {
-                    if (transform.image) totalImages++;
-                });
+        const objectsData = data.objectInstances || data.objects || [];
+        objectsData.forEach(objData => {
+            Object.values(objData.keyframes || {}).forEach(transform => {
+                if (transform.image && typeof transform.image === 'string') {
+                    totalImages++;
+                }
             });
-        }
+        });
 
         // Count library images
         if (data.objectLibrary) {
@@ -8069,8 +8270,8 @@ Create drawing commands for this animation frame:`;
         if (data.objectLibrary) {
             data.objectLibrary.forEach(objDefData => {
                 if (objDefData.image) {
-                    const img = new Image();
-                    img.onload = () => {
+                    // FIX: Use proper image loading
+                    this.loadImageFromDataURL(objDefData.image).then(img => {
                         const objDef = {
                             id: objDefData.id,
                             name: objDefData.name,
@@ -8081,15 +8282,21 @@ Create drawing commands for this animation frame:`;
                         this.objectLibrary.push(objDef);
                         loadedImages++;
                         checkComplete();
-                    };
-                    img.onerror = () => {
-                        console.error('Failed to load object library image:', objDefData.name);
+                    }).catch(err => {
+                        console.error('Failed to load object library image:', objDefData.name, err);
+                        // Still add the object definition without image
+                        const objDef = {
+                            id: objDefData.id,
+                            name: objDefData.name,
+                            width: objDefData.width,
+                            height: objDefData.height,
+                            image: null
+                        };
+                        this.objectLibrary.push(objDef);
                         loadedImages++;
                         checkComplete();
-                    };
-                    img.src = objDefData.image;
+                    });
                 } else {
-                    // No image for this library object
                     const objDef = {
                         id: objDefData.id,
                         name: objDefData.name,
@@ -8103,8 +8310,8 @@ Create drawing commands for this animation frame:`;
         }
 
         // Load sprite objects
-        if (data.objects) {
-            data.objects.forEach(objData => {
+        if (objectsData.length > 0) {
+            objectsData.forEach(objData => {
                 const obj = new SpriteObject({
                     id: objData.id,
                     name: objData.name,
@@ -8123,47 +8330,46 @@ Create drawing commands for this animation frame:`;
                 obj.tween = objData.tween !== undefined ? objData.tween : true;
 
                 // Load keyframes with images
+                const keyframePromises = [];
                 Object.entries(objData.keyframes || {}).forEach(([frame, transformData]) => {
-                    if (transformData.image) {
-                        const img = new Image();
-                        img.onload = () => {
+                    if (transformData.image && typeof transformData.image === 'string') {
+                        const promise = this.loadImageFromDataURL(transformData.image).then(img => {
                             obj.setKeyframe(parseInt(frame), {
-                                x: transformData.x,
-                                y: transformData.y,
-                                scale: transformData.scale,
-                                angle: transformData.angle,
+                                x: transformData.x || 0,
+                                y: transformData.y || 0,
+                                scale: transformData.scale || 1,
+                                angle: transformData.angle || 0,
                                 image: img
                             });
-                            loadedImages++;
-                            checkComplete();
-                        };
-                        img.onerror = () => {
-                            console.error('Failed to load object keyframe image for object:', objData.name, 'frame:', frame);
-                            // Set keyframe without image
+                        }).catch(err => {
+                            console.error('Failed to load object keyframe image:', objData.name, 'frame:', frame, err);
                             obj.setKeyframe(parseInt(frame), {
-                                x: transformData.x,
-                                y: transformData.y,
-                                scale: transformData.scale,
-                                angle: transformData.angle,
+                                x: transformData.x || 0,
+                                y: transformData.y || 0,
+                                scale: transformData.scale || 1,
+                                angle: transformData.angle || 0,
                                 image: null
                             });
-                            loadedImages++;
-                            checkComplete();
-                        };
-                        img.src = transformData.image;
+                        });
+                        keyframePromises.push(promise);
                     } else {
-                        // Set keyframe without image
                         obj.setKeyframe(parseInt(frame), {
-                            x: transformData.x,
-                            y: transformData.y,
-                            scale: transformData.scale,
-                            angle: transformData.angle,
+                            x: transformData.x || 0,
+                            y: transformData.y || 0,
+                            scale: transformData.scale || 1,
+                            angle: transformData.angle || 0,
                             image: null
                         });
                     }
                 });
 
-                this.objects.push(obj);
+                // Wait for all keyframes to load for this object
+                Promise.all(keyframePromises).then(() => {
+                    loadedImages += keyframePromises.length;
+                    checkComplete();
+                });
+
+                this.objectInstances.push(obj);
             });
         }
 
@@ -8176,8 +8382,7 @@ Create drawing commands for this animation frame:`;
 
                 // Load image data for this specific layer
                 if (layerData.image) {
-                    const img = new Image();
-                    img.onload = () => {
+                    this.loadImageFromDataURL(layerData.image).then(img => {
                         ctx.drawImage(img, 0, 0);
                         loadedImages++;
 
@@ -8193,17 +8398,13 @@ Create drawing commands for this animation frame:`;
                         }
 
                         checkComplete();
-                    };
-                    img.onerror = () => {
-                        console.error(`Failed to load image for frame ${frameIndex}, layer ${layerIndex}`);
+                    }).catch(err => {
+                        console.error(`Failed to load image for frame ${frameIndex}, layer ${layerIndex}:`, err);
                         loadedImages++;
                         checkComplete();
-                    };
-                    img.src = layerData.image;
+                    });
                 } else {
-                    // No image to load for this layer
                     if (totalImages === 0) {
-                        // No images at all, proceed immediately
                         setTimeout(checkComplete, 50);
                     }
                 }
@@ -8321,6 +8522,7 @@ Create drawing commands for this animation frame:`;
                 tempCanvas.width = this.canvasWidth;
                 tempCanvas.height = this.canvasHeight;
                 const tempCtx = tempCanvas.getContext('2d');
+
                 // Draw all visible layers
                 for (let i = 0; i < frame.layers.length; i++) {
                     const layer = frame.layers[i];
@@ -8329,8 +8531,61 @@ Create drawing commands for this animation frame:`;
                     tempCtx.globalCompositeOperation = layer.blendMode;
                     tempCtx.drawImage(layer.canvas, 0, 0);
                 }
+
+                // Draw objects with visibility check
                 tempCtx.globalAlpha = 1.0;
                 tempCtx.globalCompositeOperation = 'source-over';
+
+                for (const obj of this.objectInstances) {
+                    if (obj.visible === false) continue;
+
+                    if (obj.layerId) {
+                        const objectLayer = this.layers.find(l => l.id === obj.layerId);
+                        if (objectLayer && !objectLayer.isVisible) {
+                            continue;
+                        }
+                    }
+
+                    // Use the same interpolation logic as live preview
+                    let transform;
+                    if (obj.tween && idx < activeFrames.length - 1) {
+                        const currentTransform = obj.getTransformAt(idx);
+                        const nextTransform = obj.getTransformAt(idx + 1);
+
+                        // Add sub-frame interpolation for smoother export
+                        const subFrameProgress = 0.5; // Mid-frame interpolation
+                        transform = {
+                            x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
+                            y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
+                            scale: this.lerp(currentTransform.scale, nextTransform.scale, subFrameProgress),
+                            angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
+                            image: currentTransform.image || nextTransform.image
+                        };
+                    } else {
+                        transform = obj.getTransformAt(idx);
+                    }
+
+                    tempCtx.save();
+                    tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+                    if (obj.hue && obj.hue !== 0) {
+                        tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
+                    } else {
+                        tempCtx.filter = 'none';
+                    }
+                    tempCtx.translate(transform.x, transform.y);
+                    tempCtx.rotate(transform.angle * Math.PI / 180);
+                    tempCtx.scale(transform.scale, transform.scale);
+
+                    if (transform.image) {
+                        tempCtx.drawImage(
+                            transform.image,
+                            -transform.image.width / 2,
+                            -transform.image.height / 2
+                        );
+                    }
+                    tempCtx.restore();
+                }
+
                 tempCanvas.toBlob(blob => {
                     resolve({ idx, blob });
                 }, 'image/png');
@@ -8423,7 +8678,7 @@ Create drawing commands for this animation frame:`;
                     tempCanvas.width = this.canvasWidth;
                     tempCanvas.height = this.canvasHeight;
                     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-                    const frame = activeFrames[f]; // Use filtered active frames
+                    const frame = activeFrames[f];
 
                     // Draw layers
                     for (let i = 0; i < frame.layers.length; i++) {
@@ -8434,13 +8689,39 @@ Create drawing commands for this animation frame:`;
                         tempCtx.drawImage(layer.canvas, 0, 0);
                     }
 
-                    // FIX: Draw objects for this frame
+                    // Draw objects for this frame with visibility check
                     tempCtx.globalAlpha = 1.0;
                     tempCtx.globalCompositeOperation = 'source-over';
 
                     for (const obj of this.objectInstances) {
                         if (obj.visible === false) continue;
-                        const transform = obj.getTransformAt(f); // Use frame index f
+
+                        // Check if the object's layer is visible
+                        if (obj.layerId) {
+                            const objectLayer = this.layers.find(l => l.id === obj.layerId);
+                            if (objectLayer && !objectLayer.isVisible) {
+                                continue;
+                            }
+                        }
+
+                        // Use the same interpolation logic as live preview
+                        let transform;
+                        if (obj.tween && f < totalFrames - 1) {
+                            const currentTransform = obj.getTransformAt(f);
+                            const nextTransform = obj.getTransformAt(f + 1);
+
+                            // Add sub-frame interpolation for smoother export
+                            const subFrameProgress = 0.5; // Mid-frame interpolation
+                            transform = {
+                                x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
+                                y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
+                                scale: this.lerp(currentTransform.scale, nextTransform.scale, subFrameProgress),
+                                angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
+                                image: currentTransform.image || nextTransform.image
+                            };
+                        } else {
+                            transform = obj.getTransformAt(f);
+                        }
 
                         tempCtx.save();
                         tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
@@ -8487,7 +8768,7 @@ Create drawing commands for this animation frame:`;
 
             addFramesAsync();
         } else {
-            // WebM/MP4 export using CCapture.js
+            // WebM/MP4 export using CCapture.js - also include objects
             let capturer = new CCapture({
                 format: "webm",
                 framerate: this.fps,
@@ -8496,7 +8777,7 @@ Create drawing commands for this animation frame:`;
             });
 
             let frameIdx = 0;
-            const totalFrames = activeFrames.length; // Use filtered active frames
+            const totalFrames = activeFrames.length;
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = this.canvasWidth;
             tempCanvas.height = this.canvasHeight;
@@ -8512,7 +8793,9 @@ Create drawing commands for this animation frame:`;
                         return;
                     }
                     tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-                    const frame = activeFrames[frameIdx]; // Use filtered active frames
+                    const frame = activeFrames[frameIdx];
+
+                    // Draw layers
                     for (let i = 0; i < frame.layers.length; i++) {
                         const layer = frame.layers[i];
                         if (!layer.isVisible) continue;
@@ -8520,12 +8803,64 @@ Create drawing commands for this animation frame:`;
                         tempCtx.globalCompositeOperation = layer.blendMode;
                         tempCtx.drawImage(layer.canvas, 0, 0);
                     }
+
+                    // Draw objects
                     tempCtx.globalAlpha = 1.0;
                     tempCtx.globalCompositeOperation = 'source-over';
 
+                    for (const obj of this.objectInstances) {
+                        if (obj.visible === false) continue;
+
+                        // Check if the object's layer is visible
+                        if (obj.layerId) {
+                            const objectLayer = this.layers.find(l => l.id === obj.layerId);
+                            if (objectLayer && !objectLayer.isVisible) {
+                                continue;
+                            }
+                        }
+
+                        // Use the same interpolation logic as live preview
+                        let transform;
+                        if (obj.tween && frameIdx < totalFrames - 1) {
+                            const currentTransform = obj.getTransformAt(frameIdx);
+                            const nextTransform = obj.getTransformAt(frameIdx + 1);
+
+                            // Add sub-frame interpolation for smoother export
+                            const subFrameProgress = 0.5; // Mid-frame interpolation
+                            transform = {
+                                x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
+                                y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
+                                scale: this.lerp(currentTransform.scale, nextTransform.scale, subFrameProgress),
+                                angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
+                                image: currentTransform.image || nextTransform.image
+                            };
+                        } else {
+                            transform = obj.getTransformAt(frameIdx);
+                        }
+
+                        tempCtx.save();
+                        tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+                        if (obj.hue && obj.hue !== 0) {
+                            tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
+                        } else {
+                            tempCtx.filter = 'none';
+                        }
+                        tempCtx.translate(transform.x, transform.y);
+                        tempCtx.rotate(transform.angle * Math.PI / 180);
+                        tempCtx.scale(transform.scale, transform.scale);
+
+                        if (transform.image) {
+                            tempCtx.drawImage(
+                                transform.image,
+                                -transform.image.width / 2,
+                                -transform.image.height / 2
+                            );
+                        }
+                        tempCtx.restore();
+                    }
+
                     capturer.capture(tempCanvas);
                     showLoading(`Encoding WEBM: ${frameIdx + 1}/${totalFrames}`, Math.round(((frameIdx + 1) / totalFrames) * 100));
-                    // Wait for the correct frame interval
                     await new Promise(r => setTimeout(r, 1000 / this.fps));
                 }
                 capturer.stop();
@@ -9875,7 +10210,27 @@ Create drawing commands for this animation frame:`;
             thumbnail.className = 'object-library-thumbnail';
             if (objDef.image) {
                 const img = document.createElement('img');
-                img.src = objDef.image.src;
+
+                // FIX: Handle both data URLs and Image objects
+                if (typeof objDef.image === 'string') {
+                    // Data URL from saved project
+                    img.src = objDef.image;
+                } else if (objDef.image instanceof Image) {
+                    // Image object from loaded project
+                    img.src = objDef.image.src;
+                } else if (objDef.image.src) {
+                    // Image object with src property
+                    img.src = objDef.image.src;
+                } else {
+                    // Fallback: try to convert canvas to data URL if it's a canvas
+                    try {
+                        img.src = objDef.image.toDataURL ? objDef.image.toDataURL() : '';
+                    } catch (e) {
+                        console.warn('Failed to get image source for library item:', objDef.name);
+                        img.src = '';
+                    }
+                }
+
                 img.style.width = '100%';
                 img.style.height = '100%';
                 img.style.objectFit = 'cover';
@@ -10105,6 +10460,7 @@ Create drawing commands for this animation frame:`;
             this.selectedObjectInstance = null;
             this.updateObjectPropertiesPanel();
             this.renderCurrentFrameToMainCanvas();
+            this.renderObjectsList();
         }
     }
 
@@ -10342,10 +10698,10 @@ Create drawing commands for this animation frame:`;
 
     // Add object rendering to your renderCurrentFrame method
     renderObjectInstances() {
-            // FIX: Use this.objects instead of this.objectInstances
-            this.objectInstances.forEach(instance => {// Check if object is visible
+        // FIX: Use this.objects instead of this.objectInstances
+        this.objectInstances.forEach(instance => {// Check if object is visible
             if (instance.visible === false) return;
-            
+
             // NEW: Check if the object's layer is visible
             if (instance.layerId) {
                 const objectLayer = this.layers.find(l => l.id === instance.layerId);
