@@ -2,6 +2,7 @@ class SpriteObject {
     constructor({ id, name = "Object", x = 0, y = 0, scale = 1, angle = 0, image = null } = {}) {
         this.id = id || 'obj_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
         this.name = name;
+        this.visible = true; // Visibility state
         // Per-frame keyframes: { frameIndex: {x, y, scale, angle, image} }
         this.keyframes = {};
         // Default transform (used if no keyframe for a frame)
