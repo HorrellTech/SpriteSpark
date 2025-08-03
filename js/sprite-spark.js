@@ -102,6 +102,7 @@ class SpriteSpark {
         this.objectLibrary = []; // Library of available objects
         this.objectInstances = []; // Instances of objects on canvas
         this.selectedObject = null; // Selected object in library
+        this.selectedObjectId = null;
         this.selectedObjectInstance = null; // Selected object instance on canvas
         this.isDraggingObject = false;
         this.isResizingObject = false;
@@ -286,6 +287,11 @@ class SpriteSpark {
             this.mainCanvas.addEventListener('mousedown', this.handleObjectToolMouseDown.bind(this));
             this.mainCanvas.addEventListener('mousemove', this.handleObjectToolMouseMove.bind(this));
             this.mainCanvas.addEventListener('mouseup', this.handleObjectToolMouseUp.bind(this));
+
+            this.mainCanvas.addEventListener('touchstart', this.mainCanvasTouchHandler.bind(this), { passive: false });
+            this.mainCanvas.addEventListener('touchmove', this.mainCanvasTouchHandler.bind(this), { passive: false });
+            this.mainCanvas.addEventListener('touchend', this.mainCanvasTouchHandler.bind(this), { passive: false });
+            this.mainCanvas.addEventListener('touchcancel', this.mainCanvasTouchHandler.bind(this), { passive: false });
         }
 
         // Panel resizing
@@ -3544,7 +3550,13 @@ Create drawing commands for this animation frame:`;
             });
         }
 
+        const convertSelectionToObjectBtn = document.getElementById('convertSelectionToObjectBtn');
+        if (convertSelectionToObjectBtn) {
+            convertSelectionToObjectBtn.onclick = () => this.convertSelectionToObject();
+        }
+
         // Re-query toolButtons after adding new ones
+        const selectionOptions = document.getElementById('selectionOptions');
         const allToolButtons = document.querySelectorAll('.drawing-tool');
         allToolButtons.forEach(btn => {
             btn.addEventListener('click', () => {
@@ -3554,6 +3566,13 @@ Create drawing commands for this animation frame:`;
                 const floodFillOptions = document.getElementById('floodFillOptions');
                 if (floodFillOptions) {
                     floodFillOptions.style.display = (this.currentTool === 'bucket') ? 'block' : 'none';
+                }
+
+                if (selectionOptions) {
+                    selectionOptions.style.display = (
+                        this.currentTool === 'rectangle-select' ||
+                        this.currentTool === 'lasso-select'
+                    ) ? 'block' : 'none';
                 }
             });
         });
@@ -4324,45 +4343,27 @@ Create drawing commands for this animation frame:`;
         this.livePreviewCtx.globalAlpha = 1.0;
         this.livePreviewCtx.globalCompositeOperation = 'source-over';
 
-        // Render objects for this frame
+        // Draw sprite objects on the live preview
+        const lpCtx = this.livePreviewCtx;
         for (const obj of this.objects) {
             if (obj.visible === false) continue;
             const transform = obj.getTransformAt(frameIndexToRender);
 
-            this.livePreviewCtx.save();
-            this.livePreviewCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
-
-            if (obj.hue && obj.hue !== 0) {
-                this.livePreviewCtx.filter = `hue-rotate(${obj.hue}deg)`;
-            }
-
-            this.livePreviewCtx.translate(transform.x, transform.y);
-            this.livePreviewCtx.rotate(transform.angle * Math.PI / 180);
-            this.livePreviewCtx.scale(transform.scale, transform.scale);
+            lpCtx.save();
+            lpCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+            lpCtx.filter = obj.hue ? `hue-rotate(${obj.hue}deg)` : 'none';
+            lpCtx.translate(transform.x, transform.y);
+            lpCtx.rotate(transform.angle * Math.PI / 180);
+            lpCtx.scale(transform.scale, transform.scale);
 
             if (transform.image) {
-                this.livePreviewCtx.drawImage(
+                lpCtx.drawImage(
                     transform.image,
                     -transform.image.width / 2,
                     -transform.image.height / 2
                 );
-            } else {
-                // Draw default placeholder (circle with name)
-                this.livePreviewCtx.fillStyle = '#888';
-                this.livePreviewCtx.beginPath();
-                this.livePreviewCtx.arc(0, 0, 24, 0, 2 * Math.PI);
-                this.livePreviewCtx.fill();
-                this.livePreviewCtx.strokeStyle = '#333';
-                this.livePreviewCtx.lineWidth = 2;
-                this.livePreviewCtx.stroke();
-                this.livePreviewCtx.fillStyle = '#fff';
-                this.livePreviewCtx.font = 'bold 12px sans-serif';
-                this.livePreviewCtx.textAlign = 'center';
-                this.livePreviewCtx.textBaseline = 'middle';
-                this.livePreviewCtx.fillText(obj.name[0] || '?', 0, 2);
             }
-
-            this.livePreviewCtx.restore();
+            lpCtx.restore();
         }
 
         // Reset final composition settings
@@ -5429,39 +5430,103 @@ Create drawing commands for this animation frame:`;
 
         this.ctx.globalAlpha = 1.0;
         this.ctx.globalCompositeOperation = 'source-over';
+
+        this.renderFrameToLivePreview(this.currentFrame);
     }
 
     drawObjectTransformControls(transform, image) {
         if (!image) return;
+
+        // Don't apply any transformations here - draw controls in screen space
+        // The controls should appear at the correct position relative to the transformed object
+
         const ctx = this.ctx;
         ctx.save();
-        ctx.translate(transform.x, transform.y);
-        ctx.rotate(transform.angle * Math.PI / 180);
-        ctx.scale(transform.scale, transform.scale);
 
-        // Bounding box
-        ctx.strokeStyle = 'var(--accent-color)';
-        ctx.lineWidth = 1.5 / transform.scale;
-        ctx.setLineDash([4 / transform.scale, 2 / transform.scale]);
-        ctx.strokeRect(-image.width / 2, -image.height / 2, image.width, image.height);
+        // reset any existing transforms so controls draw exactly at transform.x/transform.y
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-        // Corner handles (for scaling)
-        const handleSize = 8 / transform.scale;
-        ctx.setLineDash([]);
-        ctx.fillStyle = 'var(--accent-color)';
-        // Top-left
-        ctx.fillRect(-image.width / 2 - handleSize / 2, -image.height / 2 - handleSize / 2, handleSize, handleSize);
-        // Top-right
-        ctx.fillRect(image.width / 2 - handleSize / 2, -image.height / 2 - handleSize / 2, handleSize, handleSize);
-        // Bottom-left
-        ctx.fillRect(-image.width / 2 - handleSize / 2, image.height / 2 - handleSize / 2, handleSize, handleSize);
-        // Bottom-right
-        ctx.fillRect(image.width / 2 - handleSize / 2, image.height / 2 - handleSize / 2, handleSize, handleSize);
+        // Calculate the world space corners of the object
+        const centerX = transform.x;
+        const centerY = transform.y;
+        const angle = transform.angle * Math.PI / 180;
+        const scale = transform.scale;
 
-        // Rotation handle (above top-center)
+        const halfWidth = (image.width * scale) / 2;
+        const halfHeight = (image.height * scale) / 2;
+
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+
+        const corners = [
+            { x: -halfWidth, y: -halfHeight }, // top-left
+            { x: halfWidth, y: -halfHeight },  // top-right
+            { x: -halfWidth, y: halfHeight },  // bottom-left
+            { x: halfWidth, y: halfHeight }    // bottom-right
+        ];
+
+        // Transform corners to world space
+        const worldCorners = corners.map(corner => ({
+            x: centerX + (corner.x * cos - corner.y * sin),
+            y: centerY + (corner.x * sin + corner.y * cos)
+        }));
+
+        // Draw bounding box outline
+        ctx.strokeStyle = '#007acc';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 4]);
         ctx.beginPath();
-        ctx.arc(0, -image.height / 2 - 20 / transform.scale, handleSize / 2, 0, 2 * Math.PI);
+        ctx.moveTo(worldCorners[0].x, worldCorners[0].y);
+        ctx.lineTo(worldCorners[1].x, worldCorners[1].y);
+        ctx.lineTo(worldCorners[3].x, worldCorners[3].y);
+        ctx.lineTo(worldCorners[2].x, worldCorners[2].y);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw corner handles (resize) - fixed size regardless of zoom
+        const handleSize = 12;
+        ctx.fillStyle = '#007acc';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+
+        worldCorners.forEach(corner => {
+            ctx.fillRect(corner.x - handleSize / 2, corner.y - handleSize / 2, handleSize, handleSize);
+            ctx.strokeRect(corner.x - handleSize / 2, corner.y - handleSize / 2, handleSize, handleSize);
+        });
+
+        // Draw rotation handle (above top-center)
+        const topCenter = {
+            x: (worldCorners[0].x + worldCorners[1].x) / 2,
+            y: (worldCorners[0].y + worldCorners[1].y) / 2
+        };
+
+        // Calculate rotation handle position - fixed distance
+        const rotateDistance = 30;
+        const rotateHandle = {
+            x: topCenter.x - rotateDistance * sin,
+            y: topCenter.y - rotateDistance * cos
+        };
+
+        // Draw line from top edge to rotation handle
+        ctx.strokeStyle = '#007acc';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(topCenter.x, topCenter.y);
+        ctx.lineTo(rotateHandle.x, rotateHandle.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw rotation handle circle
+        const rotateHandleSize = 6;
+        ctx.beginPath();
+        ctx.arc(rotateHandle.x, rotateHandle.y, rotateHandleSize, 0, 2 * Math.PI);
+        ctx.fillStyle = '#4CAF50';
         ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
         ctx.restore();
     }
@@ -6630,6 +6695,70 @@ Create drawing commands for this animation frame:`;
         this.renderObjectsList();
         this.renderCurrentFrameToMainCanvas();
         this.showObjectPropertiesPanel(obj, obj.getTransformAt(this.currentFrame));
+    }
+
+    getObjectTransformHandle(x, y, transform) {
+        if (!transform.image) return null;
+
+        // x, y are already in canvas coordinates from the mouse event handling
+        const canvasX = x;
+        const canvasY = y;
+
+        const img = transform.image;
+        const centerX = transform.x;
+        const centerY = transform.y;
+        const angle = transform.angle * Math.PI / 180;
+        const scale = transform.scale;
+
+        // Calculate the corners of the bounding box in world space
+        const halfWidth = (img.width * scale) / 2;
+        const halfHeight = (img.height * scale) / 2;
+
+        // Calculate rotated corners
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+
+        const corners = [
+            { x: -halfWidth, y: -halfHeight }, // top-left
+            { x: halfWidth, y: -halfHeight },  // top-right
+            { x: -halfWidth, y: halfHeight },  // bottom-left
+            { x: halfWidth, y: halfHeight }    // bottom-right
+        ];
+
+        // Transform corners to world space
+        const worldCorners = corners.map(corner => ({
+            x: centerX + (corner.x * cos - corner.y * sin),
+            y: centerY + (corner.x * sin + corner.y * cos)
+        }));
+
+        // Handle size should be fixed
+        const handleSize = 12;
+
+        // Check resize handles (corners)
+        for (const corner of worldCorners) {
+            if (Math.abs(canvasX - corner.x) < handleSize / 2 && Math.abs(canvasY - corner.y) < handleSize / 2) {
+                return 'resize';
+            }
+        }
+
+        // Check rotation handle (above top-center)
+        const topCenter = {
+            x: (worldCorners[0].x + worldCorners[1].x) / 2,
+            y: (worldCorners[0].y + worldCorners[1].y) / 2
+        };
+
+        const rotateDistance = 30;
+        const rotateHandle = {
+            x: topCenter.x - rotateDistance * sin,
+            y: topCenter.y - rotateDistance * cos
+        };
+
+        const rotateHandleSize = 6;
+        if (Math.abs(canvasX - rotateHandle.x) < rotateHandleSize && Math.abs(canvasY - rotateHandle.y) < rotateHandleSize) {
+            return 'rotate';
+        }
+
+        return null;
     }
 
     renderObjectsList() {
@@ -8144,6 +8273,54 @@ Create drawing commands for this animation frame:`;
         }
     }
 
+    convertSelectionToObject() {
+        if (!this.selectionActive || !this.selectionData) return;
+
+        // Create a canvas from selection
+        const bounds = this.getAdjustedSelectionBounds();
+        const canvas = document.createElement('canvas');
+        canvas.width = bounds.width;
+        canvas.height = bounds.height;
+        const ctx = canvas.getContext('2d');
+        ctx.putImageData(this.selectionData, 0, 0);
+
+        // Create a new object definition for the library
+        const objDef = {
+            id: 'lib_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+            name: 'Object ' + (this.objectLibrary.length + 1),
+            image: canvas,
+            width: canvas.width,
+            height: canvas.height
+        };
+        this.objectLibrary.push(objDef);
+        this.updateObjectLibraryList();
+
+        // Add an instance of the new object to the canvas at selection center
+        const centerX = bounds.x + bounds.width / 2;
+        const centerY = bounds.y + bounds.height / 2;
+        this.addObjectInstanceToCanvas(objDef.id, centerX, centerY);
+
+        // Remove selection after creating object
+        this.clearSelection();
+
+        // Switch to object tool and update UI
+        this.currentTool = 'object-tool';
+        document.querySelectorAll('.drawing-tool').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-tool') === 'object-tool');
+        });
+
+        // Hide selection options panel
+        const selectionOptions = document.getElementById('selectionOptions');
+        if (selectionOptions) selectionOptions.style.display = 'none';
+
+        // Show object tool section
+        const objectToolSection = document.getElementById('objectToolSection');
+        if (objectToolSection) objectToolSection.style.display = 'block';
+
+        this.renderObjectsList();
+        this.renderCurrentFrameToMainCanvas();
+    }
+
     // Selection Methods
     startSelection(x, y) {
         this.isCreatingSelection = true;
@@ -9646,87 +9823,157 @@ Create drawing commands for this animation frame:`;
         if (this.currentTool !== 'object-tool') return;
 
         const rect = this.mainCanvas.getBoundingClientRect();
+        // Convert screen coordinates to canvas coordinates accounting for zoom
         const x = (e.clientX - rect.left) / this.zoom;
         const y = (e.clientY - rect.top) / this.zoom;
 
-        // Check if clicking on an object (check from top to bottom for proper selection)
-        for (let i = this.objects.length - 1; i >= 0; i--) {
-            const obj = this.objects[i];
-            if (obj.visible === false) continue;
+        // Check if clicking on transform controls (resize/rotate handles)
+        if (this.selectedObjectInstance) {
+            const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+            if (transform.image) {
+                const handle = this.getObjectTransformHandle(x, y, transform);
+                if (handle === 'resize') {
+                    this.isResizingObject = true;
+                    // Store the current transform state and mouse position
+                    this.objectResizeStartData = {
+                        x: transform.x, // Object center, not mouse position
+                        y: transform.y,
+                        scale: transform.scale,
+                        angle: transform.angle,
+                        image: transform.image,
+                        mouseStartDistance: Math.sqrt((x - transform.x) ** 2 + (y - transform.y) ** 2)
+                    };
+                    return;
+                }
+                if (handle === 'rotate') {
+                    this.isRotatingObject = true;
+                    this.objectRotateStartData = {
+                        x: transform.x,
+                        y: transform.y,
+                        scale: transform.scale,
+                        angle: transform.angle,
+                        image: transform.image,
+                        startAngle: Math.atan2(y - transform.y, x - transform.x) * 180 / Math.PI
+                    };
+                    return;
+                }
+            }
+        }
 
+        // Check if clicking on an object instance (top to bottom)
+        for (let i = this.objectInstances.length - 1; i >= 0; i--) {
+            const obj = this.objectInstances[i];
             const transform = obj.getTransformAt(this.currentFrame);
-
+            if (!transform.image) continue;
             if (this.isPointInObject(x, y, transform)) {
-                // Select this object
-                this.selectedObjectId = obj.id;
+                this.selectedObjectInstance = obj;
                 this.isDraggingObject = true;
-
-                // Calculate drag offset relative to object center
                 this.objectDragOffset = {
                     x: x - transform.x,
                     y: y - transform.y
                 };
-
-                // Update properties panel and re-render
-                this.showObjectPropertiesPanel(obj, transform);
+                this.updateObjectPropertiesPanel();
                 this.renderCurrentFrameToMainCanvas();
                 e.preventDefault();
                 return;
             }
         }
 
-        // If no object clicked, deselect current object
-        this.selectedObjectId = null;
+        // Deselect only if not clicking on object or handles
+        this.selectedObjectInstance = null;
         this.isDraggingObject = false;
-        this.showObjectPropertiesPanel(null, null);
+        this.isResizingObject = false;
+        this.isRotatingObject = false;
+        this.updateObjectPropertiesPanel();
         this.renderCurrentFrameToMainCanvas();
     }
 
     handleObjectToolMouseMove(e) {
-        if (this.currentTool !== 'object-tool' || !this.isDraggingObject || !this.selectedObjectId) return;
-
+        if (this.currentTool !== 'object-tool') return;
         const rect = this.mainCanvas.getBoundingClientRect();
+        // Convert screen coordinates to canvas coordinates accounting for zoom
         const x = (e.clientX - rect.left) / this.zoom;
         const y = (e.clientY - rect.top) / this.zoom;
 
-        const obj = this.objects.find(o => o.id === this.selectedObjectId);
-        if (!obj) return;
+        // Dragging object
+        if (this.isDraggingObject && this.selectedObjectInstance) {
+            const obj = this.selectedObjectInstance;
+            const newX = x - this.objectDragOffset.x;
+            const newY = y - this.objectDragOffset.y;
+            const transform = obj.getTransformAt(this.currentFrame);
+            obj.setKeyframe(this.currentFrame, { ...transform, x: newX, y: newY });
+            this.updateObjectPropertiesPanel();
+            this.renderCurrentFrameToMainCanvas();
+            return;
+        }
 
-        // Calculate new position
-        const newX = x - this.objectDragOffset.x;
-        const newY = y - this.objectDragOffset.y;
+        // Resizing object - coordinates are already in canvas space
+        if (this.isResizingObject && this.selectedObjectInstance) {
+            const obj = this.selectedObjectInstance;
+            const start = this.objectResizeStartData;
 
-        // Get current transform
-        const transform = obj.getTransformAt(this.currentFrame);
+            // Calculate current distance from object center (in canvas coordinates)
+            const currentDistance = Math.sqrt((x - start.x) ** 2 + (y - start.y) ** 2);
 
-        // Create updated transform
-        const newTransform = {
-            ...transform,
-            x: newX,
-            y: newY
-        };
+            // Calculate scale factor based on distance change
+            const scaleFactor = currentDistance / start.mouseStartDistance;
+            const newScale = Math.max(0.1, Math.min(5.0, start.scale * scaleFactor));
 
-        // Update the keyframe
-        obj.setKeyframe(this.currentFrame, newTransform);
+            obj.setKeyframe(this.currentFrame, {
+                x: start.x,
+                y: start.y,
+                scale: newScale,
+                angle: start.angle,
+                image: start.image
+            });
+            this.updateObjectPropertiesPanel();
+            this.renderCurrentFrameToMainCanvas();
+            return;
+        }
 
-        // Update the properties panel to show new position
-        this.showObjectPropertiesPanel(obj, newTransform);
+        // Rotating object - coordinates are already in canvas space
+        if (this.isRotatingObject && this.selectedObjectInstance) {
+            const obj = this.selectedObjectInstance;
+            const start = this.objectRotateStartData;
 
-        // Re-render immediately for smooth dragging
-        this.renderCurrentFrameToMainCanvas();
+            // Calculate current angle from object center (in canvas coordinates)
+            const currentAngle = Math.atan2(y - start.y, x - start.x) * 180 / Math.PI;
+            const angleDiff = currentAngle - start.startAngle;
+            let newAngle = (start.angle + angleDiff + 360) % 360;
+
+            obj.setKeyframe(this.currentFrame, {
+                x: start.x,
+                y: start.y,
+                scale: start.scale,
+                angle: newAngle,
+                image: start.image
+            });
+            this.updateObjectPropertiesPanel();
+            this.renderCurrentFrameToMainCanvas();
+            return;
+        }
     }
 
     handleObjectToolMouseUp(e) {
         if (this.currentTool !== 'object-tool') return;
-
         this.isDraggingObject = false;
+        this.isResizingObject = false;
+        this.isRotatingObject = false;
+    }
 
-        // If we have a selected object, ensure its properties are updated
-        if (this.selectedObjectId) {
-            const obj = this.objects.find(o => o.id === this.selectedObjectId);
-            if (obj) {
-                this.showObjectPropertiesPanel(obj, obj.getTransformAt(this.currentFrame));
-            }
+    // --- Touch support for object tool ---
+    mainCanvasTouchHandler(e) {
+        if (this.currentTool !== 'object-tool') return;
+        if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            const rect = this.mainCanvas.getBoundingClientRect();
+            const x = (touch.clientX - rect.left) / this.zoom;
+            const y = (touch.clientY - rect.top) / this.zoom;
+            // Simulate mouse down/move/up
+            if (e.type === 'touchstart') this.handleObjectToolMouseDown({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => { } });
+            if (e.type === 'touchmove') this.handleObjectToolMouseMove({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => { } });
+            if (e.type === 'touchend' || e.type === 'touchcancel') this.handleObjectToolMouseUp({});
+            e.preventDefault();
         }
     }
 
@@ -9783,6 +10030,12 @@ Create drawing commands for this animation frame:`;
             if (!transform.image) return;
 
             this.ctx.save();
+
+            // --- Apply zoom and pan before drawing object ---
+            //this.ctx.scale(this.zoom, this.zoom);
+            // If you have canvasContainer scroll, add:
+            // this.ctx.translate(this.mainCanvas.parentElement.scrollLeft, this.mainCanvas.parentElement.scrollTop);
+
             this.ctx.translate(transform.x, transform.y);
             this.ctx.rotate(transform.angle * Math.PI / 180);
             this.ctx.scale(transform.scale, transform.scale);
@@ -9790,19 +10043,9 @@ Create drawing commands for this animation frame:`;
             const img = transform.image;
             this.ctx.drawImage(img, -img.width / 2, -img.height / 2, img.width, img.height);
 
-            // Draw selection outline if selected
+            // Draw selection outline and controls if selected
             if (instance === this.selectedObjectInstance && this.currentTool === 'object-tool') {
-                this.ctx.strokeStyle = '#007acc';
-                this.ctx.lineWidth = 2 / transform.scale; // Adjust line width for scale
-                this.ctx.setLineDash([8 / transform.scale, 4 / transform.scale]); // Adjust dash for scale
-                this.ctx.strokeRect(-img.width / 2, -img.height / 2, img.width, img.height);
-                this.ctx.setLineDash([]);
-
-                // Draw a center point
-                this.ctx.fillStyle = '#007acc';
-                this.ctx.beginPath();
-                this.ctx.arc(0, 0, 3 / transform.scale, 0, 2 * Math.PI);
-                this.ctx.fill();
+                this.drawObjectTransformControls(transform, img);
             }
 
             this.ctx.restore();

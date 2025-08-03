@@ -2357,3 +2357,51 @@ select:focus {
     align-items: center;
     justify-content: space-between;
 }
+
+/* Selection Object Properties Styles */
+.selection-object-properties {
+    background: var(--bg-control);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin-top: var(--spacing-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.selection-object-properties label {
+    font-size: var(--font-size-small);
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-xs);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.selection-object-properties input[type="text"],
+.selection-object-properties input[type="number"] {
+    width: 80px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--bg-control);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--font-size-small);
+    margin-left: 8px;
+}
+
+.selection-object-properties button {
+    margin-top: var(--spacing-sm);
+    background: var(--accent-color);
+    color: var(--text-accent);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 6px 14px;
+    font-size: var(--font-size-small);
+    width: 100% !important;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.selection-object-properties button:hover {
+    background: var(--accent-color-hover);
+}
