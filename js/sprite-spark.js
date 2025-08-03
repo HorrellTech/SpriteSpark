@@ -4410,12 +4410,17 @@ Create drawing commands for this animation frame:`;
                 if (nextFrameIndex < this.frames.length) {
                     const nextTransform = obj.getTransformAt(nextFrameIndex);
 
-                    // Interpolate between current and next frame
+                    // FIX: Interpolate ALL transform properties
                     transform = {
                         x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
                         y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
-                        scale: this.lerp(currentTransform.scale, nextTransform.scale, subFrameProgress),
+                        scaleX: this.lerp(currentTransform.scaleX || 1, nextTransform.scaleX || 1, subFrameProgress),
+                        scaleY: this.lerp(currentTransform.scaleY || 1, nextTransform.scaleY || 1, subFrameProgress),
                         angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
+                        flipX: currentTransform.flipX || false,
+                        flipY: currentTransform.flipY || false,
+                        skewX: this.lerp(currentTransform.skewX || 0, nextTransform.skewX || 0, subFrameProgress),
+                        skewY: this.lerp(currentTransform.skewY || 0, nextTransform.skewY || 0, subFrameProgress),
                         image: currentTransform.image || nextTransform.image
                     };
                 } else {
@@ -4432,7 +4437,22 @@ Create drawing commands for this animation frame:`;
             // Scale the transform coordinates to match the preview canvas
             lpCtx.translate(transform.x * scaleX, transform.y * scaleY);
             lpCtx.rotate(transform.angle * Math.PI / 180);
-            lpCtx.scale(transform.scale * scaleX, transform.scale * scaleY);
+
+            // FIX: Apply skew transform in preview
+            const skewX = (transform.skewX || 0) * Math.PI / 180;
+            const skewY = (transform.skewY || 0) * Math.PI / 180;
+            if (skewX !== 0 || skewY !== 0) {
+                lpCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+            }
+
+            // FIX: Apply scaling with flip support in preview
+            let finalScaleX = (transform.scaleX || 1) * scaleX;
+            let finalScaleY = (transform.scaleY || 1) * scaleY;
+
+            if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+            if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+
+            lpCtx.scale(finalScaleX, finalScaleY);
 
             if (transform.image) {
                 lpCtx.drawImage(
@@ -4840,17 +4860,22 @@ Create drawing commands for this animation frame:`;
         this.frames.push(newFrame);
         this.frameActiveStates.push(true);
 
-        // Copy object transforms from previous frame to new frame
+        // Copy object transforms from previous frame to new frame - WITH ALL PROPERTIES
         const previousFrameIndex = this.frames.length - 2; // The frame we just added is at length-1, so previous is length-2
         if (previousFrameIndex >= 0 && this.objectInstances.length > 0) {
             this.objectInstances.forEach(obj => {
                 const previousTransform = obj.getTransformAt(previousFrameIndex);
-                // Set the same transform for the new frame
+                // Set the same transform for the new frame - COPY ALL PROPERTIES
                 obj.setKeyframe(this.frames.length - 1, {
                     x: previousTransform.x,
                     y: previousTransform.y,
-                    scale: previousTransform.scale,
+                    scaleX: previousTransform.scaleX || 1,
+                    scaleY: previousTransform.scaleY || 1,
                     angle: previousTransform.angle,
+                    flipX: previousTransform.flipX || false,
+                    flipY: previousTransform.flipY || false,
+                    skewX: previousTransform.skewX || 0,
+                    skewY: previousTransform.skewY || 0,
                     image: previousTransform.image
                 });
             });
@@ -4885,17 +4910,22 @@ Create drawing commands for this animation frame:`;
         };
         this.frames.splice(this.currentFrame + 1, 0, newFrame);
 
-        // Copy object transforms from current frame to the duplicated frame
+        // Copy object transforms from current frame to the duplicated frame - WITH ALL PROPERTIES
         const newFrameIndex = this.currentFrame + 1;
         if (this.objectInstances.length > 0) {
             this.objectInstances.forEach(obj => {
                 const currentTransform = obj.getTransformAt(this.currentFrame);
-                // Set the same transform for the new duplicated frame
+                // Set the same transform for the new duplicated frame - COPY ALL PROPERTIES
                 obj.setKeyframe(newFrameIndex, {
                     x: currentTransform.x,
                     y: currentTransform.y,
-                    scale: currentTransform.scale,
+                    scaleX: currentTransform.scaleX || 1,
+                    scaleY: currentTransform.scaleY || 1,
                     angle: currentTransform.angle,
+                    flipX: currentTransform.flipX || false,
+                    flipY: currentTransform.flipY || false,
+                    skewX: currentTransform.skewX || 0,
+                    skewY: currentTransform.skewY || 0,
                     image: currentTransform.image
                 });
             });
@@ -6297,17 +6327,22 @@ Create drawing commands for this animation frame:`;
         };
         this.frames.splice(this.currentFrame, 0, newFrame);
 
-        // Copy object transforms from the frame that will now be after this one
+        // Copy object transforms from the frame that will now be after this one - WITH ALL PROPERTIES
         const nextFrameIndex = this.currentFrame + 1;
         if (nextFrameIndex < this.frames.length && this.objectInstances.length > 0) {
             this.objectInstances.forEach(obj => {
                 const nextTransform = obj.getTransformAt(nextFrameIndex);
-                // Set the same transform for the inserted frame
+                // Set the same transform for the inserted frame - COPY ALL PROPERTIES
                 obj.setKeyframe(this.currentFrame, {
                     x: nextTransform.x,
                     y: nextTransform.y,
-                    scale: nextTransform.scale,
+                    scaleX: nextTransform.scaleX || 1,
+                    scaleY: nextTransform.scaleY || 1,
                     angle: nextTransform.angle,
+                    flipX: nextTransform.flipX || false,
+                    flipY: nextTransform.flipY || false,
+                    skewX: nextTransform.skewX || 0,
+                    skewY: nextTransform.skewY || 0,
                     image: nextTransform.image
                 });
             });
@@ -8237,7 +8272,7 @@ Create drawing commands for this animation frame:`;
             currentFrame: this.currentFrame,
             activeLayerId: this.activeLayerId,
             fps: this.fps,
-            // Save sprite objects with flip and skew data
+            // FIX: Save ALL sprite object transform properties
             objectInstances: this.objectInstances.map(obj => ({
                 id: obj.id,
                 name: obj.name,
@@ -8252,9 +8287,9 @@ Create drawing commands for this animation frame:`;
                         {
                             x: transform.x,
                             y: transform.y,
-                            scaleX: transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1),
-                            scaleY: transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1),
-                            angle: transform.angle,
+                            scaleX: transform.scaleX !== undefined ? transform.scaleX : 1,
+                            scaleY: transform.scaleY !== undefined ? transform.scaleY : 1,
+                            angle: transform.angle || 0,
                             flipX: transform.flipX || false,
                             flipY: transform.flipY || false,
                             skewX: transform.skewX || 0,
@@ -8407,7 +8442,6 @@ Create drawing commands for this animation frame:`;
         if (data.objectLibrary) {
             data.objectLibrary.forEach(objDefData => {
                 if (objDefData.image) {
-                    // FIX: Use proper image loading
                     this.loadImageFromDataURL(objDefData.image).then(img => {
                         const objDef = {
                             id: objDefData.id,
@@ -8421,7 +8455,6 @@ Create drawing commands for this animation frame:`;
                         checkComplete();
                     }).catch(err => {
                         console.error('Failed to load object library image:', objDefData.name, err);
-                        // Still add the object definition without image
                         const objDef = {
                             id: objDefData.id,
                             name: objDefData.name,
@@ -8467,7 +8500,7 @@ Create drawing commands for this animation frame:`;
                 obj.layerId = objData.layerId;
                 obj.tween = objData.tween !== undefined ? objData.tween : true;
 
-                // Load keyframes with images
+                // Load keyframes with images - FIX: Load ALL transform properties
                 const keyframePromises = [];
                 Object.entries(objData.keyframes || {}).forEach(([frame, transformData]) => {
                     if (transformData.image && typeof transformData.image === 'string') {
@@ -8475,9 +8508,13 @@ Create drawing commands for this animation frame:`;
                             obj.setKeyframe(parseInt(frame), {
                                 x: transformData.x || 0,
                                 y: transformData.y || 0,
-                                scaleX: transformData.scaleX !== undefined ? transformData.scaleX : (transformData.scale || 1),
-                                scaleY: transformData.scaleY !== undefined ? transformData.scaleY : (transformData.scale || 1),
+                                scaleX: transformData.scaleX !== undefined ? transformData.scaleX : 1,
+                                scaleY: transformData.scaleY !== undefined ? transformData.scaleY : 1,
                                 angle: transformData.angle || 0,
+                                flipX: transformData.flipX || false,
+                                flipY: transformData.flipY || false,
+                                skewX: transformData.skewX || 0,
+                                skewY: transformData.skewY || 0,
                                 image: img
                             });
                         }).catch(err => {
@@ -8485,9 +8522,13 @@ Create drawing commands for this animation frame:`;
                             obj.setKeyframe(parseInt(frame), {
                                 x: transformData.x || 0,
                                 y: transformData.y || 0,
-                                scaleX: transformData.scaleX !== undefined ? transformData.scaleX : (transformData.scale || 1),
-                                scaleY: transformData.scaleY !== undefined ? transformData.scaleY : (transformData.scale || 1),
+                                scaleX: transformData.scaleX !== undefined ? transformData.scaleX : 1,
+                                scaleY: transformData.scaleY !== undefined ? transformData.scaleY : 1,
                                 angle: transformData.angle || 0,
+                                flipX: transformData.flipX || false,
+                                flipY: transformData.flipY || false,
+                                skewX: transformData.skewX || 0,
+                                skewY: transformData.skewY || 0,
                                 image: null
                             });
                         });
@@ -8496,9 +8537,13 @@ Create drawing commands for this animation frame:`;
                         obj.setKeyframe(parseInt(frame), {
                             x: transformData.x || 0,
                             y: transformData.y || 0,
-                            scaleX: transformData.scaleX !== undefined ? transformData.scaleX : (transformData.scale || 1),
-                            scaleY: transformData.scaleY !== undefined ? transformData.scaleY : (transformData.scale || 1),
+                            scaleX: transformData.scaleX !== undefined ? transformData.scaleX : 1,
+                            scaleY: transformData.scaleY !== undefined ? transformData.scaleY : 1,
                             angle: transformData.angle || 0,
+                            flipX: transformData.flipX || false,
+                            flipY: transformData.flipY || false,
+                            skewX: transformData.skewX || 0,
+                            skewY: transformData.skewY || 0,
                             image: null
                         });
                     }
@@ -8514,6 +8559,7 @@ Create drawing commands for this animation frame:`;
             });
         }
 
+        // Rest of the method remains the same...
         // Restore frames with proper layer distribution and active states
         this.frames = data.frames.map((frameData, frameIndex) => ({
             isActive: frameData.isActive !== undefined ? frameData.isActive : true,
@@ -10947,27 +10993,30 @@ Create drawing commands for this animation frame:`;
 
         const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
 
-        if (direction === 'horizontal') {
-            // Toggle horizontal flip
-            transform.flipX = !transform.flipX;
-        } else if (direction === 'vertical') {
-            // Toggle vertical flip
-            transform.flipY = !transform.flipY;
-        }
-
-        // Update the transform with flip states
-        this.selectedObjectInstance.setKeyframe(this.currentFrame, {
+        // FIX: Create a new transform object with all properties
+        const newTransform = {
             x: transform.x,
             y: transform.y,
-            scaleX: transform.scaleX,
-            scaleY: transform.scaleY,
-            angle: transform.angle,
-            flipX: transform.flipX,
-            flipY: transform.flipY,
-            skewX: transform.skewX,
-            skewY: transform.skewY,
+            scaleX: transform.scaleX || 1,
+            scaleY: transform.scaleY || 1,
+            angle: transform.angle || 0,
+            flipX: transform.flipX || false,
+            flipY: transform.flipY || false,
+            skewX: transform.skewX || 0,
+            skewY: transform.skewY || 0,
             image: transform.image
-        });
+        };
+
+        if (direction === 'horizontal') {
+            // Toggle horizontal flip
+            newTransform.flipX = !newTransform.flipX;
+        } else if (direction === 'vertical') {
+            // Toggle vertical flip
+            newTransform.flipY = !newTransform.flipY;
+        }
+
+        // Update the transform with all properties
+        this.selectedObjectInstance.setKeyframe(this.currentFrame, newTransform);
 
         this.updateObjectPropertiesPanel();
         this.renderCurrentFrameToMainCanvas();
@@ -11045,11 +11094,11 @@ Create drawing commands for this animation frame:`;
                 this.ctx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
             }
 
-            // Apply scaling with flip support
+            // FIX: Apply scaling with flip support - corrected logic
             let finalScaleX = transform.scaleX || 1;
             let finalScaleY = transform.scaleY || 1;
 
-            // Apply flipping by negating scale
+            // Apply flipping by negating the scale
             if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
             if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
 
