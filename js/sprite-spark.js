@@ -107,9 +107,12 @@ class SpriteSpark {
         this.isDraggingObject = false;
         this.isResizingObject = false;
         this.isRotatingObject = false;
+        this.isSkewingObject = false;
         this.objectDragOffset = { x: 0, y: 0 };
         this.objectResizeStartData = null;
         this.objectRotateStartData = null;
+        this.objectSkewStartData = null;
+        this.objectResizeHandle = null;
 
         // Selection properties
         this.selectionActive = false;
@@ -284,9 +287,9 @@ class SpriteSpark {
             this.mainCanvas.addEventListener('mouseup', this.handleVectorMouseUp.bind(this));
 
             // Object tool specific events
-            this.mainCanvas.addEventListener('mousedown', this.handleObjectToolMouseDown.bind(this));
-            this.mainCanvas.addEventListener('mousemove', this.handleObjectToolMouseMove.bind(this));
-            this.mainCanvas.addEventListener('mouseup', this.handleObjectToolMouseUp.bind(this));
+            //this.mainCanvas.addEventListener('mousedown', this.handleObjectToolMouseDown.bind(this));
+            //this.mainCanvas.addEventListener('mousemove', this.handleObjectToolMouseMove.bind(this));
+            //this.mainCanvas.addEventListener('mouseup', this.handleObjectToolMouseUp.bind(this));
 
             this.mainCanvas.addEventListener('touchstart', this.mainCanvasTouchHandler.bind(this), { passive: false });
             this.mainCanvas.addEventListener('touchmove', this.mainCanvasTouchHandler.bind(this), { passive: false });
@@ -5761,27 +5764,25 @@ Create drawing commands for this animation frame:`;
     drawObjectTransformControls(transform, image) {
         if (!image) return;
 
-        // Don't apply any transformations here - draw controls in screen space
-        // The controls should appear at the correct position relative to the transformed object
-
         const ctx = this.ctx;
         ctx.save();
-
-        // reset any existing transforms so controls draw exactly at transform.x/transform.y
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-        // Calculate the world space corners of the object
         const centerX = transform.x;
         const centerY = transform.y;
         const angle = transform.angle * Math.PI / 180;
-        const scale = transform.scale;
 
-        const halfWidth = (image.width * scale) / 2;
-        const halfHeight = (image.height * scale) / 2;
+        // Use separate X and Y scales if available, otherwise fall back to single scale
+        const scaleX = transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1);
+        const scaleY = transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1);
+
+        const halfWidth = (image.width * Math.abs(scaleX)) / 2;
+        const halfHeight = (image.height * Math.abs(scaleY)) / 2;
 
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
 
+        // Corner positions for resize handles
         const corners = [
             { x: -halfWidth, y: -halfHeight }, // top-left
             { x: halfWidth, y: -halfHeight },  // top-right
@@ -5789,10 +5790,23 @@ Create drawing commands for this animation frame:`;
             { x: halfWidth, y: halfHeight }    // bottom-right
         ];
 
-        // Transform corners to world space
+        // Edge midpoints for skew handles
+        const edges = [
+            { x: 0, y: -halfHeight }, // top
+            { x: halfWidth, y: 0 },   // right
+            { x: 0, y: halfHeight },  // bottom
+            { x: -halfWidth, y: 0 }   // left
+        ];
+
+        // Transform to world space
         const worldCorners = corners.map(corner => ({
             x: centerX + (corner.x * cos - corner.y * sin),
             y: centerY + (corner.x * sin + corner.y * cos)
+        }));
+
+        const worldEdges = edges.map(edge => ({
+            x: centerX + (edge.x * cos - edge.y * sin),
+            y: centerY + (edge.x * sin + edge.y * cos)
         }));
 
         // Draw bounding box outline
@@ -5808,7 +5822,7 @@ Create drawing commands for this animation frame:`;
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Draw corner handles (resize) - fixed size regardless of zoom
+        // Draw corner resize handles
         const handleSize = 12;
         ctx.fillStyle = '#007acc';
         ctx.strokeStyle = '#ffffff';
@@ -5819,20 +5833,32 @@ Create drawing commands for this animation frame:`;
             ctx.strokeRect(corner.x - handleSize / 2, corner.y - handleSize / 2, handleSize, handleSize);
         });
 
-        // Draw rotation handle (above top-center)
+        // Draw edge skew handles
+        const edgeHandleSize = 8;
+        ctx.fillStyle = '#4CAF50';
+
+        worldEdges.forEach(edge => {
+            ctx.beginPath();
+            ctx.arc(edge.x, edge.y, edgeHandleSize / 2, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        });
+
+        // Draw rotation handle
         const topCenter = {
             x: (worldCorners[0].x + worldCorners[1].x) / 2,
             y: (worldCorners[0].y + worldCorners[1].y) / 2
         };
 
-        // Calculate rotation handle position - fixed distance
         const rotateDistance = 30;
         const rotateHandle = {
             x: topCenter.x - rotateDistance * sin,
             y: topCenter.y - rotateDistance * cos
         };
 
-        // Draw line from top edge to rotation handle
+        // Line to rotation handle
         ctx.strokeStyle = '#007acc';
         ctx.lineWidth = 2;
         ctx.setLineDash([4, 4]);
@@ -5842,7 +5868,7 @@ Create drawing commands for this animation frame:`;
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Draw rotation handle circle
+        // Rotation handle circle
         const rotateHandleSize = 6;
         ctx.beginPath();
         ctx.arc(rotateHandle.x, rotateHandle.y, rotateHandleSize, 0, 2 * Math.PI);
@@ -5851,6 +5877,48 @@ Create drawing commands for this animation frame:`;
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.stroke();
+
+        // Draw flip buttons
+        const flipDistance = halfWidth + 20;
+        const flipButtonSize = 16;
+
+        // Horizontal flip button (right side)
+        const hFlipButton = {
+            x: centerX + (flipDistance * cos),
+            y: centerY + (flipDistance * sin)
+        };
+
+        ctx.fillStyle = '#FF9800';
+        ctx.fillRect(hFlipButton.x - flipButtonSize / 2, hFlipButton.y - flipButtonSize / 2, flipButtonSize, flipButtonSize);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(hFlipButton.x - flipButtonSize / 2, hFlipButton.y - flipButtonSize / 2, flipButtonSize, flipButtonSize);
+
+        // H icon
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('H', hFlipButton.x, hFlipButton.y);
+
+        // Vertical flip button (left side)
+        const vFlipButton = {
+            x: centerX - (flipDistance * cos),
+            y: centerY - (flipDistance * sin)
+        };
+
+        ctx.fillStyle = '#FF9800';
+        ctx.fillRect(vFlipButton.x - flipButtonSize / 2, vFlipButton.y - flipButtonSize / 2, flipButtonSize, flipButtonSize);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(vFlipButton.x - flipButtonSize / 2, vFlipButton.y - flipButtonSize / 2, flipButtonSize, flipButtonSize);
+
+        // V icon
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('V', vFlipButton.x, vFlipButton.y);
 
         ctx.restore();
     }
@@ -6163,6 +6231,11 @@ Create drawing commands for this animation frame:`;
     }
 
     handleCanvasMouseMove(e) {
+        if (this.currentTool === 'object-tool') {
+            this.handleObjectToolMouseMove(e);
+            return; // Important: return here to prevent other tool handling
+        }
+
         if (this.currentTool !== 'object-tool' || !this.isDraggingObject || !this.selectedObjectId) return;
         const obj = this.objects.find(o => o.id === this.selectedObjectId);
         if (!obj) return;
@@ -6186,6 +6259,11 @@ Create drawing commands for this animation frame:`;
     }
 
     handleCanvasMouseUp(e) {
+        if (this.currentTool === 'object-tool') {
+            this.handleObjectToolMouseUp(e);
+            return; // Important: return here to prevent other tool handling
+        }
+
         if (this.currentTool !== 'object-tool') return;
         this.isDraggingObject = false;
     }
@@ -7019,7 +7097,8 @@ Create drawing commands for this animation frame:`;
             name: 'Object ' + (this.objects.length + 1),
             x: centerX,
             y: centerY,
-            scale: 1,
+            scaleX: 1,
+            scaleY: 1,
             angle: 0,
             image: null,
             visible: true,
@@ -7048,36 +7127,62 @@ Create drawing commands for this animation frame:`;
         const centerX = transform.x;
         const centerY = transform.y;
         const angle = transform.angle * Math.PI / 180;
-        const scale = transform.scale;
+
+        // Use separate X and Y scales if available, otherwise fall back to single scale
+        const scaleX = transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1);
+        const scaleY = transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1);
 
         // Calculate the corners of the bounding box in world space
-        const halfWidth = (img.width * scale) / 2;
-        const halfHeight = (img.height * scale) / 2;
+        const halfWidth = (img.width * Math.abs(scaleX)) / 2;
+        const halfHeight = (img.height * Math.abs(scaleY)) / 2;
 
         // Calculate rotated corners
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
 
         const corners = [
-            { x: -halfWidth, y: -halfHeight }, // top-left
-            { x: halfWidth, y: -halfHeight },  // top-right
-            { x: -halfWidth, y: halfHeight },  // bottom-left
-            { x: halfWidth, y: halfHeight }    // bottom-right
+            { x: -halfWidth, y: -halfHeight, handle: 'nw' }, // top-left
+            { x: halfWidth, y: -halfHeight, handle: 'ne' },  // top-right
+            { x: -halfWidth, y: halfHeight, handle: 'sw' },  // bottom-left
+            { x: halfWidth, y: halfHeight, handle: 'se' }    // bottom-right
         ];
 
-        // Transform corners to world space
+        // Edge midpoints for skewing
+        const edges = [
+            { x: 0, y: -halfHeight, handle: 'n' }, // top
+            { x: halfWidth, y: 0, handle: 'e' },   // right
+            { x: 0, y: halfHeight, handle: 's' },  // bottom
+            { x: -halfWidth, y: 0, handle: 'w' }   // left
+        ];
+
+        // Transform corners and edges to world space
         const worldCorners = corners.map(corner => ({
             x: centerX + (corner.x * cos - corner.y * sin),
-            y: centerY + (corner.x * sin + corner.y * cos)
+            y: centerY + (corner.x * sin + corner.y * cos),
+            handle: corner.handle
+        }));
+
+        const worldEdges = edges.map(edge => ({
+            x: centerX + (edge.x * cos - edge.y * sin),
+            y: centerY + (edge.x * sin + edge.y * cos),
+            handle: edge.handle
         }));
 
         // Handle size should be fixed
         const handleSize = 12;
+        const edgeHandleSize = 8;
 
         // Check resize handles (corners)
         for (const corner of worldCorners) {
             if (Math.abs(canvasX - corner.x) < handleSize / 2 && Math.abs(canvasY - corner.y) < handleSize / 2) {
-                return 'resize';
+                return { type: 'resize', handle: corner.handle };
+            }
+        }
+
+        // Check skew handles (edge midpoints)
+        for (const edge of worldEdges) {
+            if (Math.abs(canvasX - edge.x) < edgeHandleSize / 2 && Math.abs(canvasY - edge.y) < edgeHandleSize / 2) {
+                return { type: 'skew', handle: edge.handle };
             }
         }
 
@@ -7095,7 +7200,31 @@ Create drawing commands for this animation frame:`;
 
         const rotateHandleSize = 6;
         if (Math.abs(canvasX - rotateHandle.x) < rotateHandleSize && Math.abs(canvasY - rotateHandle.y) < rotateHandleSize) {
-            return 'rotate';
+            return { type: 'rotate' };
+        }
+
+        // Check flip buttons (left and right of object)
+        const flipDistance = Math.max(halfWidth, halfHeight) + 20;
+        const flipButtonSize = 16;
+
+        // Horizontal flip button (right side)
+        const hFlipButton = {
+            x: centerX + (flipDistance * cos),
+            y: centerY + (flipDistance * sin)
+        };
+
+        if (Math.abs(canvasX - hFlipButton.x) < flipButtonSize / 2 && Math.abs(canvasY - hFlipButton.y) < flipButtonSize / 2) {
+            return { type: 'flip', handle: 'horizontal' };
+        }
+
+        // Vertical flip button (left side)
+        const vFlipButton = {
+            x: centerX - (flipDistance * cos),
+            y: centerY - (flipDistance * sin)
+        };
+
+        if (Math.abs(canvasX - vFlipButton.x) < flipButtonSize / 2 && Math.abs(canvasY - vFlipButton.y) < flipButtonSize / 2) {
+            return { type: 'flip', handle: 'vertical' };
         }
 
         return null;
@@ -7104,13 +7233,15 @@ Create drawing commands for this animation frame:`;
     renderObjectsList() {
         const list = document.getElementById('objectsList');
         if (!list) return;
+
         list.innerHTML = '';
-        if (this.objectInstances.length === 0) {
+        if (this.objectInstances.length === 0) { // Use objectInstances
             list.style.display = 'none';
             return;
         }
+
         list.style.display = '';
-        this.objectInstances.forEach(obj => {
+        this.objectInstances.forEach(obj => { // Use objectInstances
             const item = document.createElement('div');
             item.className = 'object-list-item' + (obj === this.selectedObjectInstance ? ' selected' : '');
             item.textContent = obj.name;
@@ -8118,7 +8249,8 @@ Create drawing commands for this animation frame:`;
                         {
                             x: transform.x,
                             y: transform.y,
-                            scale: transform.scale,
+                            scaleX: transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1),
+                            scaleY: transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1),
                             angle: transform.angle,
                             // FIX: Properly convert image to data URL
                             image: transform.image ? this.imageToDataURL(transform.image) : null
@@ -8317,7 +8449,8 @@ Create drawing commands for this animation frame:`;
                     name: objData.name,
                     x: 0,
                     y: 0,
-                    scale: 1,
+                    scaleX: 1,
+                    scaleY: 1,
                     angle: 0,
                     image: null
                 });
@@ -8337,7 +8470,8 @@ Create drawing commands for this animation frame:`;
                             obj.setKeyframe(parseInt(frame), {
                                 x: transformData.x || 0,
                                 y: transformData.y || 0,
-                                scale: transformData.scale || 1,
+                                scaleX: transformData.scaleX !== undefined ? transformData.scaleX : (transformData.scale || 1),
+                                scaleY: transformData.scaleY !== undefined ? transformData.scaleY : (transformData.scale || 1),
                                 angle: transformData.angle || 0,
                                 image: img
                             });
@@ -8346,7 +8480,8 @@ Create drawing commands for this animation frame:`;
                             obj.setKeyframe(parseInt(frame), {
                                 x: transformData.x || 0,
                                 y: transformData.y || 0,
-                                scale: transformData.scale || 1,
+                                scaleX: transformData.scaleX !== undefined ? transformData.scaleX : (transformData.scale || 1),
+                                scaleY: transformData.scaleY !== undefined ? transformData.scaleY : (transformData.scale || 1),
                                 angle: transformData.angle || 0,
                                 image: null
                             });
@@ -8356,7 +8491,8 @@ Create drawing commands for this animation frame:`;
                         obj.setKeyframe(parseInt(frame), {
                             x: transformData.x || 0,
                             y: transformData.y || 0,
-                            scale: transformData.scale || 1,
+                            scaleX: transformData.scaleX !== undefined ? transformData.scaleX : (transformData.scale || 1),
+                            scaleY: transformData.scaleY !== undefined ? transformData.scaleY : (transformData.scale || 1),
                             angle: transformData.angle || 0,
                             image: null
                         });
@@ -10080,7 +10216,7 @@ Create drawing commands for this animation frame:`;
         const objectCenter = document.getElementById('objectCenter');
 
         // Real-time updates for all inputs
-        [objectName, objectX, objectY, objectScale, objectAngle].forEach(input => {
+        [objectName, objectX, objectY, objectScaleX, objectScaleY, objectAngle].forEach(input => {
             if (input) {
                 // Use 'input' event for real-time updates as user types
                 input.addEventListener('input', () => {
@@ -10306,7 +10442,8 @@ Create drawing commands for this animation frame:`;
             name: objDef.name,
             x: x,
             y: y,
-            scale: 1,
+            scaleX: 1,  // Use scaleX instead of scale
+            scaleY: 1,  // Use scaleY instead of scale
             angle: 0,
             image: objDef.image
         });
@@ -10315,7 +10452,8 @@ Create drawing commands for this animation frame:`;
         instance.setKeyframe(this.currentFrame, {
             x: x,
             y: y,
-            scale: 1,
+            scaleX: 1,  // Use scaleX instead of scale
+            scaleY: 1,  // Use scaleY instead of scale
             angle: 0,
             image: objDef.image
         });
@@ -10325,6 +10463,7 @@ Create drawing commands for this animation frame:`;
 
         this.renderCurrentFrameToMainCanvas();
         this.updateObjectPropertiesPanel();
+        this.renderObjectsList();
     }
 
     updateObjectPropertiesPanel() {
@@ -10332,7 +10471,8 @@ Create drawing commands for this animation frame:`;
         const objectName = document.getElementById('objectName');
         const objectX = document.getElementById('objectX');
         const objectY = document.getElementById('objectY');
-        const objectScale = document.getElementById('objectScale');
+        const objectScaleX = document.getElementById('objectScaleX');
+        const objectScaleY = document.getElementById('objectScaleY');
         const objectAngle = document.getElementById('objectAngle');
         const objectLayer = document.getElementById('objectLayer');
         const objectTween = document.getElementById('objectTween');
@@ -10350,9 +10490,10 @@ Create drawing commands for this animation frame:`;
 
         // Update input values without triggering events
         if (objectName) objectName.value = this.selectedObjectInstance.name;
-        if (objectX) objectX.value = Math.round(transform.x * 10) / 10; // One decimal place
+        if (objectX) objectX.value = Math.round(transform.x * 10) / 10;
         if (objectY) objectY.value = Math.round(transform.y * 10) / 10;
-        if (objectScale) objectScale.value = Math.round(transform.scale * 100) / 100; // Two decimal places
+        if (objectScaleX) objectScaleX.value = Math.round((transform.scaleX || 1) * 100) / 100;
+        if (objectScaleY) objectScaleY.value = Math.round((transform.scaleY || 1) * 100) / 100;
         if (objectAngle) objectAngle.value = Math.round(transform.angle);
         if (objectTween) objectTween.checked = this.selectedObjectInstance.tween || false;
 
@@ -10377,7 +10518,8 @@ Create drawing commands for this animation frame:`;
         const objectName = document.getElementById('objectName');
         const objectX = document.getElementById('objectX');
         const objectY = document.getElementById('objectY');
-        const objectScale = document.getElementById('objectScale');
+        const objectScaleX = document.getElementById('objectScaleX');
+        const objectScaleY = document.getElementById('objectScaleY');
         const objectAngle = document.getElementById('objectAngle');
         const objectLayer = document.getElementById('objectLayer');
         const objectTween = document.getElementById('objectTween');
@@ -10392,20 +10534,23 @@ Create drawing commands for this animation frame:`;
         // Parse and validate numeric inputs
         const newX = objectX ? parseFloat(objectX.value) : currentTransform.x;
         const newY = objectY ? parseFloat(objectY.value) : currentTransform.y;
-        const newScale = objectScale ? parseFloat(objectScale.value) : currentTransform.scale;
+        const newScaleX = objectScaleX ? parseFloat(objectScaleX.value) : (currentTransform.scaleX || 1);
+        const newScaleY = objectScaleY ? parseFloat(objectScaleY.value) : (currentTransform.scaleY || 1);
         const newAngle = objectAngle ? parseFloat(objectAngle.value) : currentTransform.angle;
 
         // Validate values and provide sensible defaults
         const validX = isNaN(newX) ? currentTransform.x : Math.max(0, Math.min(newX, this.canvasWidth));
         const validY = isNaN(newY) ? currentTransform.y : Math.max(0, Math.min(newY, this.canvasHeight));
-        const validScale = isNaN(newScale) ? currentTransform.scale : Math.max(0.1, Math.min(newScale, 10));
+        const validScaleX = isNaN(newScaleX) ? (currentTransform.scaleX || 1) : Math.max(0.1, Math.min(newScaleX, 10));
+        const validScaleY = isNaN(newScaleY) ? (currentTransform.scaleY || 1) : Math.max(0.1, Math.min(newScaleY, 10));
         const validAngle = isNaN(newAngle) ? currentTransform.angle : ((newAngle % 360) + 360) % 360;
 
         // Update transform properties
         const newTransform = {
             x: validX,
             y: validY,
-            scale: validScale,
+            scaleX: validScaleX,
+            scaleY: validScaleY,
             angle: validAngle,
             image: currentTransform.image
         };
@@ -10496,48 +10641,66 @@ Create drawing commands for this animation frame:`;
         if (this.currentTool !== 'object-tool') return;
 
         const rect = this.mainCanvas.getBoundingClientRect();
-        // Convert screen coordinates to canvas coordinates accounting for zoom
         const x = (e.clientX - rect.left) / this.zoom;
         const y = (e.clientY - rect.top) / this.zoom;
 
-        // Check if clicking on transform controls (resize/rotate handles)
+        // Check if clicking on transform controls
         if (this.selectedObjectInstance) {
             const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
             if (transform.image) {
                 const handle = this.getObjectTransformHandle(x, y, transform);
-                if (handle === 'resize') {
-                    this.isResizingObject = true;
-                    // Store the current transform state and mouse position
-                    this.objectResizeStartData = {
-                        x: transform.x, // Object center, not mouse position
-                        y: transform.y,
-                        scale: transform.scale,
-                        angle: transform.angle,
-                        image: transform.image,
-                        mouseStartDistance: Math.sqrt((x - transform.x) ** 2 + (y - transform.y) ** 2)
-                    };
-                    return;
-                }
-                if (handle === 'rotate') {
-                    this.isRotatingObject = true;
-                    this.objectRotateStartData = {
-                        x: transform.x,
-                        y: transform.y,
-                        scale: transform.scale,
-                        angle: transform.angle,
-                        image: transform.image,
-                        startAngle: Math.atan2(y - transform.y, x - transform.x) * 180 / Math.PI
-                    };
-                    return;
+                if (handle) {
+                    if (handle.type === 'resize') {
+                        this.isResizingObject = true;
+                        this.objectResizeHandle = handle.handle;
+                        this.objectResizeStartData = {
+                            x: transform.x,
+                            y: transform.y,
+                            // Store both old and new scale formats for compatibility
+                            scale: transform.scale || 1,
+                            scaleX: transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1),
+                            scaleY: transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1),
+                            angle: transform.angle,
+                            image: transform.image,
+                            mouseStartX: x,
+                            mouseStartY: y,
+                            shiftKey: e.shiftKey
+                        };
+                        return;
+                    }
+                    if (handle.type === 'rotate') {
+                        this.isRotatingObject = true;
+                        this.objectRotateStartData = {
+                            x: transform.x,
+                            y: transform.y,
+                            // Store both scale formats
+                            scale: transform.scale || 1,
+                            scaleX: transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1),
+                            scaleY: transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1),
+                            angle: transform.angle,
+                            image: transform.image,
+                            startAngle: Math.atan2(y - transform.y, x - transform.x) * 180 / Math.PI
+                        };
+                        return;
+                    }
+                    if (handle.type === 'skew') {
+                        // Skip skewing for now
+                        return;
+                    }
+                    if (handle.type === 'flip') {
+                        this.flipObject(handle.handle);
+                        return;
+                    }
                 }
             }
         }
 
-        // Check if clicking on an object instance (top to bottom)
+        // Check if clicking on an object instance (from top to bottom)
         for (let i = this.objectInstances.length - 1; i >= 0; i--) {
             const obj = this.objectInstances[i];
             const transform = obj.getTransformAt(this.currentFrame);
             if (!transform.image) continue;
+
             if (this.isPointInObject(x, y, transform)) {
                 this.selectedObjectInstance = obj;
                 this.isDraggingObject = true;
@@ -10547,24 +10710,27 @@ Create drawing commands for this animation frame:`;
                 };
                 this.updateObjectPropertiesPanel();
                 this.renderCurrentFrameToMainCanvas();
+                this.renderObjectsList();
                 e.preventDefault();
                 return;
             }
         }
 
-        // Deselect only if not clicking on object or handles
+        // Clicked empty space: deselect
         this.selectedObjectInstance = null;
         this.isDraggingObject = false;
         this.isResizingObject = false;
         this.isRotatingObject = false;
+        this.isSkewingObject = false;
         this.updateObjectPropertiesPanel();
         this.renderCurrentFrameToMainCanvas();
+        this.renderObjectsList();
     }
 
     handleObjectToolMouseMove(e) {
         if (this.currentTool !== 'object-tool') return;
+
         const rect = this.mainCanvas.getBoundingClientRect();
-        // Convert screen coordinates to canvas coordinates accounting for zoom
         const x = (e.clientX - rect.left) / this.zoom;
         const y = (e.clientY - rect.top) / this.zoom;
 
@@ -10580,36 +10746,74 @@ Create drawing commands for this animation frame:`;
             return;
         }
 
-        // Resizing object - coordinates are already in canvas space
+        // Resizing object
         if (this.isResizingObject && this.selectedObjectInstance) {
             const obj = this.selectedObjectInstance;
             const start = this.objectResizeStartData;
 
-            // Calculate current distance from object center (in canvas coordinates)
-            const currentDistance = Math.sqrt((x - start.x) ** 2 + (y - start.y) ** 2);
+            const deltaX = x - start.mouseStartX;
+            const deltaY = y - start.mouseStartY;
 
-            // Calculate scale factor based on distance change
-            const scaleFactor = currentDistance / start.mouseStartDistance;
-            const newScale = Math.max(0.1, Math.min(5.0, start.scale * scaleFactor));
+            const angle = -start.angle * Math.PI / 180;
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            const localDeltaX = deltaX * cos - deltaY * sin;
+            const localDeltaY = deltaX * sin + deltaY * cos;
+
+            const img = start.image;
+            if (!img) return;
+
+            // Get current scale values (handle both old single scale and new separate scales)
+            let baseScaleX = start.scaleX !== undefined ? start.scaleX : (start.scale || 1);
+            let baseScaleY = start.scaleY !== undefined ? start.scaleY : (start.scale || 1);
+
+            const baseWidth = img.width * Math.abs(baseScaleX);
+            const baseHeight = img.height * Math.abs(baseScaleY);
+
+            let newScaleX = baseScaleX;
+            let newScaleY = baseScaleY;
+
+            if (e.shiftKey || start.shiftKey) {
+                // Shift held: maintain aspect ratio (uniform scaling)
+                const scaleFactor = 1 + Math.max(localDeltaX / baseWidth, localDeltaY / baseHeight) * 2;
+                const clampedScale = Math.max(0.1, Math.min(5.0, Math.abs(baseScaleX) * scaleFactor));
+
+                // Preserve the sign (flip state) while scaling
+                newScaleX = baseScaleX >= 0 ? clampedScale : -clampedScale;
+                newScaleY = baseScaleY >= 0 ? clampedScale : -clampedScale;
+            } else {
+                // No shift: resize to mouse position (independent width/height scaling)
+                const scaleFactorX = 1 + (localDeltaX * 2) / baseWidth;
+                const scaleFactorY = 1 + (localDeltaY * 2) / baseHeight;
+
+                const clampedScaleX = Math.max(0.1, Math.min(5.0, Math.abs(baseScaleX) * scaleFactorX));
+                const clampedScaleY = Math.max(0.1, Math.min(5.0, Math.abs(baseScaleY) * scaleFactorY));
+
+                // Preserve the sign (flip state) while scaling
+                newScaleX = baseScaleX >= 0 ? clampedScaleX : -clampedScaleX;
+                newScaleY = baseScaleY >= 0 ? clampedScaleY : -clampedScaleY;
+            }
 
             obj.setKeyframe(this.currentFrame, {
                 x: start.x,
                 y: start.y,
-                scale: newScale,
+                scaleX: newScaleX,
+                scaleY: newScaleY,
                 angle: start.angle,
-                image: start.image
+                image: start.image,
+                // Remove old scale property
+                scale: undefined
             });
             this.updateObjectPropertiesPanel();
             this.renderCurrentFrameToMainCanvas();
             return;
         }
 
-        // Rotating object - coordinates are already in canvas space
+        // Rotating object
         if (this.isRotatingObject && this.selectedObjectInstance) {
             const obj = this.selectedObjectInstance;
             const start = this.objectRotateStartData;
 
-            // Calculate current angle from object center (in canvas coordinates)
             const currentAngle = Math.atan2(y - start.y, x - start.x) * 180 / Math.PI;
             const angleDiff = currentAngle - start.startAngle;
             let newAngle = (start.angle + angleDiff + 360) % 360;
@@ -10617,12 +10821,21 @@ Create drawing commands for this animation frame:`;
             obj.setKeyframe(this.currentFrame, {
                 x: start.x,
                 y: start.y,
-                scale: start.scale,
+                scaleX: start.scaleX !== undefined ? start.scaleX : start.scale,
+                scaleY: start.scaleY !== undefined ? start.scaleY : start.scale,
                 angle: newAngle,
-                image: start.image
+                image: start.image,
+                // Remove old scale property
+                scale: undefined
             });
             this.updateObjectPropertiesPanel();
             this.renderCurrentFrameToMainCanvas();
+            return;
+        }
+
+        // Skewing - you can implement this later if needed
+        if (this.isSkewingObject && this.selectedObjectInstance) {
+            // For now, just do nothing - skewing can be complex to implement properly
             return;
         }
     }
@@ -10632,6 +10845,9 @@ Create drawing commands for this animation frame:`;
         this.isDraggingObject = false;
         this.isResizingObject = false;
         this.isRotatingObject = false;
+        this.isRotatingObject = false;
+        this.isSkewingObject = false;
+        this.objectResizeHandle = null;
     }
 
     // --- Touch support for object tool ---
@@ -10648,6 +10864,36 @@ Create drawing commands for this animation frame:`;
             if (e.type === 'touchend' || e.type === 'touchcancel') this.handleObjectToolMouseUp({});
             e.preventDefault();
         }
+    }
+
+    flipObject(direction) {
+        if (!this.selectedObjectInstance) return;
+
+        const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+
+        // Store the current scale values (handle both old single scale and new separate scales)
+        let currentScaleX = transform.scaleX !== undefined ? transform.scaleX : (transform.scale || 1);
+        let currentScaleY = transform.scaleY !== undefined ? transform.scaleY : (transform.scale || 1);
+
+        if (direction === 'horizontal') {
+            // Flip horizontally by negating scaleX
+            currentScaleX = -currentScaleX;
+        } else if (direction === 'vertical') {
+            // Flip vertically by negating scaleY
+            currentScaleY = -currentScaleY;
+        }
+
+        // Update the transform with separate X and Y scales
+        this.selectedObjectInstance.setKeyframe(this.currentFrame, {
+            ...transform,
+            scaleX: currentScaleX,
+            scaleY: currentScaleY,
+            // Remove the old single scale property if it exists
+            scale: undefined
+        });
+
+        this.updateObjectPropertiesPanel();
+        this.renderCurrentFrameToMainCanvas();
     }
 
     isPointInObject(x, y, transform) {
@@ -10674,8 +10920,8 @@ Create drawing commands for this animation frame:`;
 
         // Calculate the bounds of the object considering scale and rotation
         const img = transform.image;
-        const halfW = (img.width * transform.scale) / 2;
-        const halfH = (img.height * transform.scale) / 2;
+        const halfW = (img.width * transform.scaleX) / 2;
+        const halfH = (img.height * transform.scaleY) / 2;
 
         // Simple bounding box check first (for performance)
         const dx = x - transform.x;
@@ -10698,25 +10944,34 @@ Create drawing commands for this animation frame:`;
 
     // Add object rendering to your renderCurrentFrame method
     renderObjectInstances() {
-        // FIX: Use this.objects instead of this.objectInstances
-        this.objectInstances.forEach(instance => {// Check if object is visible
+        this.objectInstances.forEach(instance => {
             if (instance.visible === false) return;
 
-            // NEW: Check if the object's layer is visible
             if (instance.layerId) {
                 const objectLayer = this.layers.find(l => l.id === instance.layerId);
                 if (objectLayer && !objectLayer.isVisible) {
-                    return; // Skip rendering if layer is hidden
+                    return;
                 }
             }
 
             const transform = instance.getTransformAt(this.currentFrame);
-            if (!transform.image && !instance.name) return; // Skip if no image and no name
+            if (!transform.image && !instance.name) return;
 
             this.ctx.save();
             this.ctx.translate(transform.x, transform.y);
             this.ctx.rotate(transform.angle * Math.PI / 180);
-            this.ctx.scale(transform.scale, transform.scale);
+
+            // Apply skew transform
+            const skewX = (transform.skewX || 0) * Math.PI / 180;
+            const skewY = (transform.skewY || 0) * Math.PI / 180;
+            if (skewX !== 0 || skewY !== 0) {
+                this.ctx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+            }
+
+            // Apply separate X and Y scaling
+            const scaleX = transform.scaleX || transform.scale || 1;
+            const scaleY = transform.scaleY || transform.scale || 1;
+            this.ctx.scale(scaleX, scaleY);
 
             // Apply object-level alpha and hue
             this.ctx.globalAlpha = instance.alpha !== undefined ? instance.alpha : 1;
@@ -10747,7 +11002,7 @@ Create drawing commands for this animation frame:`;
 
             this.ctx.restore();
 
-            // Draw selection outline and controls if selected - FIX: Check selectedObjectInstance instead of selectedObjectId
+            // Draw selection outline and controls if selected
             if (instance === this.selectedObjectInstance && this.currentTool === 'object-tool') {
                 this.drawObjectTransformControls(transform, transform.image);
             }

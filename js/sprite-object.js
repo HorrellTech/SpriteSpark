@@ -1,16 +1,30 @@
 class SpriteObject {
-    constructor({ id, name = "Object", x = 0, y = 0, scale = 1, angle = 0, image = null } = {}) {
-        this.id = id || 'obj_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
-        this.name = name;
-        this.visible = true; // Visibility state
-        // Per-frame keyframes: { frameIndex: {x, y, scale, angle, image} }
+    constructor(options = {}) {
+        this.id = options.id || 'obj_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+        this.name = options.name || 'Object';
+        this.visible = options.visible !== undefined ? options.visible : true;
+        this.alpha = options.alpha !== undefined ? options.alpha : 1;
+        this.hue = options.hue || 0;
+        this.layerId = options.layerId || null;
+        this.tween = options.tween !== undefined ? options.tween : true;
         this.keyframes = {};
-        // Default transform (used if no keyframe for a frame)
-        this.defaultTransform = { x, y, scale, angle, image };
+
+        // Set initial keyframe with proper scale handling
+        const initialTransform = {
+            x: options.x || 0,
+            y: options.y || 0,
+            // Handle both old single scale and new separate scales
+            scaleX: options.scaleX !== undefined ? options.scaleX : (options.scale || 1),
+            scaleY: options.scaleY !== undefined ? options.scaleY : (options.scale || 1),  
+            angle: options.angle || 0,
+            image: options.image || null
+        };
+
+        this.setKeyframe(0, initialTransform);
     }
 
-    setKeyframe(frame, { x, y, scale, angle, image }) {
-        this.keyframes[frame] = { x, y, scale, angle, image };
+    setKeyframe(frame, { x, y, scaleX, scaleY, angle, image }) {
+        this.keyframes[frame] = { x, y, scaleX, scaleY, angle, image };
     }
 
     removeKeyframe(frame) {
@@ -20,7 +34,20 @@ class SpriteObject {
     getTransformAt(frame) {
         // If tweening is disabled, return exact keyframe or default
         if (!this.tween) {
-            return this.keyframes[frame] || this.getDefaultTransform();
+            const keyframe = this.keyframes[frame];
+            if (keyframe) {
+                // Convert old scale to separate scales if needed
+                if (keyframe.scale !== undefined && (keyframe.scaleX === undefined || keyframe.scaleY === undefined)) {
+                    return {
+                        ...keyframe,
+                        scaleX: keyframe.scaleX || keyframe.scale,
+                        scaleY: keyframe.scaleY || keyframe.scale,
+                        scale: undefined
+                    };
+                }
+                return { ...keyframe };
+            }
+            return this.getDefaultTransform();
         }
 
         // Find surrounding keyframes for interpolation
@@ -31,9 +58,18 @@ class SpriteObject {
             return this.getDefaultTransform();
         }
 
-        // If exact keyframe exists, return it
+        // If exact keyframe exists, return it (with scale conversion if needed)
         if (this.keyframes[frame]) {
-            return { ...this.keyframes[frame] };
+            const keyframe = this.keyframes[frame];
+            if (keyframe.scale !== undefined && (keyframe.scaleX === undefined || keyframe.scaleY === undefined)) {
+                return {
+                    ...keyframe,
+                    scaleX: keyframe.scaleX || keyframe.scale,
+                    scaleY: keyframe.scaleY || keyframe.scale,
+                    scale: undefined
+                };
+            }
+            return { ...keyframe };
         }
 
         // Find the two keyframes to interpolate between
@@ -51,29 +87,50 @@ class SpriteObject {
 
         // If only keyframes after current frame, use the first one
         if (beforeFrame === -1) {
-            return { ...this.keyframes[afterFrame] };
+            const keyframe = this.keyframes[afterFrame];
+            if (keyframe.scale !== undefined && (keyframe.scaleX === undefined || keyframe.scaleY === undefined)) {
+                return {
+                    ...keyframe,
+                    scaleX: keyframe.scaleX || keyframe.scale,
+                    scaleY: keyframe.scaleY || keyframe.scale,
+                    scale: undefined
+                };
+            }
+            return { ...keyframe };
         }
 
         // If only keyframes before current frame, use the last one
         if (afterFrame === -1) {
-            return { ...this.keyframes[beforeFrame] };
+            const keyframe = this.keyframes[beforeFrame];
+            if (keyframe.scale !== undefined && (keyframe.scaleX === undefined || keyframe.scaleY === undefined)) {
+                return {
+                    ...keyframe,
+                    scaleX: keyframe.scaleX || keyframe.scale,
+                    scaleY: keyframe.scaleY || keyframe.scale,
+                    scale: undefined
+                };
+            }
+            return { ...keyframe };
         }
 
-        // Interpolate between the two keyframes with easing
+        // Interpolate between the two keyframes
         const beforeTransform = this.keyframes[beforeFrame];
         const afterTransform = this.keyframes[afterFrame];
-        const totalFrames = afterFrame - beforeFrame;
-        const currentProgress = frame - beforeFrame;
-        const progress = currentProgress / totalFrames;
+        const progress = (frame - beforeFrame) / (afterFrame - beforeFrame);
 
-        // Apply easing for smoother animation (ease-in-out)
-        const easedProgress = this.easeInOutCubic(progress);
+        // Convert old scale to separate scales for interpolation
+        const beforeScaleX = beforeTransform.scaleX !== undefined ? beforeTransform.scaleX : (beforeTransform.scale || 1);
+        const beforeScaleY = beforeTransform.scaleY !== undefined ? beforeTransform.scaleY : (beforeTransform.scale || 1);
+        const afterScaleX = afterTransform.scaleX !== undefined ? afterTransform.scaleX : (afterTransform.scale || 1);
+        const afterScaleY = afterTransform.scaleY !== undefined ? afterTransform.scaleY : (afterTransform.scale || 1);
 
         return {
-            x: this.lerp(beforeTransform.x, afterTransform.x, easedProgress),
-            y: this.lerp(beforeTransform.y, afterTransform.y, easedProgress),
-            scale: this.lerp(beforeTransform.scale, afterTransform.scale, easedProgress),
-            angle: this.lerpAngle(beforeTransform.angle, afterTransform.angle, easedProgress),
+            x: this.lerp(beforeTransform.x, afterTransform.x, progress),
+            y: this.lerp(beforeTransform.y, afterTransform.y, progress),
+            scaleX: this.lerp(beforeScaleX, afterScaleX, progress),
+            scaleY: this.lerp(beforeScaleY, afterScaleY, progress),
+            scale: undefined, // Scale is not used in this context
+            angle: this.lerpAngle(beforeTransform.angle, afterTransform.angle, progress),
             image: afterTransform.image || beforeTransform.image
         };
     }
@@ -98,6 +155,8 @@ class SpriteObject {
         return {
             x: this.canvasWidth / 2 || 160,
             y: this.canvasHeight / 2 || 120,
+            scaleX: 1,
+            scaleY: 1,
             scale: 1,
             angle: 0,
             image: null
