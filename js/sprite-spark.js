@@ -394,14 +394,15 @@ class SpriteSpark {
         const objectHueValue = document.getElementById('objectHueValue');
 
         if (objectHueInput && objectHueValue) {
-            objectHueInput.addEventListener('input', function () {
-                const hueValue = parseFloat(this.value);
+            objectHueInput.addEventListener('input', () => {
+                const hueValue = parseFloat(objectHueInput.value);
                 objectHueValue.textContent = hueValue + '°';
 
-                if (selectedObjectId && sceneObjects[selectedObjectId]) {
-                    sceneObjects[selectedObjectId].hue = hueValue;
-                    updateObjectPropertiesDisplay();
-                    renderFrame(currentFrame);
+                // Use the correct property names from the SpriteSpark class
+                if (this.selectedObjectInstance) {
+                    this.selectedObjectInstance.hue = hueValue;
+                    this.updateObjectPropertiesPanel();
+                    this.renderCurrentFrameToMainCanvas();
                 }
             });
         }
@@ -11979,7 +11980,7 @@ function updateObjectPropertiesDisplay() {
 
     const obj = sceneObjects[selectedObjectId];
     const transform = obj.getTransformAt(currentFrame);
-    
+
     document.getElementById('objectPropertiesPanel').style.display = 'block';
     document.getElementById('objectName').value = obj.name || '';
     document.getElementById('objectX').value = transform.x || 0;
@@ -11988,7 +11989,7 @@ function updateObjectPropertiesDisplay() {
     document.getElementById('objectScaleY').value = transform.scaleY || 1;
     document.getElementById('objectAngle').value = transform.angle || 0;
     document.getElementById('objectTween').checked = obj.tween;
-    
+
     // Update hue control
     const hueInput = document.getElementById('objectHue');
     const hueValue = document.getElementById('objectHueValue');
@@ -11996,7 +11997,7 @@ function updateObjectPropertiesDisplay() {
         hueInput.value = obj.hue || 0;
         hueValue.textContent = (obj.hue || 0) + '°';
     }
-    
+
     // Update layer dropdown
     const layerSelect = document.getElementById('objectLayer');
     layerSelect.innerHTML = '';
