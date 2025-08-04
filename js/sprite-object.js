@@ -46,19 +46,31 @@ class SpriteObject {
     }
 
     // Add child object
-    addChild(childObject) {
-        if (!this.children.includes(childObject.id)) {
-            this.children.push(childObject.id);
-            childObject.parentId = this.id;
-            childObject.depth = this.depth + 1;
+    addChild(child) {
+        if (child.parent) {
+            child.parent.removeChild(child);
+        }
+        child.parent = this;
+        this.children.push(child);
+        
+        // Remove child from scene manager's main list since it's now managed by parent
+        if (this.scene && this.scene.objects.includes(child)) {
+            const index = this.scene.objects.indexOf(child);
+            this.scene.objects.splice(index, 1);
         }
     }
 
     // Remove child object
-    removeChild(childId) {
-        const index = this.children.indexOf(childId);
-        if (index > -1) {
+    removeChild(child) {
+        const index = this.children.indexOf(child);
+        if (index !== -1) {
             this.children.splice(index, 1);
+            child.parent = null;
+            
+            // Add back to scene manager's main list
+            if (this.scene && !this.scene.objects.includes(child)) {
+                this.scene.objects.push(child);
+            }
         }
     }
 

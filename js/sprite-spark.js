@@ -7697,30 +7697,229 @@ Create drawing commands for this animation frame:`;
         return null;
     }
 
-    renderObjectsList() {
-        const list = document.getElementById('objectsList');
-        if (!list) return;
+    setupDragAndDrop(element, obj) {
+        element.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', obj.id);
+            e.dataTransfer.effectAllowed = 'move';
+            element.classList.add('dragging');
+        });
 
-        list.innerHTML = '';
-        if (this.objectInstances.length === 0) { // Use objectInstances
-            list.style.display = 'none';
+        element.addEventListener('dragend', (e) => {
+            element.classList.remove('dragging');
+        });
+
+        element.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            element.classList.add('drag-over');
+        });
+
+        element.addEventListener('dragleave', (e) => {
+            element.classList.remove('drag-over');
+        });
+
+        element.addEventListener('drop', (e) => {
+            e.preventDefault();
+            element.classList.remove('drag-over');
+
+            const draggedObjectId = e.dataTransfer.getData('text/plain');
+            const targetObjectId = obj.id;
+
+            if (draggedObjectId !== targetObjectId) {
+                parentObjectTo(draggedObjectId, targetObjectId);
+            }
+        });
+    }
+
+    
+
+    renderObjectsList() {
+        const objectsList = document.getElementById('objects-list');
+        if (!objectsList) return;
+
+        objectsList.innerHTML = '';
+
+        // Get root objects (objects without parents)
+        const rootObjects = Object.values(objects).filter(obj => !obj.parentId);
+
+        // Sort root objects by z-index
+        rootObjects.sort((a, b) => b.zIndex - a.zIndex);
+
+        // Render each root object and its hierarchy
+        rootObjects.forEach(obj => {
+            renderObjectHierarchy(obj, objectsList, 0);
+        });
+    }
+
+    parentObjectTo(childId, parentId) {
+        const childObj = objects[childId];
+        const parentObj = objects[parentId];
+
+        if (!childObj || !parentObj) return;
+
+        // Prevent circular references
+        if (parentObj.isDescendantOf(childId, objects)) {
+            alert('Cannot parent an object to its own descendant!');
             return;
         }
 
-        list.style.display = '';
-        this.objectInstances.forEach(obj => { // Use objectInstances
-            const item = document.createElement('div');
-            item.className = 'object-list-item' + (obj === this.selectedObjectInstance ? ' selected' : '');
-            item.textContent = obj.name;
-            item.title = obj.name;
-            item.onclick = () => {
-                this.selectedObjectInstance = obj;
-                this.renderCurrentFrameToMainCanvas();
-                this.updateObjectPropertiesPanel();
-                this.renderObjectsList();
-            };
-            list.appendChild(item);
+        // Remove from current parent if any
+        if (childObj.parentId) {
+            const currentParent = objects[childObj.parentId];
+            if (currentParent) {
+                currentParent.removeChild(childId);
+            }
+        }
+
+        // Add to new parent
+        parentObj.addChild(childObj);
+        parentObj.expanded = true; // Auto-expand to show new child
+
+        // Convert world transform to local transform
+        convertToLocalTransform(childObj, parentObj);
+
+        renderObjectsList();
+        renderCanvas();
+        addToHistory();
+    }
+
+    convertToLocalTransform(childObj, parentObj) {
+        const currentFrame = getCurrentFrame();
+        const childWorld = childObj.getWorldTransformAt(currentFrame, objects);
+        const parentWorld = parentObj.getWorldTransformAt(currentFrame, objects);
+
+        // Calculate local transform that maintains world position
+        const localX = (childWorld.x - parentWorld.x) / parentWorld.scaleX;
+        const localY = (childWorld.y - parentWorld.y) / parentWorld.scaleY;
+        
+        // Apply inverse parent rotation
+        const cos = Math.cos(-parentWorld.angle * Math.PI / 180);
+        const sin = Math.sin(-parentWorld.angle * Math.PI / 180);
+        
+        const rotatedX = localX * cos - localY * sin;
+        const rotatedY = localX * sin + localY * cos;
+
+        // Update all keyframes to maintain world position
+        Object.keys(childObj.keyframes).forEach(frame => {
+            const keyframe = childObj.keyframes[frame];
+            keyframe.x = rotatedX;
+            keyframe.y = rotatedY;
+            keyframe.scaleX = (keyframe.scaleX || 1) / parentWorld.scaleX;
+            keyframe.scaleY = (keyframe.scaleY || 1) / parentWorld.scaleY;
+            keyframe.angle = (keyframe.angle || 0) - parentWorld.angle;
         });
+    }
+
+    unparentObject(objectId) {
+        const obj = objects[objectId];
+        if (!obj || !obj.parentId) return;
+
+        const parent = objects[obj.parentId];
+        if (parent) {
+            parent.removeChild(objectId);
+        }
+
+        // Convert local transform back to world transform
+        convertToWorldTransform(obj);
+
+        obj.parentId = null;
+        obj.depth = 0;
+
+        renderObjectsList();
+        renderCanvas();
+        addToHistory();
+    }
+
+    convertToWorldTransform(obj) {
+        const currentFrame = getCurrentFrame();
+        
+        // Update all keyframes to maintain world position
+        Object.keys(obj.keyframes).forEach(frame => {
+            const worldTransform = obj.getWorldTransformAt(parseInt(frame), objects);
+            const keyframe = obj.keyframes[frame];
+            
+            keyframe.x = worldTransform.x;
+            keyframe.y = worldTransform.y;
+            keyframe.scaleX = worldTransform.scaleX;
+            keyframe.scaleY = worldTransform.scaleY;
+            keyframe.angle = worldTransform.angle;
+        });
+    }
+
+    toggleObjectExpansion(objectId) {
+        const obj = objects[objectId];
+        if (obj) {
+            obj.expanded = !obj.expanded;
+            renderObjectsList();
+        }
+    }
+
+    renderObjectHierarchy(obj, container, depth) {
+        const objItem = document.createElement('div');
+        objItem.className = 'object-item';
+        objItem.dataset.objectId = obj.id;
+        objItem.style.paddingLeft = (depth * 20 + 10) + 'px';
+
+        // Add hierarchy styling
+        if (depth > 0) {
+            objItem.classList.add('child-object');
+        }
+
+        // Create expand/collapse button for objects with children
+        let expandButton = '';
+        if (obj.children.length > 0) {
+            const expandedClass = obj.expanded ? 'expanded' : 'collapsed';
+            expandButton = `
+            <button class="expand-btn ${expandedClass}" onclick="toggleObjectExpansion('${obj.id}')">
+                ${obj.expanded ? '▼' : '▶'}
+            </button>
+        `;
+        } else {
+            expandButton = '<span class="expand-spacer"></span>';
+        }
+
+        objItem.innerHTML = `
+        ${expandButton}
+        <div class="object-content" draggable="true">
+            <div class="object-visibility" onclick="toggleObjectVisibility('${obj.id}')">
+                ${obj.visible ? '👁' : '🚫'}
+            </div>
+            <span class="object-name" ondblclick="editObjectName('${obj.id}')">${obj.name}</span>
+            <div class="object-controls">
+                <button onclick="duplicateObject('${obj.id}')" title="Duplicate">📋</button>
+                <button onclick="unparentObject('${obj.id}')" title="Unparent" ${!obj.parentId ? 'disabled' : ''}>🔗</button>
+                <button onclick="deleteObject('${obj.id}')" title="Delete">🗑</button>
+            </div>
+        </div>
+    `;
+
+        // Add drag and drop functionality for parenting
+        const objectContent = objItem.querySelector('.object-content');
+        setupDragAndDrop(objectContent, obj);
+
+        // Highlight if selected
+        if (selectedObjectId === obj.id) {
+            objItem.classList.add('selected');
+        }
+
+        // Add click handler for selection
+        objectContent.addEventListener('click', (e) => {
+            if (!e.target.closest('button')) {
+                selectObject(obj.id);
+            }
+        });
+
+        container.appendChild(objItem);
+
+        // Render children if expanded
+        if (obj.expanded && obj.children.length > 0) {
+            obj.children.forEach(childId => {
+                const childObj = objects[childId];
+                if (childObj) {
+                    renderObjectHierarchy(childObj, container, depth + 1);
+                }
+            });
+        }
     }
 
     updateGhostCursor(e) {
@@ -8675,6 +8874,63 @@ Create drawing commands for this animation frame:`;
         a.href = URL.createObjectURL(blob);
         a.download = name + ".json";
         a.click();
+    }
+
+    createObject(options = {}) {
+        const newObj = new SpriteObject({
+            x: canvasWidth / 2,
+            y: canvasHeight / 2,
+            ...options
+        });
+
+        objects[newObj.id] = newObj;
+        selectObject(newObj.id);
+        renderObjectsList();
+        renderCanvas();
+        addToHistory();
+        
+        return newObj;
+    }
+
+    deleteObject(objectId) {
+        const obj = objects[objectId];
+        if (!obj) return;
+
+        // Ask user what to do with children
+        if (obj.children.length > 0) {
+            const action = confirm('This object has children. Click OK to delete children too, or Cancel to unparent them first.');
+            
+            if (action) {
+                // Delete all descendants
+                const descendants = obj.getAllDescendants(objects);
+                descendants.forEach(id => {
+                    delete objects[id];
+                });
+            } else {
+                // Unparent all children
+                obj.children.forEach(childId => {
+                    unparentObject(childId);
+                });
+            }
+        }
+
+        // Remove from parent if it has one
+        if (obj.parentId) {
+            const parent = objects[obj.parentId];
+            if (parent) {
+                parent.removeChild(objectId);
+            }
+        }
+
+        delete objects[objectId];
+        
+        if (selectedObjectId === objectId) {
+            selectedObjectId = null;
+        }
+
+        renderObjectsList();
+        renderCanvas();
+        addToHistory();
     }
 
     getProjectData() {

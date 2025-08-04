@@ -2654,3 +2654,59 @@ select:focus {
     pointer-events: auto;
     opacity: 1;
 }
+
+.object-item {
+    border-left: 2px solid transparent;
+    margin: 1px 0;
+    border-radius: 4px;
+}
+
+.object-item.child-object {
+    border-left-color: #444;
+}
+
+.object-content {
+    display: flex;
+    align-items: center;
+    padding: 5px 0;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.object-content:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.object-content.dragging {
+    opacity: 0.5;
+}
+
+.object-content.drag-over {
+    background-color: rgba(0, 123, 255, 0.3);
+    border: 1px dashed #007bff;
+}
+
+.expand-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    padding: 0;
+    margin-right: 5px;
+    width: 16px;
+    text-align: center;
+}
+
+.expand-spacer {
+    width: 21px;
+    display: inline-block;
+}
+
+.object-controls button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.object-item.selected .object-content {
+    background-color: rgba(0, 123, 255, 0.3);
+}
