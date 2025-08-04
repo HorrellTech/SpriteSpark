@@ -5805,7 +5805,7 @@ Create drawing commands for this animation frame:`;
 
         // Onion skin: draw ONLY previous frames with transparency
         if (this.showOnionSkin && this.frames.length > 1) {
-            for (let offset = -this.onionSkinFrames; offset < 0; offset++) { // Changed: offset < 0 instead of <= 0
+            for (let offset = -this.onionSkinFrames; offset < 0; offset++) {
                 const frameIdx = this.currentFrame + offset;
                 if (frameIdx < 0 || frameIdx >= this.frames.length) continue;
 
@@ -5855,9 +5855,12 @@ Create drawing commands for this animation frame:`;
             this.ctx.drawImage(frameLayer.canvas, 0, 0);
             this.ctx.restore();
 
-            // Draw objects that belong to this layer
+            // Draw objects that belong to this layer AFTER the layer is drawn
             this.renderObjectInstancesForLayer(layer.id);
         }
+
+        // FIX: Also draw objects that don't have a layer assigned or have invalid layer IDs
+        this.renderObjectInstancesWithoutLayer();
 
         // Draw mirror lines
         if (this.mirrorMode !== 'none') {
@@ -5897,13 +5900,74 @@ Create drawing commands for this animation frame:`;
             this.drawVectorPreview();
         }
 
-        // Render objects on top of everything
-        this.renderObjectInstances();
+        // REMOVE this line - objects are now drawn within their layers above
+        // this.renderObjectInstances();
 
         this.ctx.globalAlpha = 1.0;
         this.ctx.globalCompositeOperation = 'source-over';
 
         this.renderFrameToLivePreview(this.currentFrame);
+    }
+
+    renderObjectInstancesWithoutLayer() {
+        // Get all valid layer IDs
+        const validLayerIds = this.layers.map(layer => layer.id);
+
+        // Filter objects that don't have a layer or have an invalid layer ID
+        const orphanedObjects = this.objectInstances.filter(instance =>
+            instance.visible !== false &&
+            (!instance.layerId || !validLayerIds.includes(instance.layerId))
+        );
+
+        orphanedObjects.forEach(instance => {
+            const transform = instance.getTransformAt(this.currentFrame);
+            if (!transform.image) return;
+
+            this.ctx.save();
+
+            // Disable antialiasing for pixel perfect objects
+            this.ctx.imageSmoothingEnabled = false;
+            this.ctx.webkitImageSmoothingEnabled = false;
+            this.ctx.mozImageSmoothingEnabled = false;
+            this.ctx.msImageSmoothingEnabled = false;
+
+            // Apply object-level alpha and hue
+            this.ctx.globalAlpha = (instance.alpha || 1);
+            if (instance.hue && instance.hue !== 0) {
+                this.ctx.filter = `hue-rotate(${instance.hue}deg)`;
+            }
+
+            // Set transform
+            this.ctx.translate(transform.x, transform.y);
+            this.ctx.rotate((transform.angle || 0) * Math.PI / 180);
+            this.ctx.scale(
+                (transform.scaleX || 1) * (transform.flipX ? -1 : 1),
+                (transform.scaleY || 1) * (transform.flipY ? -1 : 1)
+            );
+
+            // Apply skew if present
+            if (transform.skewX || transform.skewY) {
+                const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                this.ctx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+            }
+
+            // Draw the object
+            this.ctx.drawImage(
+                transform.image,
+                -transform.image.width / 2,
+                -transform.image.height / 2
+            );
+
+            this.ctx.restore();
+
+            // Draw transform controls if this object is selected
+            if (this.currentTool === 'object-tool' &&
+                this.selectedObjectInstance &&
+                this.selectedObjectInstance.id === instance.id) {
+                this.drawObjectTransformControls(transform, transform.image);
+            }
+        });
     }
 
     renderObjectInstancesForLayer(layerId) {
@@ -6134,8 +6198,9 @@ Create drawing commands for this animation frame:`;
         };
 
         const rotateDistance = 30;
+        // FIX: Changed the calculation to use +sin instead of -sin for proper direction
         const rotateHandle = {
-            x: topCenter.x - rotateDistance * sin,
+            x: topCenter.x + rotateDistance * sin,
             y: topCenter.y - rotateDistance * cos
         };
 
