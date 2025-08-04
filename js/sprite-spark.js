@@ -7661,7 +7661,7 @@ Create drawing commands for this animation frame:`;
 
         const rotateDistance = 30;
         const rotateHandle = {
-            x: topCenter.x - rotateDistance * sin,
+            x: topCenter.x + rotateDistance * sin,
             y: topCenter.y - rotateDistance * cos
         };
 
