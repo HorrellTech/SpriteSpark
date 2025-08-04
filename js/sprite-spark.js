@@ -674,25 +674,27 @@ class SpriteSpark {
         // Add touch support for menubar items
         document.querySelectorAll('.menubar .menu-item').forEach(item => {
             // Mouse events (existing)
-            item.addEventListener('click', function (e) {
-                const clickedElement = e.target.closest('[data-action]');
-                if (clickedElement && clickedElement.closest('.dropdown')) {
-                    return;
-                }
-                if (e.target.closest('.dropdown')) {
-                    return;
-                }
-                e.stopPropagation();
-                document.querySelectorAll('.menubar .dropdown').forEach(d => {
-                    if (d !== this.querySelector('.dropdown')) {
-                        d.classList.remove('open');
+            if (!('ontouchstart' in window)) {
+                item.addEventListener('click', function (e) {
+                    const clickedElement = e.target.closest('[data-action]');
+                    if (clickedElement && clickedElement.closest('.dropdown')) {
+                        return;
+                    }
+                    if (e.target.closest('.dropdown')) {
+                        return;
+                    }
+                    e.stopPropagation();
+                    document.querySelectorAll('.menubar .dropdown').forEach(d => {
+                        if (d !== this.querySelector('.dropdown')) {
+                            d.classList.remove('open');
+                        }
+                    });
+                    const dropdown = this.querySelector('.dropdown');
+                    if (dropdown) {
+                        dropdown.classList.toggle('open');
                     }
                 });
-                const dropdown = this.querySelector('.dropdown');
-                if (dropdown) {
-                    dropdown.classList.toggle('open');
-                }
-            });
+            }
 
             // Touch events for better mobile support
             item.addEventListener('touchstart', function (e) {
@@ -1142,7 +1144,7 @@ class SpriteSpark {
             // System prompt: ask for ONLY JavaScript code using ctx for drawing
             const systemPrompt = `
 You are a JavaScript canvas drawing professional. Given a prompt, generate ONLY JavaScript code using the 2D canvas context variable "ctx" to draw a ${canvasSize}x${canvasSize} image in the style "${style}".
-- Use ctx.fillRect, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.fill, etc(you should have access to all javascript drawing commands).
+- Use ctx.fillRect, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.fill etc(you should have access to all javascript drawing commands).
 - Do not include explanations, just a single code block.
 - The variable "ctx" is already defined.
 Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, make sure to *CENTER THE MAIN SUBJECT* in ${style} style. generate ONLY the JavaScript code to draw this image.
@@ -13014,63 +13016,102 @@ Do not include explanations, comments, or HTML—just the code. If the style is 
         const menuItems = document.querySelectorAll('.menubar .menu-item');
 
         menuItems.forEach(menuItem => {
-            const span = menuItem.querySelector('span');
             const dropdown = menuItem.querySelector('.dropdown');
 
-            if (span && dropdown) {
+            if (dropdown) {
                 let touchStartTime = 0;
                 let touchMoved = false;
+                let touchStartY = 0;
 
-                // Handle touch start
-                span.addEventListener('touchstart', function (e) {
+                // Handle touch start on the menu item itself
+                menuItem.addEventListener('touchstart', function (e) {
+                    // Don't prevent default if touching a dropdown item
+                    if (e.target.closest('.dropdown li')) {
+                        return;
+                    }
+
                     e.preventDefault();
                     touchStartTime = Date.now();
                     touchMoved = false;
+                    touchStartY = e.touches[0].clientY;
 
-                    // Close other menus
-                    menuItems.forEach(item => item.classList.remove('active'));
-
-                    // Open this menu
-                    menuItem.classList.add('active');
+                    console.log('Touch start on menu item:', menuItem.textContent); // Debug log
                 }, { passive: false });
 
                 // Handle touch move
-                span.addEventListener('touchmove', function (e) {
-                    touchMoved = true;
+                menuItem.addEventListener('touchmove', function (e) {
+                    if (Math.abs(e.touches[0].clientY - touchStartY) > 10) {
+                        touchMoved = true;
+                    }
                 });
 
-                // Handle touch end
-                span.addEventListener('touchend', function (e) {
+                // Handle touch end on menu item
+                menuItem.addEventListener('touchend', function (e) {
+                    // Don't handle if touching a dropdown item
+                    if (e.target.closest('.dropdown li')) {
+                        return;
+                    }
+
                     e.preventDefault();
 
                     const touchDuration = Date.now() - touchStartTime;
 
-                    // If it was a quick tap and no movement, toggle menu
-                    if (touchDuration < 300 && !touchMoved) {
-                        if (menuItem.classList.contains('active')) {
-                            menuItem.classList.remove('active');
+                    console.log('Touch end on menu item:', menuItem.textContent, 'Duration:', touchDuration, 'Moved:', touchMoved); // Debug log
+
+                    // If it was a quick tap and minimal movement, toggle menu
+                    if (touchDuration < 500 && !touchMoved) {
+                        // Close all other menus first
+                        menuItems.forEach(item => {
+                            if (item !== menuItem) {
+                                const otherDropdown = item.querySelector('.dropdown');
+                                if (otherDropdown) {
+                                    otherDropdown.classList.remove('open');
+                                }
+                            }
+                        });
+
+                        // Toggle this menu
+                        const isOpen = dropdown.classList.contains('open');
+                        if (isOpen) {
+                            dropdown.classList.remove('open');
+                            console.log('Closing menu:', menuItem.textContent);
                         } else {
-                            menuItems.forEach(item => item.classList.remove('active'));
-                            menuItem.classList.add('active');
+                            dropdown.classList.add('open');
+                            console.log('Opening menu:', menuItem.textContent);
                         }
                     }
                 }, { passive: false });
 
                 // Handle dropdown item touches
-                const dropdownItems = dropdown.querySelectorAll('li span[data-action]');
+                const dropdownItems = dropdown.querySelectorAll('li span[data-action], li[data-action]');
                 dropdownItems.forEach(item => {
                     item.addEventListener('touchstart', function (e) {
                         e.stopPropagation();
-                    });
+                        console.log('Touch start on dropdown item:', this.textContent); // Debug log
+                    }, { passive: false });
 
                     item.addEventListener('touchend', function (e) {
                         e.preventDefault();
                         e.stopPropagation();
 
-                        const action = this.getAttribute('data-action');
+                        const action = this.getAttribute('data-action') || this.parentElement.getAttribute('data-action');
+                        console.log('Touch end on dropdown item:', this.textContent, 'Action:', action); // Debug log
+
                         if (action) {
-                            executeMenuAction(action);
-                            menuItems.forEach(item => item.classList.remove('active'));
+                            // Close all menus
+                            menuItems.forEach(item => {
+                                const dropdown = item.querySelector('.dropdown');
+                                if (dropdown) {
+                                    dropdown.classList.remove('open');
+                                }
+                            });
+
+                            // Execute the action using the existing handler
+                            const fakeEvent = {
+                                target: this,
+                                preventDefault: () => { }
+                            };
+                            app.handleMenuClick(fakeEvent);
                         }
                     }, { passive: false });
                 });
@@ -13080,8 +13121,14 @@ Do not include explanations, comments, or HTML—just the code. If the style is 
         // Close menus when touching outside
         document.addEventListener('touchstart', function (e) {
             if (!e.target.closest('.menubar')) {
-                menuItems.forEach(item => item.classList.remove('active'));
+                console.log('Touch outside menubar, closing all menus'); // Debug log
+                menuItems.forEach(item => {
+                    const dropdown = item.querySelector('.dropdown');
+                    if (dropdown) {
+                        dropdown.classList.remove('open');
+                    }
+                });
             }
-        });
+        }, { passive: false });
     }
 });
