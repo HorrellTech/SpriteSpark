@@ -12716,41 +12716,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Make menu-item fully clickable for dropdowns - UPDATED VERSION
-    document.querySelectorAll('.menubar .menu-item').forEach(item => {
-        item.addEventListener('click', function (e) {
-            // Check if we clicked on a dropdown item (has data-action)
-            const clickedElement = e.target.closest('[data-action]');
-            if (clickedElement && clickedElement.closest('.dropdown')) {
-                // This is a dropdown item click, let it handle normally
-                // Don't prevent the event - let it bubble to handleMenuClick
-                return;
-            }
-
-            // Check if we clicked inside an open dropdown but not on an action item
-            if (e.target.closest('.dropdown')) {
-                // Clicking inside dropdown but not on an action - do nothing
-                return;
-            }
-
-            // This is a menu item click (the actual menu header) - toggle dropdown
-            e.stopPropagation();
-
-            // Close all other dropdowns first
-            document.querySelectorAll('.menubar .dropdown').forEach(d => {
-                if (d !== this.querySelector('.dropdown')) {
-                    d.classList.remove('open');
-                }
-            });
-
-            // Toggle this dropdown
-            const dropdown = this.querySelector('.dropdown');
-            if (dropdown) {
-                dropdown.classList.toggle('open'); // UNCOMMENTED THIS LINE
-            }
-        });
-    });
-
     // Close dropdowns when clicking outside menubar
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.menubar')) {
