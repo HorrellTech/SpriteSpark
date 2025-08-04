@@ -51,7 +51,8 @@ class AIDrawing {
         let styleHint = '';
         switch (style) {
             case 'pixel-art':
-                styleHint = 'Color each pixel with a hex color. Use ctx.fillRect(x, y, 1, 1) to draw each pixel. Use a limited retro color palette (8-16 colors). Keep it blocky and pixelated like classic video game sprites.';
+                styleHint = 'Color each pixel with a hex color. Use ctx.fillRect(x, y, 1, 1) to draw each pixel. ' + 
+                'Use a limited retro color palette (8-16 colors). Keep it blocky and pixelated like classic video game sprites.';
                 break;
             case 'pixel-art-character':
                 styleHint = 'Create a character sprite with a limited retro color palette.'
@@ -60,14 +61,24 @@ class AIDrawing {
             case 'simple-drawing':
                 styleHint = 'Use simple shapes and colors. Use ctx.fillRect, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.fill, etc.';
                 break;
+            case 'advanced-drawing':
+                styleHint = 'Use advanced techniques and effects. Use ctx.filter, ctx.globalAlpha, ctx.rotate, ctx.scale, etc. ' +
+                'Use curves and lines for shape and details. use realistic shadows and highlights unless specified otherwise.';
+                break;
             case 'line-art':
                 styleHint = 'Use only black lines on transparent background. Use ctx.beginPath, ctx.moveTo, ctx.lineTo, ctx.stroke.';
                 break;
             case 'minimalist':
                 styleHint = 'Use only 2-4 colors, focus on essential shapes and negative space.';
                 break;
+            case 'custom':
+                styleHint = '';
+                break;
         }
-        return `You are a JavaScript canvas drawing assistant. Given a prompt, generate ONLY JavaScript code using the 2D canvas context variable "ctx" to draw a ${width}x${height} image in the style "${style}". ${styleHint} Do not include explanations, just a single code block.`;
+        return `You are a JavaScript canvas drawing assistant. Given a prompt, 
+        generate ONLY JavaScript code using the 2D canvas context variable "ctx" 
+        to draw a ${width}x${height} image in the style "${style}". ${styleHint} Do not include explanations, 
+        just a single code block.`;
     }
 
     getSystemPrompt(width, height, style) {

@@ -111,6 +111,7 @@ class SpriteSpark {
         this.isResizingObject = false;
         this.isRotatingObject = false;
         this.isSkewingObject = false;
+        this.isDraggingRotationHotspot = false;
         this.objectDragOffset = { x: 0, y: 0 };
         this.objectResizeStartData = null;
         this.objectRotateStartData = null;
@@ -1135,10 +1136,10 @@ Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, make sure 
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: systemPrompt }] }],
                     generationConfig: {
-                        temperature: 0.7,
+                        temperature: 1.5,
                         topK: 40,
                         topP: 0.95,
-                        maxOutputTokens: 3072,
+                        maxOutputTokens: 6072,
                     }
                 })
             });
@@ -1861,7 +1862,7 @@ Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, make sure 
 
                 // Enhanced system prompt with better memory context
                 const systemPrompt = `
-You are a JavaScript canvas animation assistant creating frame ${frameIndex + 1} of ${frameCount} for a smooth animation.
+You are a JavaScript canvas animation god creating frame ${frameIndex + 1} of ${frameCount} for a smooth animation.
 
 ANIMATION CONTEXT:
 - Canvas size: ${this.canvasWidth}x${this.canvasHeight}
@@ -1875,12 +1876,11 @@ REQUIREMENTS:
 1. Generate ONLY JavaScript code using the 2D canvas context variable "ctx". ctx is already defined and ready to use.
 2. Ensure smooth animation progression from previous frames, relative to frame count
 3. Maintain object consistency (size, color, position relativity)
-4. Use appropriate easing for natural motion
+4. Use any movement asked in the prompt, but ensure it fits within the canvas size.
 5. Consider the animation timeline (beginning/middle/end)
-6. If you wish, you can use image URLs to draw images if you can find free ones, but ensure they are loaded before drawing.
 
-Use javascript canvas ctx(already defined) commands. If you wish to utilize fine detail, create a const drawPixel(x, y, color) 
-function to draw pixels. Use advanced algorithms if you want to create complex shapes or patterns.
+Use javascript canvas ctx.(already defined) commands. If you wish to utilize fine detail, create a const drawPixel(x, y, color) 
+function to draw pixels if you need. Use advanced algorithms if you want to create complex shapes or patterns.
 
 Generate the drawing code for frame ${frameIndex + 1}:`;
 
@@ -1893,7 +1893,7 @@ Generate the drawing code for frame ${frameIndex + 1}:`;
                             temperature: 0.3, // Lower temperature for more consistent animation
                             topK: 40,
                             topP: 0.9,
-                            maxOutputTokens: 4096,
+                            maxOutputTokens: 6096,
                         }
                     })
                 });
@@ -4728,11 +4728,11 @@ Create drawing commands for this animation frame:`;
         this.objectInstances.forEach(instance => {
             if (instance.visible === false) return;
 
-            // NEW: Check if the object's layer is visible
+            // Check if the object's layer is visible
             if (instance.layerId) {
                 const objectLayer = this.layers.find(l => l.id === instance.layerId);
                 if (objectLayer && !objectLayer.isVisible) {
-                    return; // Skip rendering if layer is hidden
+                    return;
                 }
             }
 
@@ -4741,11 +4741,11 @@ Create drawing commands for this animation frame:`;
 
             this.livePreviewCtx.save();
 
-            // Apply onion skin alpha combined with object alpha
+            // FIX: Apply onion skin alpha combined with object alpha
             const objectAlpha = instance.alpha !== undefined ? instance.alpha : 1;
             this.livePreviewCtx.globalAlpha = alpha * objectAlpha;
 
-            // Apply object hue filter
+            // FIX: Apply object hue filter
             if (instance.hue && instance.hue !== 0) {
                 this.livePreviewCtx.filter = `hue-rotate(${instance.hue}deg)`;
             } else {
@@ -4755,7 +4755,22 @@ Create drawing commands for this animation frame:`;
             // Transform and draw object with proper scaling
             this.livePreviewCtx.translate(transform.x * scaleX, transform.y * scaleY);
             this.livePreviewCtx.rotate(transform.angle * Math.PI / 180);
-            this.livePreviewCtx.scale(transform.scale * scaleX, transform.scale * scaleY);
+
+            // FIX: Apply skew transform in preview onion skin
+            const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+            const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+            if (skewXRad !== 0 || skewYRad !== 0) {
+                this.livePreviewCtx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+            }
+
+            // FIX: Apply scaling with flip support in preview onion skin
+            let finalScaleX = (transform.scaleX || 1) * scaleX;
+            let finalScaleY = (transform.scaleY || 1) * scaleY;
+
+            if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+            if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+
+            this.livePreviewCtx.scale(finalScaleX, finalScaleY);
 
             if (transform.image) {
                 this.livePreviewCtx.drawImage(
@@ -5900,11 +5915,11 @@ Create drawing commands for this animation frame:`;
         this.objectInstances.forEach(instance => {
             if (instance.visible === false) return;
 
-            // NEW: Check if the object's layer is visible
+            // Check if the object's layer is visible
             if (instance.layerId) {
                 const objectLayer = this.layers.find(l => l.id === instance.layerId);
                 if (objectLayer && !objectLayer.isVisible) {
-                    return; // Skip rendering if layer is hidden  
+                    return;
                 }
             }
 
@@ -5913,21 +5928,36 @@ Create drawing commands for this animation frame:`;
 
             this.ctx.save();
 
-            // Apply onion skin alpha combined with object alpha
+            // FIX: Apply onion skin alpha combined with object alpha
             const objectAlpha = instance.alpha !== undefined ? instance.alpha : 1;
             this.ctx.globalAlpha = alpha * objectAlpha;
 
-            // Apply object hue filter
+            // FIX: Apply object hue filter for onion skin
             if (instance.hue && instance.hue !== 0) {
                 this.ctx.filter = `hue-rotate(${instance.hue}deg)`;
             } else {
                 this.ctx.filter = 'none';
             }
 
-            // Transform and draw object
+            // Transform and draw object with ALL properties
             this.ctx.translate(transform.x, transform.y);
             this.ctx.rotate(transform.angle * Math.PI / 180);
-            this.ctx.scale(transform.scale, transform.scale);
+
+            // FIX: Apply skew transform in onion skin
+            const skewX = (transform.skewX || 0) * Math.PI / 180;
+            const skewY = (transform.skewY || 0) * Math.PI / 180;
+            if (skewX !== 0 || skewY !== 0) {
+                this.ctx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+            }
+
+            // FIX: Apply scaling with flip support in onion skin
+            let finalScaleX = transform.scaleX || 1;
+            let finalScaleY = transform.scaleY || 1;
+
+            if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+            if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+
+            this.ctx.scale(finalScaleX, finalScaleY);
 
             if (transform.image) {
                 const img = transform.image;
@@ -6066,6 +6096,36 @@ Create drawing commands for this animation frame:`;
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // NEW: Draw rotation hotspot point
+        const hotspot = this.selectedObjectInstance.rotationHotspot || { x: 0, y: 0 };
+
+        // Convert hotspot local coordinates to world coordinates
+        const hotspotLocalX = hotspot.x;
+        const hotspotLocalY = hotspot.y;
+
+        const hotspotWorldX = centerX + (hotspotLocalX * cos - hotspotLocalY * sin);
+        const hotspotWorldY = centerY + (hotspotLocalX * sin + hotspotLocalY * cos);
+
+        // Draw hotspot point
+        const hotspotSize = isTouchDevice ? 10 : 6;
+        ctx.beginPath();
+        ctx.arc(hotspotWorldX, hotspotWorldY, hotspotSize, 0, 2 * Math.PI);
+        ctx.fillStyle = '#FF4CAF';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw crosshair in hotspot
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(hotspotWorldX - hotspotSize / 2, hotspotWorldY);
+        ctx.lineTo(hotspotWorldX + hotspotSize / 2, hotspotWorldY);
+        ctx.moveTo(hotspotWorldX, hotspotWorldY - hotspotSize / 2);
+        ctx.lineTo(hotspotWorldX, hotspotWorldY + hotspotSize / 2);
         ctx.stroke();
 
         // Draw flip buttons with larger sizes for touch
@@ -7407,6 +7467,21 @@ Create drawing commands for this animation frame:`;
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
 
+        // Check rotation hotspot first (highest priority)
+        if (this.selectedObjectInstance && this.selectedObjectInstance.rotationHotspot) {
+            const hotspot = this.selectedObjectInstance.rotationHotspot;
+            const hotspotWorldX = centerX + (hotspot.x * cos - hotspot.y * sin);
+            const hotspotWorldY = centerY + (hotspot.x * sin + hotspot.y * cos);
+
+            const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const hotspotSize = isTouchDevice ? 10 : 6;
+
+            if (Math.abs(canvasX - hotspotWorldX) < hotspotSize + 4 &&
+                Math.abs(canvasY - hotspotWorldY) < hotspotSize + 4) {
+                return { type: 'hotspot' };
+            }
+        }
+
         const corners = [
             { x: -halfWidth, y: -halfHeight, handle: 'nw' },
             { x: halfWidth, y: -halfHeight, handle: 'ne' },
@@ -7435,7 +7510,7 @@ Create drawing commands for this animation frame:`;
 
         // Increased handle sizes for touch devices
         const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-        const handleSize = isTouchDevice ? 24 : 12; // Larger for touch
+        const handleSize = isTouchDevice ? 24 : 12;
         const edgeHandleSize = isTouchDevice ? 16 : 8;
 
         // Check resize handles (corners)
@@ -7471,7 +7546,7 @@ Create drawing commands for this animation frame:`;
 
         // Check flip buttons
         const flipDistance = Math.max(halfWidth, halfHeight) + 20;
-        const flipButtonSize = isTouchDevice ? 32 : 16; // Larger for touch
+        const flipButtonSize = isTouchDevice ? 32 : 16;
 
         // Horizontal flip button
         const hFlipButton = {
@@ -10530,6 +10605,33 @@ Create drawing commands for this animation frame:`;
         this.syncGlobalLayersToCurrentFrame();
     }
 
+    updateRotationHotspotBounds() {
+        if (!this.selectedObjectInstance) return;
+
+        const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
+        const img = transform.image;
+        if (!img) return;
+
+        const hotspot = this.selectedObjectInstance.rotationHotspot || { x: 0, y: 0 };
+
+        // FIX: Calculate bounds based on current scale
+        const scaleX = Math.abs(transform.scaleX || 1);
+        const scaleY = Math.abs(transform.scaleY || 1);
+        const maxX = (img.width * scaleX) / 2;
+        const maxY = (img.height * scaleY) / 2;
+        const minX = -maxX;
+        const minY = -maxY;
+
+        // Clamp hotspot to current bounds
+        const clampedX = Math.max(minX, Math.min(maxX, hotspot.x));
+        const clampedY = Math.max(minY, Math.min(maxY, hotspot.y));
+
+        // Update if clamping was needed
+        if (Math.abs(clampedX - hotspot.x) > 0.01 || Math.abs(clampedY - hotspot.y) > 0.01) {
+            this.selectedObjectInstance.setRotationHotspot(clampedX, clampedY);
+        }
+    }
+
     // OBJECTS
     initializeObjectTool() {
         // Object library controls
@@ -10921,17 +11023,25 @@ Create drawing commands for this animation frame:`;
         const validAngle = isNaN(newAngle) ? currentTransform.angle : ((newAngle % 360) + 360) % 360;
 
         // Update transform properties
+        // Update transform properties
         const newTransform = {
             x: validX,
             y: validY,
             scaleX: validScaleX,
             scaleY: validScaleY,
             angle: validAngle,
+            flipX: currentTransform.flipX || false,
+            flipY: currentTransform.flipY || false,
+            skewX: currentTransform.skewX || 0,
+            skewY: currentTransform.skewY || 0,
             image: currentTransform.image
         };
 
         // Set the keyframe with new transform
         this.selectedObjectInstance.setKeyframe(this.currentFrame, newTransform);
+
+        // Update hotspot bounds after property changes
+        this.updateRotationHotspotBounds();
 
         // Re-render to show changes immediately
         this.renderCurrentFrameToMainCanvas();
@@ -10942,6 +11052,10 @@ Create drawing commands for this animation frame:`;
 
         const transform = this.selectedObjectInstance.getTransformAt(this.currentFrame);
         this.selectedObjectInstance.setKeyframe(this.currentFrame, transform);
+
+        // Update hotspot bounds
+        this.updateRotationHotspotBounds();
+
         this.renderCurrentFrameToMainCanvas();
     }
 
@@ -10964,6 +11078,10 @@ Create drawing commands for this animation frame:`;
         };
 
         this.selectedObjectInstance.setKeyframe(this.currentFrame, newTransform);
+
+        // Update hotspot bounds after centering
+        this.updateRotationHotspotBounds();
+
         this.updateObjectPropertiesPanel();
         this.renderCurrentFrameToMainCanvas();
     }
@@ -11025,6 +11143,11 @@ Create drawing commands for this animation frame:`;
             if (transform.image) {
                 const handle = this.getObjectTransformHandle(x, y, transform);
                 if (handle) {
+                    if (handle.type === 'hotspot') {
+                        this.isDraggingRotationHotspot = true;
+                        this.objectDragOffset = { x: 0, y: 0 }; // Will be calculated in mouse move
+                        return;
+                    }
                     if (handle.type === 'resize') {
                         this.isResizingObject = true;
                         this.objectResizeHandle = handle.handle;
@@ -11058,7 +11181,9 @@ Create drawing commands for this animation frame:`;
                             skewX: transform.skewX,
                             skewY: transform.skewY,
                             image: transform.image,
-                            startAngle: Math.atan2(y - transform.y, x - transform.x) * 180 / Math.PI
+                            // Remove startAngle as it's not needed with the new approach
+                            mouseStartX: x,
+                            mouseStartY: y
                         };
                         return;
                     }
@@ -11116,6 +11241,7 @@ Create drawing commands for this animation frame:`;
         this.isResizingObject = false;
         this.isRotatingObject = false;
         this.isSkewingObject = false;
+        this.isDraggingRotationHotspot = false;
         this.updateObjectPropertiesPanel();
         this.renderCurrentFrameToMainCanvas();
         this.renderObjectsList();
@@ -11127,6 +11253,45 @@ Create drawing commands for this animation frame:`;
         const rect = this.mainCanvas.getBoundingClientRect();
         const x = (e.clientX - rect.left) / this.zoom;
         const y = (e.clientY - rect.top) / this.zoom;
+
+        // Dragging rotation hotspot
+        if (this.isDraggingRotationHotspot && this.selectedObjectInstance) {
+            const obj = this.selectedObjectInstance;
+            const transform = obj.getTransformAt(this.currentFrame);
+
+            // Convert mouse position to object local coordinates
+            const centerX = transform.x;
+            const centerY = transform.y;
+            const angle = -transform.angle * Math.PI / 180; // Negative for inverse rotation
+
+            const dx = x - centerX;
+            const dy = y - centerY;
+
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+
+            const localX = dx * cos - dy * sin;
+            const localY = dx * sin + dy * cos;
+
+            // FIX: Constrain hotspot to current object bounds including scale
+            const img = transform.image;
+            if (img) {
+                const scaleX = Math.abs(transform.scaleX || 1);
+                const scaleY = Math.abs(transform.scaleY || 1);
+                const maxX = (img.width * scaleX) / 2;
+                const maxY = (img.height * scaleY) / 2;
+                const minX = -maxX;
+                const minY = -maxY;
+
+                const constrainedX = Math.max(minX, Math.min(maxX, localX));
+                const constrainedY = Math.max(minY, Math.min(maxY, localY));
+
+                obj.setRotationHotspot(constrainedX, constrainedY);
+            }
+
+            this.renderCurrentFrameToMainCanvas();
+            return;
+        }
 
         // Dragging object
         if (this.isDraggingObject && this.selectedObjectInstance) {
@@ -11146,6 +11311,10 @@ Create drawing commands for this animation frame:`;
                 skewY: transform.skewY,
                 image: transform.image
             });
+
+            // Update hotspot bounds after moving
+            this.updateRotationHotspotBounds();
+
             this.updateObjectPropertiesPanel();
             this.renderCurrentFrameToMainCanvas();
             return;
@@ -11209,6 +11378,10 @@ Create drawing commands for this animation frame:`;
                 skewY: start.skewY,
                 image: start.image
             });
+
+            // Update hotspot bounds after resizing
+            this.updateRotationHotspotBounds();
+
             this.updateObjectPropertiesPanel();
             this.renderCurrentFrameToMainCanvas();
             return;
@@ -11219,13 +11392,46 @@ Create drawing commands for this animation frame:`;
             const obj = this.selectedObjectInstance;
             const start = this.objectRotateStartData;
 
-            const currentAngle = Math.atan2(y - start.y, x - start.x) * 180 / Math.PI;
-            const angleDiff = currentAngle - start.startAngle;
-            let newAngle = (start.angle + angleDiff + 360) % 360;
+            // Get the rotation hotspot in world coordinates
+            const hotspot = obj.rotationHotspot || { x: 0, y: 0 };
+            const cos = Math.cos(start.angle * Math.PI / 180);
+            const sin = Math.sin(start.angle * Math.PI / 180);
+
+            // Calculate world position of hotspot (pivot point)
+            const pivotX = start.x + (hotspot.x * cos - hotspot.y * sin);
+            const pivotY = start.y + (hotspot.x * sin + hotspot.y * cos);
+
+            // Calculate angle from pivot point to current mouse position
+            const dx = x - pivotX;
+            const dy = y - pivotY;
+            const currentAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+            // FIX: Calculate angle from pivot to start mouse position for reference
+            const startDx = start.mouseStartX - pivotX;
+            const startDy = start.mouseStartY - pivotY;
+            const startAngle = Math.atan2(startDy, startDx) * 180 / Math.PI;
+
+            // Calculate rotation delta and apply to original angle
+            let angleDelta = currentAngle - startAngle;
+
+            // Normalize angle delta to -180 to 180 range
+            while (angleDelta > 180) angleDelta -= 360;
+            while (angleDelta < -180) angleDelta += 360;
+
+            let newAngle = (start.angle + angleDelta + 360) % 360;
+
+            // FIX: When rotating around hotspot, we need to adjust object position
+            // to keep the hotspot at the same world position
+            const newCos = Math.cos(newAngle * Math.PI / 180);
+            const newSin = Math.sin(newAngle * Math.PI / 180);
+
+            // Calculate where the object center should be to keep hotspot at pivot
+            const newX = pivotX - (hotspot.x * newCos - hotspot.y * newSin);
+            const newY = pivotY - (hotspot.x * newSin + hotspot.y * newCos);
 
             obj.setKeyframe(this.currentFrame, {
-                x: start.x,
-                y: start.y,
+                x: newX,
+                y: newY,
                 scaleX: start.scaleX,
                 scaleY: start.scaleY,
                 angle: newAngle,
@@ -11235,6 +11441,7 @@ Create drawing commands for this animation frame:`;
                 skewY: start.skewY,
                 image: start.image
             });
+
             this.updateObjectPropertiesPanel();
             this.renderCurrentFrameToMainCanvas();
             return;
@@ -11255,7 +11462,7 @@ Create drawing commands for this animation frame:`;
             let newSkewY = start.skewY;
 
             const maxSkew = 45; // Maximum skew in degrees
-            const skewSensitivity = 0.2; // How sensitive the skewing is
+            const skewSensitivity = 0.6; // How sensitive the skewing is
 
             switch (start.skewHandle) {
                 case 'n': // Top edge - skew X
@@ -11293,6 +11500,7 @@ Create drawing commands for this animation frame:`;
         this.isRotatingObject = false;
         this.isRotatingObject = false;
         this.isSkewingObject = false;
+        this.isDraggingRotationHotspot = false;
         this.objectResizeHandle = null;
     }
 
