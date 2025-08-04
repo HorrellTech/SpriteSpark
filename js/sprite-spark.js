@@ -389,6 +389,23 @@ class SpriteSpark {
             colorPicker.addEventListener('change', this.handleColorChange.bind(this));
         }
 
+        // Hue control for objects
+        const objectHueInput = document.getElementById('objectHue');
+        const objectHueValue = document.getElementById('objectHueValue');
+
+        if (objectHueInput && objectHueValue) {
+            objectHueInput.addEventListener('input', function () {
+                const hueValue = parseFloat(this.value);
+                objectHueValue.textContent = hueValue + '°';
+
+                if (selectedObjectId && sceneObjects[selectedObjectId]) {
+                    sceneObjects[selectedObjectId].hue = hueValue;
+                    updateObjectPropertiesDisplay();
+                    renderFrame(currentFrame);
+                }
+            });
+        }
+
         // Add this after other event listeners:
         const zoomInput = document.getElementById('zoomInput');
         if (zoomInput) {
@@ -4469,6 +4486,12 @@ Create drawing commands for this animation frame:`;
         const scaleX = this.livePreviewCanvas.width / this.canvasWidth;
         const scaleY = this.livePreviewCanvas.height / this.canvasHeight;
 
+        // Disable antialiasing for pixel perfect preview
+        this.livePreviewCtx.imageSmoothingEnabled = false;
+        this.livePreviewCtx.webkitImageSmoothingEnabled = false;
+        this.livePreviewCtx.mozImageSmoothingEnabled = false;
+        this.livePreviewCtx.msImageSmoothingEnabled = false;
+
         // Draw onion skin frames first (if enabled) - ONLY PREVIOUS FRAMES
         if (this.showOnionSkin && this.frames.length > 1) {
             for (let offset = -this.onionSkinFrames; offset < 0; offset++) {
@@ -4553,6 +4576,13 @@ Create drawing commands for this animation frame:`;
             }
 
             lpCtx.save();
+
+            // FIX: Disable antialiasing for pixel perfect preview objects
+            lpCtx.imageSmoothingEnabled = false;
+            lpCtx.webkitImageSmoothingEnabled = false;
+            lpCtx.mozImageSmoothingEnabled = false;
+            lpCtx.msImageSmoothingEnabled = false;
+
             lpCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
             lpCtx.filter = obj.hue ? `hue-rotate(${obj.hue}deg)` : 'none';
 
@@ -4624,6 +4654,11 @@ Create drawing commands for this animation frame:`;
         const scaleX = this.livePreviewCanvas.width / this.canvasWidth;
         const scaleY = this.livePreviewCanvas.height / this.canvasHeight;
 
+        this.livePreviewCtx.imageSmoothingEnabled = false;
+        this.livePreviewCtx.webkitImageSmoothingEnabled = false;
+        this.livePreviewCtx.mozImageSmoothingEnabled = false;
+        this.livePreviewCtx.msImageSmoothingEnabled = false;
+
         // Draw onion skin frames first (if enabled) - ONLY PREVIOUS FRAMES
         if (this.showOnionSkin && this.frames.length > 1) {
             for (let offset = -this.onionSkinFrames; offset < 0; offset++) { // Changed: offset < 0 instead of <= 0
@@ -4682,6 +4717,12 @@ Create drawing commands for this animation frame:`;
             const transform = obj.getTransformAt(frameIndexToRender);
 
             lpCtx.save();
+
+            lpCtx.imageSmoothingEnabled = false;
+            lpCtx.webkitImageSmoothingEnabled = false;
+            lpCtx.mozImageSmoothingEnabled = false;
+            lpCtx.msImageSmoothingEnabled = false;
+
             lpCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
             lpCtx.filter = obj.hue ? `hue-rotate(${obj.hue}deg)` : 'none';
 
@@ -4740,6 +4781,12 @@ Create drawing commands for this animation frame:`;
             if (!transform.image && !instance.name) return;
 
             this.livePreviewCtx.save();
+
+            // FIX: Disable antialiasing for pixel perfect preview onion skin
+            this.livePreviewCtx.imageSmoothingEnabled = false;
+            this.livePreviewCtx.webkitImageSmoothingEnabled = false;
+            this.livePreviewCtx.mozImageSmoothingEnabled = false;
+            this.livePreviewCtx.msImageSmoothingEnabled = false;
 
             // FIX: Apply onion skin alpha combined with object alpha
             const objectAlpha = instance.alpha !== undefined ? instance.alpha : 1;
@@ -5870,6 +5917,12 @@ Create drawing commands for this animation frame:`;
 
             this.ctx.save();
 
+            // FIX: Disable antialiasing for pixel perfect objects
+            this.ctx.imageSmoothingEnabled = false;
+            this.ctx.webkitImageSmoothingEnabled = false;
+            this.ctx.mozImageSmoothingEnabled = false;
+            this.ctx.msImageSmoothingEnabled = false;
+
             // Apply object-level alpha and hue
             this.ctx.globalAlpha = (instance.alpha || 1) / 100;
 
@@ -5927,6 +5980,11 @@ Create drawing commands for this animation frame:`;
             if (!transform.image && !instance.name) return;
 
             this.ctx.save();
+
+            this.ctx.imageSmoothingEnabled = false;
+            this.ctx.webkitImageSmoothingEnabled = false;
+            this.ctx.mozImageSmoothingEnabled = false;
+            this.ctx.msImageSmoothingEnabled = false;
 
             // FIX: Apply onion skin alpha combined with object alpha
             const objectAlpha = instance.alpha !== undefined ? instance.alpha : 1;
@@ -7683,6 +7741,12 @@ Create drawing commands for this animation frame:`;
                 thumbCanvas.height = h;
                 const thumbCtx = thumbCanvas.getContext('2d');
 
+                // FIX: Disable antialiasing for pixel perfect thumbnails
+                thumbCtx.imageSmoothingEnabled = false;
+                thumbCtx.webkitImageSmoothingEnabled = false;
+                thumbCtx.mozImageSmoothingEnabled = false;
+                thumbCtx.msImageSmoothingEnabled = false;
+
                 // Draw all layers for this frame, bottom to top
                 if (frame.layers) {
                     for (let i = 0; i < frame.layers.length; i++) {
@@ -8725,6 +8789,11 @@ Create drawing commands for this animation frame:`;
                     this.updateObjectLibraryList();
                     this.renderObjectsList();
                     this.refreshObjectLayerDropdown();
+
+                    // FIX: Update scene objects manager after loading
+                    if (this.sceneObjectsManager) {
+                        this.sceneObjectsManager.refresh();
+                    }
 
                     // Update UI inputs
                     const canvasWidthInput = document.getElementById('canvasWidth');
@@ -11616,6 +11685,13 @@ Create drawing commands for this animation frame:`;
             if (!transform.image && !instance.name) return;
 
             this.ctx.save();
+
+            // FIX: Disable antialiasing for pixel perfect objects
+            this.ctx.imageSmoothingEnabled = false;
+            this.ctx.webkitImageSmoothingEnabled = false;
+            this.ctx.mozImageSmoothingEnabled = false;
+            this.ctx.msImageSmoothingEnabled = false;
+
             this.ctx.translate(transform.x, transform.y);
             this.ctx.rotate(transform.angle * Math.PI / 180);
 
@@ -11895,6 +11971,44 @@ Create drawing commands for this animation frame:`;
     }
 }
 
+function updateObjectPropertiesDisplay() {
+    if (!selectedObjectId || !sceneObjects[selectedObjectId]) {
+        document.getElementById('objectPropertiesPanel').style.display = 'none';
+        return;
+    }
+
+    const obj = sceneObjects[selectedObjectId];
+    const transform = obj.getTransformAt(currentFrame);
+    
+    document.getElementById('objectPropertiesPanel').style.display = 'block';
+    document.getElementById('objectName').value = obj.name || '';
+    document.getElementById('objectX').value = transform.x || 0;
+    document.getElementById('objectY').value = transform.y || 0;
+    document.getElementById('objectScaleX').value = transform.scaleX || 1;
+    document.getElementById('objectScaleY').value = transform.scaleY || 1;
+    document.getElementById('objectAngle').value = transform.angle || 0;
+    document.getElementById('objectTween').checked = obj.tween;
+    
+    // Update hue control
+    const hueInput = document.getElementById('objectHue');
+    const hueValue = document.getElementById('objectHueValue');
+    if (hueInput && hueValue) {
+        hueInput.value = obj.hue || 0;
+        hueValue.textContent = (obj.hue || 0) + '°';
+    }
+    
+    // Update layer dropdown
+    const layerSelect = document.getElementById('objectLayer');
+    layerSelect.innerHTML = '';
+    layers.forEach(layer => {
+        const option = document.createElement('option');
+        option.value = layer.id;
+        option.textContent = layer.name;
+        option.selected = layer.id === obj.layerId;
+        layerSelect.appendChild(option);
+    });
+}
+
 // --- Mobile Panel Toggle Logic ---
 function setMobilePanel(panel) {
     document.body.classList.add('mobile-mode');
@@ -12115,6 +12229,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateBottomPanelPosition();
+
+    // Add touch menubar initialization
+    initializeTouchMenubar();
 
     // --- Canvas Panning with Middle Mouse Button ---
 
@@ -12859,5 +12976,81 @@ Do not include explanations, comments, or HTML—just the code. If the style is 
         } catch (err) {
             app.showNotification('Error: ' + err.message, 'warning');
         }
+    }
+
+    // Touch-friendly menubar handling
+    function initializeTouchMenubar() {
+        const menuItems = document.querySelectorAll('.menubar .menu-item');
+
+        menuItems.forEach(menuItem => {
+            const span = menuItem.querySelector('span');
+            const dropdown = menuItem.querySelector('.dropdown');
+
+            if (span && dropdown) {
+                let touchStartTime = 0;
+                let touchMoved = false;
+
+                // Handle touch start
+                span.addEventListener('touchstart', function (e) {
+                    e.preventDefault();
+                    touchStartTime = Date.now();
+                    touchMoved = false;
+
+                    // Close other menus
+                    menuItems.forEach(item => item.classList.remove('active'));
+
+                    // Open this menu
+                    menuItem.classList.add('active');
+                }, { passive: false });
+
+                // Handle touch move
+                span.addEventListener('touchmove', function (e) {
+                    touchMoved = true;
+                });
+
+                // Handle touch end
+                span.addEventListener('touchend', function (e) {
+                    e.preventDefault();
+
+                    const touchDuration = Date.now() - touchStartTime;
+
+                    // If it was a quick tap and no movement, toggle menu
+                    if (touchDuration < 300 && !touchMoved) {
+                        if (menuItem.classList.contains('active')) {
+                            menuItem.classList.remove('active');
+                        } else {
+                            menuItems.forEach(item => item.classList.remove('active'));
+                            menuItem.classList.add('active');
+                        }
+                    }
+                }, { passive: false });
+
+                // Handle dropdown item touches
+                const dropdownItems = dropdown.querySelectorAll('li span[data-action]');
+                dropdownItems.forEach(item => {
+                    item.addEventListener('touchstart', function (e) {
+                        e.stopPropagation();
+                    });
+
+                    item.addEventListener('touchend', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const action = this.getAttribute('data-action');
+                        if (action) {
+                            executeMenuAction(action);
+                            menuItems.forEach(item => item.classList.remove('active'));
+                        }
+                    }, { passive: false });
+                });
+            }
+        });
+
+        // Close menus when touching outside
+        document.addEventListener('touchstart', function (e) {
+            if (!e.target.closest('.menubar')) {
+                menuItems.forEach(item => item.classList.remove('active'));
+            }
+        });
     }
 });

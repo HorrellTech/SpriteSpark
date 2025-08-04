@@ -88,4 +88,101 @@ body.mobile-mode .main-content {
     display: none !important;
 }
 
+/* Touch-friendly menubar */
+.menubar {
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.menubar .menu-item {
+    position: relative;
+    touch-action: manipulation;
+}
+
+.menubar .menu-item > span {
+    display: block;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    touch-action: manipulation;
+}
+
+.menubar .menu-item:hover > span,
+.menubar .menu-item.active > span {
+    background-color: var(--accent-color);
+    color: var(--bg-primary);
+}
+
+.menubar .dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    min-width: 180px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.2s ease;
+    touch-action: manipulation;
+}
+
+.menubar .menu-item.active .dropdown,
+.menubar .menu-item:hover .dropdown {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.menubar .dropdown li {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.menubar .dropdown li span {
+    display: block;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    touch-action: manipulation;
+    white-space: nowrap;
+}
+
+.menubar .dropdown li:hover span,
+.menubar .dropdown li span:active {
+    background-color: var(--accent-color);
+    color: var(--bg-primary);
+}
+
+.menubar .dropdown .separator {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 4px 0;
+}
+
+/* Mobile touch improvements */
+@media (max-width: 768px) {
+    .menubar .menu-item > span {
+        padding: 12px 20px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .menubar .dropdown li span {
+        padding: 12px 20px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+}
+
 /* Portrait warning removed - users can now use portrait mode */
