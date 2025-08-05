@@ -5,6 +5,30 @@ class SpriteObject {
         this.visible = options.visible !== undefined ? options.visible : true;
         this.alpha = options.alpha !== undefined ? options.alpha : 1;
         this.hue = options.hue || 0;
+
+        // New visual properties
+        this.saturation = options.saturation !== undefined ? options.saturation : 100;
+        this.brightness = options.brightness !== undefined ? options.brightness : 100;
+        this.contrast = options.contrast !== undefined ? options.contrast : 100;
+        
+        // Drop shadow properties
+        this.dropShadow = {
+            enabled: options.dropShadowEnabled || false,
+            offsetX: options.shadowOffsetX || 3,
+            offsetY: options.shadowOffsetY || 3,
+            blur: options.shadowBlur || 5,
+            color: options.shadowColor || '#000000',
+            opacity: options.shadowOpacity !== undefined ? options.shadowOpacity : 50
+        };
+        
+        // Glow properties
+        this.glow = {
+            enabled: options.glowEnabled || false,
+            size: options.glowSize || 10,
+            color: options.glowColor || '#ffffff',
+            intensity: options.glowIntensity !== undefined ? options.glowIntensity : 50
+        };
+        
         this.layerId = options.layerId || null;
         this.tween = options.tween !== undefined ? options.tween : true;
         this.keyframes = {};

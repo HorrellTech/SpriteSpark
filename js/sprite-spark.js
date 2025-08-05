@@ -266,7 +266,6 @@ class SpriteSpark {
                 }
             });
 
-
             // Ghost cursor
             this.mainCanvas.addEventListener('mousemove', this.updateGhostCursor.bind(this));
             this.mainCanvas.addEventListener('mouseenter', this.showGhostCursor.bind(this));
@@ -600,6 +599,27 @@ class SpriteSpark {
         const aiPromptInput = document.getElementById('aiPrompt');
         const aiCanvasSizeSelect = document.getElementById('aiCanvasSize');
         const aiArtStyleSelect = document.getElementById('aiArtStyle');
+        const aiTemperatureInput = document.getElementById('aiTemperature');
+        const aiTemperatureValue = document.getElementById('aiTemperatureValue');
+
+        // Temperature control for AI art
+        if (aiTemperatureInput && aiTemperatureValue) {
+            aiTemperatureInput.addEventListener('input', (e) => {
+                const temperature = parseFloat(e.target.value);
+                aiTemperatureValue.textContent = temperature.toFixed(1);
+            });
+        }
+
+        // AI Animation temperature control
+        const aiAnimationTemperatureInput = document.getElementById('aiAnimationTemperature');
+        const aiAnimationTemperatureValue = document.getElementById('aiAnimationTemperatureValue');
+
+        if (aiAnimationTemperatureInput && aiAnimationTemperatureValue) {
+            aiAnimationTemperatureInput.addEventListener('input', (e) => {
+                const temperature = parseFloat(e.target.value);
+                aiAnimationTemperatureValue.textContent = temperature.toFixed(1);
+            });
+        }
 
         if (generateAIArtBtn) {
             generateAIArtBtn.addEventListener('click', () => {
@@ -667,6 +687,164 @@ class SpriteSpark {
                     localStorage.setItem('gemini_api_key', apiKey.trim());
                     alert('Gemini API key saved locally!');
                     this.updateApiKeyButton();
+                }
+            });
+        }
+
+        // Enhanced object property controls
+        const objectSaturation = document.getElementById('objectSaturation');
+        const objectSaturationValue = document.getElementById('objectSaturationValue');
+        const objectBrightness = document.getElementById('objectBrightness');
+        const objectBrightnessValue = document.getElementById('objectBrightnessValue');
+        const objectContrast = document.getElementById('objectContrast');
+        const objectContrastValue = document.getElementById('objectContrastValue');
+
+        // Drop shadow controls
+        const objectDropShadowEnabled = document.getElementById('objectDropShadowEnabled');
+        const dropShadowControls = document.getElementById('dropShadowControls');
+        const objectShadowX = document.getElementById('objectShadowX');
+        const objectShadowXValue = document.getElementById('objectShadowXValue');
+        const objectShadowY = document.getElementById('objectShadowY');
+        const objectShadowYValue = document.getElementById('objectShadowYValue');
+        const objectShadowBlur = document.getElementById('objectShadowBlur');
+        const objectShadowBlurValue = document.getElementById('objectShadowBlurValue');
+        const objectShadowColor = document.getElementById('objectShadowColor');
+        const objectShadowOpacity = document.getElementById('objectShadowOpacity');
+        const objectShadowOpacityValue = document.getElementById('objectShadowOpacityValue');
+
+        // Glow controls
+        const objectGlowEnabled = document.getElementById('objectGlowEnabled');
+        const glowControls = document.getElementById('glowControls');
+        const objectGlowSize = document.getElementById('objectGlowSize');
+        const objectGlowSizeValue = document.getElementById('objectGlowSizeValue');
+        const objectGlowColor = document.getElementById('objectGlowColor');
+        const objectGlowIntensity = document.getElementById('objectGlowIntensity');
+        const objectGlowIntensityValue = document.getElementById('objectGlowIntensityValue');
+
+        // Saturation control
+        if (objectSaturation && objectSaturationValue) {
+            objectSaturation.addEventListener('input', () => {
+                const saturationValue = parseInt(objectSaturation.value);
+                objectSaturationValue.textContent = saturationValue + '%';
+
+                if (this.selectedObjectInstance) {
+                    this.selectedObjectInstance.saturation = saturationValue;
+                    this.updateObjectPropertiesPanel();
+                    this.renderCurrentFrameToMainCanvas();
+                }
+            });
+        }
+
+        // Brightness control
+        if (objectBrightness && objectBrightnessValue) {
+            objectBrightness.addEventListener('input', () => {
+                const brightnessValue = parseInt(objectBrightness.value);
+                objectBrightnessValue.textContent = brightnessValue + '%';
+
+                if (this.selectedObjectInstance) {
+                    this.selectedObjectInstance.brightness = brightnessValue;
+                    this.updateObjectPropertiesPanel();
+                    this.renderCurrentFrameToMainCanvas();
+                }
+            });
+        }
+
+        // Contrast control
+        if (objectContrast && objectContrastValue) {
+            objectContrast.addEventListener('input', () => {
+                const contrastValue = parseInt(objectContrast.value);
+                objectContrastValue.textContent = contrastValue + '%';
+
+                if (this.selectedObjectInstance) {
+                    this.selectedObjectInstance.contrast = contrastValue;
+                    this.updateObjectPropertiesPanel();
+                    this.renderCurrentFrameToMainCanvas();
+                }
+            });
+        }
+
+        // Drop shadow toggle
+        if (objectDropShadowEnabled && dropShadowControls) {
+            objectDropShadowEnabled.addEventListener('change', () => {
+                const enabled = objectDropShadowEnabled.checked;
+                dropShadowControls.style.display = enabled ? 'block' : 'none';
+
+                if (this.selectedObjectInstance) {
+                    this.selectedObjectInstance.dropShadow.enabled = enabled;
+                    this.renderCurrentFrameToMainCanvas();
+                }
+            });
+        }
+
+        // Drop shadow controls
+        const shadowControls = [
+            { element: objectShadowX, valueElement: objectShadowXValue, property: 'offsetX', suffix: 'px' },
+            { element: objectShadowY, valueElement: objectShadowYValue, property: 'offsetY', suffix: 'px' },
+            { element: objectShadowBlur, valueElement: objectShadowBlurValue, property: 'blur', suffix: 'px' },
+            { element: objectShadowOpacity, valueElement: objectShadowOpacityValue, property: 'opacity', suffix: '%' }
+        ];
+
+        shadowControls.forEach(({ element, valueElement, property, suffix }) => {
+            if (element && valueElement) {
+                element.addEventListener('input', () => {
+                    const value = parseInt(element.value);
+                    valueElement.textContent = value + suffix;
+
+                    if (this.selectedObjectInstance) {
+                        this.selectedObjectInstance.dropShadow[property] = value;
+                        this.renderCurrentFrameToMainCanvas();
+                    }
+                });
+            }
+        });
+
+        if (objectShadowColor) {
+            objectShadowColor.addEventListener('change', () => {
+                if (this.selectedObjectInstance) {
+                    this.selectedObjectInstance.dropShadow.color = objectShadowColor.value;
+                    this.renderCurrentFrameToMainCanvas();
+                }
+            });
+        }
+
+        // Glow toggle
+        if (objectGlowEnabled && glowControls) {
+            objectGlowEnabled.addEventListener('change', () => {
+                const enabled = objectGlowEnabled.checked;
+                glowControls.style.display = enabled ? 'block' : 'none';
+
+                if (this.selectedObjectInstance) {
+                    this.selectedObjectInstance.glow.enabled = enabled;
+                    this.renderCurrentFrameToMainCanvas();
+                }
+            });
+        }
+
+        // Glow controls
+        const glowControlsList = [
+            { element: objectGlowSize, valueElement: objectGlowSizeValue, property: 'size', suffix: 'px' },
+            { element: objectGlowIntensity, valueElement: objectGlowIntensityValue, property: 'intensity', suffix: '%' }
+        ];
+
+        glowControlsList.forEach(({ element, valueElement, property, suffix }) => {
+            if (element && valueElement) {
+                element.addEventListener('input', () => {
+                    const value = parseInt(element.value);
+                    valueElement.textContent = value + suffix;
+
+                    if (this.selectedObjectInstance) {
+                        this.selectedObjectInstance.glow[property] = value;
+                        this.renderCurrentFrameToMainCanvas();
+                    }
+                });
+            }
+        });
+
+        if (objectGlowColor) {
+            objectGlowColor.addEventListener('change', () => {
+                if (this.selectedObjectInstance) {
+                    this.selectedObjectInstance.glow.color = objectGlowColor.value;
+                    this.renderCurrentFrameToMainCanvas();
                 }
             });
         }
@@ -1141,12 +1319,18 @@ class SpriteSpark {
         try {
             const canvasSize = Math.min(this.canvasWidth, this.canvasHeight);
 
+            // Get temperature from UI
+            const temperatureInput = document.getElementById('aiTemperature');
+            const temperature = temperatureInput ? parseFloat(temperatureInput.value) : 1.5;
+
             // System prompt: ask for ONLY JavaScript code using ctx for drawing
             const systemPrompt = `
 You are a JavaScript canvas drawing professional. Given a prompt, generate ONLY JavaScript code using the 2D canvas context variable "ctx" to draw a ${canvasSize}x${canvasSize} image in the style "${style}".
 - Use ctx.fillRect, ctx.beginPath, ctx.arc, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.fill etc(you should have access to all javascript drawing commands).
 - Do not include explanations, just a single code block.
 - The variable "ctx" is already defined.
+- For text, use ctx.fillText or ctx.strokeText with appropriate font settings. Use a new FontFace if needed and reference the URL of a certain required font.
+- You can use external libraries if you dynamically load them in the code first.
 Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, make sure to *CENTER THE MAIN SUBJECT* in ${style} style. generate ONLY the JavaScript code to draw this image.
 `;
 
@@ -1156,7 +1340,7 @@ Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, make sure 
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: systemPrompt }] }],
                     generationConfig: {
-                        temperature: 1.5,
+                        temperature: temperature,
                         topK: 40,
                         topP: 0.95,
                         maxOutputTokens: 6072,
@@ -1854,6 +2038,10 @@ Prompt: ${prompt} at ${this.canvasWidth}x${this.canvasHeight}px size, make sure 
         generateBtn.classList.remove('success', 'error');
 
         try {
+            // Get temperature from UI
+            const temperatureInput = document.getElementById('aiAnimationTemperature');
+            const temperature = temperatureInput ? parseFloat(temperatureInput.value) : 0.7;
+
             // Clear existing frames and start fresh
             this.frames = [this.createEmptyFrame()];
             this.currentFrame = 0;
@@ -1910,7 +2098,7 @@ Generate the drawing code for frame ${frameIndex + 1}:`;
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: systemPrompt }] }],
                         generationConfig: {
-                            temperature: 0.3, // Lower temperature for more consistent animation
+                            temperature: temperature, // Lower temperature for more consistent animation
                             topK: 40,
                             topP: 0.9,
                             maxOutputTokens: 6096,
@@ -5923,7 +6111,7 @@ Create drawing commands for this animation frame:`;
 
         orphanedObjects.forEach(instance => {
             const transform = instance.getTransformAt(this.currentFrame);
-            if (!transform.image) return;
+            if (!transform.image && !instance.name) return;
 
             this.ctx.save();
 
@@ -5933,13 +6121,82 @@ Create drawing commands for this animation frame:`;
             this.ctx.mozImageSmoothingEnabled = false;
             this.ctx.msImageSmoothingEnabled = false;
 
-            // Apply object-level alpha and hue
-            this.ctx.globalAlpha = (instance.alpha || 1);
-            if (instance.hue && instance.hue !== 0) {
-                this.ctx.filter = `hue-rotate(${instance.hue}deg)`;
+            // Apply drop shadow first (behind the object)
+            if (instance.dropShadow && instance.dropShadow.enabled && transform.image) {
+                this.ctx.save();
+
+                // Set shadow properties
+                this.ctx.shadowColor = instance.dropShadow.color;
+                this.ctx.shadowBlur = instance.dropShadow.blur;
+                this.ctx.shadowOffsetX = instance.dropShadow.offsetX;
+                this.ctx.shadowOffsetY = instance.dropShadow.offsetY;
+                this.ctx.globalAlpha = (instance.dropShadow.opacity / 100) * (instance.alpha !== undefined ? instance.alpha : 1);
+
+                // Apply transform for shadow
+                this.ctx.translate(transform.x, transform.y);
+                this.ctx.rotate((transform.angle || 0) * Math.PI / 180);
+                this.ctx.scale(
+                    (transform.scaleX || 1) * (transform.flipX ? -1 : 1),
+                    (transform.scaleY || 1) * (transform.flipY ? -1 : 1)
+                );
+
+                // Apply skew if present for shadow
+                if (transform.skewX || transform.skewY) {
+                    const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                    const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                    this.ctx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+                }
+
+                // Draw shadow
+                this.ctx.drawImage(
+                    transform.image,
+                    -transform.image.width / 2,
+                    -transform.image.height / 2
+                );
+
+                this.ctx.restore();
             }
 
-            // Set transform
+            // Apply glow effect (multiple layers for better effect)
+            if (instance.glow && instance.glow.enabled && transform.image) {
+                const glowLayers = 3;
+                for (let i = glowLayers; i > 0; i--) {
+                    this.ctx.save();
+
+                    // Create glow with blur and color
+                    this.ctx.shadowColor = instance.glow.color;
+                    this.ctx.shadowBlur = instance.glow.size * (i / glowLayers);
+                    this.ctx.shadowOffsetX = 0;
+                    this.ctx.shadowOffsetY = 0;
+                    this.ctx.globalAlpha = (instance.glow.intensity / 100) * (instance.alpha !== undefined ? instance.alpha : 1) * (0.7 / i);
+
+                    // Apply transform for glow
+                    this.ctx.translate(transform.x, transform.y);
+                    this.ctx.rotate((transform.angle || 0) * Math.PI / 180);
+                    this.ctx.scale(
+                        (transform.scaleX || 1) * (transform.flipX ? -1 : 1),
+                        (transform.scaleY || 1) * (transform.flipY ? -1 : 1)
+                    );
+
+                    // Apply skew if present for glow
+                    if (transform.skewX || transform.skewY) {
+                        const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                        const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                        this.ctx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+                    }
+
+                    // Draw glow
+                    this.ctx.drawImage(
+                        transform.image,
+                        -transform.image.width / 2,
+                        -transform.image.height / 2
+                    );
+
+                    this.ctx.restore();
+                }
+            }
+
+            // Now draw the main object
             this.ctx.translate(transform.x, transform.y);
             this.ctx.rotate((transform.angle || 0) * Math.PI / 180);
             this.ctx.scale(
@@ -5954,12 +6211,57 @@ Create drawing commands for this animation frame:`;
                 this.ctx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
             }
 
+            // Apply object-level alpha and filters
+            this.ctx.globalAlpha = (instance.alpha || 1);
+
+            // Build CSS filter string for color effects
+            let filters = [];
+
+            if (instance.hue && instance.hue !== 0) {
+                filters.push(`hue-rotate(${instance.hue}deg)`);
+            }
+
+            if (instance.saturation !== undefined && instance.saturation !== 100) {
+                filters.push(`saturate(${instance.saturation}%)`);
+            }
+
+            if (instance.brightness !== undefined && instance.brightness !== 100) {
+                filters.push(`brightness(${instance.brightness}%)`);
+            }
+
+            if (instance.contrast !== undefined && instance.contrast !== 100) {
+                filters.push(`contrast(${instance.contrast}%)`);
+            }
+
+            // Apply all filters at once
+            if (filters.length > 0) {
+                this.ctx.filter = filters.join(' ');
+            } else {
+                this.ctx.filter = 'none';
+            }
+
             // Draw the object
-            this.ctx.drawImage(
-                transform.image,
-                -transform.image.width / 2,
-                -transform.image.height / 2
-            );
+            if (transform.image) {
+                this.ctx.drawImage(
+                    transform.image,
+                    -transform.image.width / 2,
+                    -transform.image.height / 2
+                );
+            } else {
+                // Draw default placeholder for objects without images
+                this.ctx.fillStyle = '#888';
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, 24, 0, 2 * Math.PI);
+                this.ctx.fill();
+                this.ctx.strokeStyle = '#333';
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+                this.ctx.fillStyle = '#fff';
+                this.ctx.font = 'bold 12px sans-serif';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(instance.name[0] || '?', 0, 2);
+            }
 
             this.ctx.restore();
 
@@ -5980,7 +6282,7 @@ Create drawing commands for this animation frame:`;
 
         layerObjects.forEach(instance => {
             const transform = instance.getTransformAt(this.currentFrame);
-            if (!transform.image) return;
+            if (!transform.image && !instance.name) return;
 
             this.ctx.save();
 
@@ -5990,15 +6292,82 @@ Create drawing commands for this animation frame:`;
             this.ctx.mozImageSmoothingEnabled = false;
             this.ctx.msImageSmoothingEnabled = false;
 
-            // Apply object-level alpha and hue
-            this.ctx.globalAlpha = (instance.alpha || 1) / 100;
+            // Apply drop shadow first (behind the object)
+            if (instance.dropShadow && instance.dropShadow.enabled && transform.image) {
+                this.ctx.save();
 
-            // Apply hue rotation if specified
-            if (instance.hue && instance.hue !== 0) {
-                this.ctx.filter = `hue-rotate(${instance.hue}deg)`;
+                // Set shadow properties
+                this.ctx.shadowColor = instance.dropShadow.color;
+                this.ctx.shadowBlur = instance.dropShadow.blur;
+                this.ctx.shadowOffsetX = instance.dropShadow.offsetX;
+                this.ctx.shadowOffsetY = instance.dropShadow.offsetY;
+                this.ctx.globalAlpha = (instance.dropShadow.opacity / 100) * (instance.alpha !== undefined ? instance.alpha : 1);
+
+                // Apply transform for shadow
+                this.ctx.translate(transform.x, transform.y);
+                this.ctx.rotate((transform.angle || 0) * Math.PI / 180);
+                this.ctx.scale(
+                    (transform.scaleX || 1) * (transform.flipX ? -1 : 1),
+                    (transform.scaleY || 1) * (transform.flipY ? -1 : 1)
+                );
+
+                // Apply skew if present for shadow
+                if (transform.skewX || transform.skewY) {
+                    const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                    const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                    this.ctx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+                }
+
+                // Draw shadow
+                this.ctx.drawImage(
+                    transform.image,
+                    -transform.image.width / 2,
+                    -transform.image.height / 2
+                );
+
+                this.ctx.restore();
             }
 
-            // Set transform
+            // Apply glow effect (multiple layers for better effect)
+            if (instance.glow && instance.glow.enabled && transform.image) {
+                const glowLayers = 3;
+                for (let i = glowLayers; i > 0; i--) {
+                    this.ctx.save();
+
+                    // Create glow with blur and color
+                    this.ctx.shadowColor = instance.glow.color;
+                    this.ctx.shadowBlur = instance.glow.size * (i / glowLayers);
+                    this.ctx.shadowOffsetX = 0;
+                    this.ctx.shadowOffsetY = 0;
+                    this.ctx.globalAlpha = (instance.glow.intensity / 100) * (instance.alpha !== undefined ? instance.alpha : 1) * (0.7 / i);
+
+                    // Apply transform for glow
+                    this.ctx.translate(transform.x, transform.y);
+                    this.ctx.rotate((transform.angle || 0) * Math.PI / 180);
+                    this.ctx.scale(
+                        (transform.scaleX || 1) * (transform.flipX ? -1 : 1),
+                        (transform.scaleY || 1) * (transform.flipY ? -1 : 1)
+                    );
+
+                    // Apply skew if present for glow
+                    if (transform.skewX || transform.skewY) {
+                        const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                        const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                        this.ctx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+                    }
+
+                    // Draw glow
+                    this.ctx.drawImage(
+                        transform.image,
+                        -transform.image.width / 2,
+                        -transform.image.height / 2
+                    );
+
+                    this.ctx.restore();
+                }
+            }
+
+            // Now draw the main object
             this.ctx.translate(transform.x, transform.y);
             this.ctx.rotate((transform.angle || 0) * Math.PI / 180);
             this.ctx.scale(
@@ -6013,12 +6382,57 @@ Create drawing commands for this animation frame:`;
                 this.ctx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
             }
 
+            // Apply object-level alpha
+            this.ctx.globalAlpha = (instance.alpha || 1);
+
+            // Build CSS filter string for color effects
+            let filters = [];
+
+            if (instance.hue && instance.hue !== 0) {
+                filters.push(`hue-rotate(${instance.hue}deg)`);
+            }
+
+            if (instance.saturation !== undefined && instance.saturation !== 100) {
+                filters.push(`saturate(${instance.saturation}%)`);
+            }
+
+            if (instance.brightness !== undefined && instance.brightness !== 100) {
+                filters.push(`brightness(${instance.brightness}%)`);
+            }
+
+            if (instance.contrast !== undefined && instance.contrast !== 100) {
+                filters.push(`contrast(${instance.contrast}%)`);
+            }
+
+            // Apply all filters at once
+            if (filters.length > 0) {
+                this.ctx.filter = filters.join(' ');
+            } else {
+                this.ctx.filter = 'none';
+            }
+
             // Draw the object
-            this.ctx.drawImage(
-                transform.image,
-                -transform.image.width / 2,
-                -transform.image.height / 2
-            );
+            if (transform.image) {
+                this.ctx.drawImage(
+                    transform.image,
+                    -transform.image.width / 2,
+                    -transform.image.height / 2
+                );
+            } else {
+                // Draw default placeholder for objects without images
+                this.ctx.fillStyle = '#888';
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, 24, 0, 2 * Math.PI);
+                this.ctx.fill();
+                this.ctx.strokeStyle = '#333';
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+                this.ctx.fillStyle = '#fff';
+                this.ctx.font = 'bold 12px sans-serif';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(instance.name[0] || '?', 0, 2);
+            }
 
             this.ctx.restore();
 
@@ -7731,7 +8145,7 @@ Create drawing commands for this animation frame:`;
         });
     }
 
-    
+
 
     renderObjectsList() {
         const objectsList = document.getElementById('objects-list');
@@ -7791,11 +8205,11 @@ Create drawing commands for this animation frame:`;
         // Calculate local transform that maintains world position
         const localX = (childWorld.x - parentWorld.x) / parentWorld.scaleX;
         const localY = (childWorld.y - parentWorld.y) / parentWorld.scaleY;
-        
+
         // Apply inverse parent rotation
         const cos = Math.cos(-parentWorld.angle * Math.PI / 180);
         const sin = Math.sin(-parentWorld.angle * Math.PI / 180);
-        
+
         const rotatedX = localX * cos - localY * sin;
         const rotatedY = localX * sin + localY * cos;
 
@@ -7832,12 +8246,12 @@ Create drawing commands for this animation frame:`;
 
     convertToWorldTransform(obj) {
         const currentFrame = getCurrentFrame();
-        
+
         // Update all keyframes to maintain world position
         Object.keys(obj.keyframes).forEach(frame => {
             const worldTransform = obj.getWorldTransformAt(parseInt(frame), objects);
             const keyframe = obj.keyframes[frame];
-            
+
             keyframe.x = worldTransform.x;
             keyframe.y = worldTransform.y;
             keyframe.scaleX = worldTransform.scaleX;
@@ -8888,7 +9302,7 @@ Create drawing commands for this animation frame:`;
         renderObjectsList();
         renderCanvas();
         addToHistory();
-        
+
         return newObj;
     }
 
@@ -8899,7 +9313,7 @@ Create drawing commands for this animation frame:`;
         // Ask user what to do with children
         if (obj.children.length > 0) {
             const action = confirm('This object has children. Click OK to delete children too, or Cancel to unparent them first.');
-            
+
             if (action) {
                 // Delete all descendants
                 const descendants = obj.getAllDescendants(objects);
@@ -8923,7 +9337,7 @@ Create drawing commands for this animation frame:`;
         }
 
         delete objects[objectId];
-        
+
         if (selectedObjectId === objectId) {
             selectedObjectId = null;
         }
@@ -11993,6 +12407,202 @@ Create drawing commands for this animation frame:`;
         }
     }
 
+    applyObjectEffects(ctx, obj) {
+        if (!obj.visible) return false; // Don't render invisible objects
+
+        // Save current context state
+        ctx.save();
+
+        // Apply alpha
+        if (obj.alpha !== undefined) {
+            ctx.globalAlpha = obj.alpha;
+        }
+
+        // Create filter string for CSS filters
+        let filters = [];
+
+        if (obj.brightness !== undefined && obj.brightness !== 100) {
+            filters.push(`brightness(${obj.brightness}%)`);
+        }
+
+        if (obj.contrast !== undefined && obj.contrast !== 100) {
+            filters.push(`contrast(${obj.contrast}%)`);
+        }
+
+        if (obj.saturation !== undefined && obj.saturation !== 100) {
+            filters.push(`saturate(${obj.saturation}%)`);
+        }
+
+        if (obj.hue !== undefined && obj.hue !== 0) {
+            filters.push(`hue-rotate(${obj.hue}deg)`);
+        }
+
+        if (filters.length > 0) {
+            ctx.filter = filters.join(' ');
+        }
+
+        // Apply drop shadow
+        if (obj.dropShadow && obj.dropShadow.enabled) {
+            ctx.shadowOffsetX = obj.dropShadow.offsetX || 3;
+            ctx.shadowOffsetY = obj.dropShadow.offsetY || 3;
+            ctx.shadowBlur = obj.dropShadow.blur || 5;
+
+            // Convert hex color to rgba with opacity
+            const shadowColor = obj.dropShadow.color || '#000000';
+            const shadowOpacity = obj.dropShadow.opacity || 0.5;
+            const rgb = hexToRgb(shadowColor);
+            ctx.shadowColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${shadowOpacity})`;
+        }
+
+        return true; // Continue with rendering
+    }
+
+    applyGlowEffect(ctx, obj, renderCallback) {
+        if (!obj.glow || !obj.glow.enabled) {
+            renderCallback();
+            return;
+        }
+
+        const glowSize = obj.glow.size || 10;
+        const glowColor = obj.glow.color || '#ffffff';
+        const glowIntensity = obj.glow.intensity || 0.5;
+
+        // Create glow by rendering multiple times with blur
+        ctx.save();
+
+        // Set glow properties
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = glowSize;
+        ctx.globalAlpha = glowIntensity;
+
+        // Render the object multiple times for stronger glow
+        for (let i = 0; i < 3; i++) {
+            ctx.shadowOffsetX = Math.cos(i * 2.1) * 1;
+            ctx.shadowOffsetY = Math.sin(i * 2.1) * 1;
+            renderCallback();
+        }
+
+        ctx.restore();
+
+        // Render the object normally on top
+        renderCallback();
+    }
+
+    renderObjectWithEffects(ctx, obj, transform, image) {
+        if (!obj.visible || obj.alpha <= 0) return;
+
+        ctx.save();
+
+        // Apply transform
+        ctx.translate(transform.x, transform.y);
+        ctx.rotate(transform.angle * Math.PI / 180);
+        ctx.scale(transform.scaleX * (transform.flipX ? -1 : 1),
+            transform.scaleY * (transform.flipY ? -1 : 1));
+
+        if (transform.skewX !== 0 || transform.skewY !== 0) {
+            ctx.transform(1, Math.tan(transform.skewY * Math.PI / 180),
+                Math.tan(transform.skewX * Math.PI / 180), 1, 0, 0);
+        }
+
+        // Calculate image dimensions
+        const imgWidth = image.width;
+        const imgHeight = image.height;
+        const drawX = -imgWidth / 2;
+        const drawY = -imgHeight / 2;
+
+        // Apply drop shadow
+        if (obj.dropShadow.enabled) {
+            ctx.save();
+            ctx.globalAlpha = (obj.dropShadow.opacity / 100) * (obj.alpha / 100);
+            ctx.filter = `blur(${obj.dropShadow.blur}px)`;
+
+            // Create shadow by drawing the image with shadow color
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = obj.dropShadow.color;
+
+            // Draw shadow offset
+            ctx.translate(obj.dropShadow.offsetX, obj.dropShadow.offsetY);
+
+            // Create a temporary canvas to apply color to the image
+            const shadowCanvas = document.createElement('canvas');
+            shadowCanvas.width = imgWidth;
+            shadowCanvas.height = imgHeight;
+            const shadowCtx = shadowCanvas.getContext('2d');
+
+            // Draw the image shape in shadow color
+            shadowCtx.globalCompositeOperation = 'source-over';
+            shadowCtx.drawImage(image, 0, 0);
+            shadowCtx.globalCompositeOperation = 'source-in';
+            shadowCtx.fillStyle = obj.dropShadow.color;
+            shadowCtx.fillRect(0, 0, imgWidth, imgHeight);
+
+            ctx.drawImage(shadowCanvas, drawX, drawY);
+            ctx.restore();
+        }
+
+        // Apply glow effect
+        if (obj.glow.enabled) {
+            ctx.save();
+            ctx.globalAlpha = (obj.glow.intensity / 100) * (obj.alpha / 100);
+
+            // Create multiple glow layers for better effect
+            const glowLayers = 3;
+            for (let i = glowLayers; i > 0; i--) {
+                ctx.save();
+                ctx.filter = `blur(${obj.glow.size * (i / glowLayers)}px)`;
+                ctx.globalCompositeOperation = 'destination-over';
+
+                // Create glow canvas
+                const glowCanvas = document.createElement('canvas');
+                glowCanvas.width = imgWidth;
+                glowCanvas.height = imgHeight;
+                const glowCtx = glowCanvas.getContext('2d');
+
+                glowCtx.drawImage(image, 0, 0);
+                glowCtx.globalCompositeOperation = 'source-in';
+                glowCtx.fillStyle = obj.glow.color;
+                glowCtx.fillRect(0, 0, imgWidth, imgHeight);
+
+                ctx.drawImage(glowCanvas, drawX, drawY);
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        // Apply main image with filters
+        ctx.save();
+        ctx.globalAlpha = obj.alpha / 100;
+
+        // Build CSS filter string
+        let filters = [];
+
+        if (obj.hue !== 0) {
+            filters.push(`hue-rotate(${obj.hue}deg)`);
+        }
+
+        if (obj.saturation !== 100) {
+            filters.push(`saturate(${obj.saturation}%)`);
+        }
+
+        if (obj.brightness !== 100) {
+            filters.push(`brightness(${obj.brightness}%)`);
+        }
+
+        if (obj.contrast !== 100) {
+            filters.push(`contrast(${obj.contrast}%)`);
+        }
+
+        if (filters.length > 0) {
+            ctx.filter = filters.join(' ');
+        }
+
+        // Draw the main image
+        ctx.drawImage(image, drawX, drawY);
+
+        ctx.restore();
+        ctx.restore();
+    }
+
     // Add object rendering to your renderCurrentFrame method
     renderObjectInstances() {
         this.objectInstances.forEach(instance => {
@@ -12016,6 +12626,82 @@ Create drawing commands for this animation frame:`;
             this.ctx.mozImageSmoothingEnabled = false;
             this.ctx.msImageSmoothingEnabled = false;
 
+            // Apply drop shadow first (behind the object)
+            if (instance.dropShadow && instance.dropShadow.enabled && transform.image) {
+                this.ctx.save();
+
+                // Set shadow properties
+                this.ctx.shadowColor = instance.dropShadow.color;
+                this.ctx.shadowBlur = instance.dropShadow.blur;
+                this.ctx.shadowOffsetX = instance.dropShadow.offsetX;
+                this.ctx.shadowOffsetY = instance.dropShadow.offsetY;
+                this.ctx.globalAlpha = (instance.dropShadow.opacity / 100) * (instance.alpha !== undefined ? instance.alpha : 1);
+
+                // Apply transform for shadow
+                this.ctx.translate(transform.x, transform.y);
+                this.ctx.rotate(transform.angle * Math.PI / 180);
+
+                // Apply skew transform for shadow
+                const skewX = (transform.skewX || 0) * Math.PI / 180;
+                const skewY = (transform.skewY || 0) * Math.PI / 180;
+                if (skewX !== 0 || skewY !== 0) {
+                    this.ctx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+                }
+
+                // Apply scaling with flip support for shadow
+                let shadowScaleX = transform.scaleX || 1;
+                let shadowScaleY = transform.scaleY || 1;
+                if (transform.flipX) shadowScaleX = -Math.abs(shadowScaleX);
+                if (transform.flipY) shadowScaleY = -Math.abs(shadowScaleY);
+                this.ctx.scale(shadowScaleX, shadowScaleY);
+
+                // Draw shadow (just the shape, shadow will be automatically created)
+                const img = transform.image;
+                this.ctx.drawImage(img, -img.width / 2, -img.height / 2, img.width, img.height);
+
+                this.ctx.restore();
+            }
+
+            // Apply glow effect (multiple layers for better effect)
+            if (instance.glow && instance.glow.enabled && transform.image) {
+                const glowLayers = 3;
+                for (let i = glowLayers; i > 0; i--) {
+                    this.ctx.save();
+
+                    // Create glow with blur and color
+                    this.ctx.shadowColor = instance.glow.color;
+                    this.ctx.shadowBlur = instance.glow.size * (i / glowLayers);
+                    this.ctx.shadowOffsetX = 0;
+                    this.ctx.shadowOffsetY = 0;
+                    this.ctx.globalAlpha = (instance.glow.intensity / 100) * (instance.alpha !== undefined ? instance.alpha : 1) * (0.7 / i);
+
+                    // Apply transform for glow
+                    this.ctx.translate(transform.x, transform.y);
+                    this.ctx.rotate(transform.angle * Math.PI / 180);
+
+                    // Apply skew transform for glow
+                    const skewX = (transform.skewX || 0) * Math.PI / 180;
+                    const skewY = (transform.skewY || 0) * Math.PI / 180;
+                    if (skewX !== 0 || skewY !== 0) {
+                        this.ctx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+                    }
+
+                    // Apply scaling with flip support for glow
+                    let glowScaleX = transform.scaleX || 1;
+                    let glowScaleY = transform.scaleY || 1;
+                    if (transform.flipX) glowScaleX = -Math.abs(glowScaleX);
+                    if (transform.flipY) glowScaleY = -Math.abs(glowScaleY);
+                    this.ctx.scale(glowScaleX, glowScaleY);
+
+                    // Draw glow
+                    const img = transform.image;
+                    this.ctx.drawImage(img, -img.width / 2, -img.height / 2, img.width, img.height);
+
+                    this.ctx.restore();
+                }
+            }
+
+            // Now draw the main object with all transforms and filters
             this.ctx.translate(transform.x, transform.y);
             this.ctx.rotate(transform.angle * Math.PI / 180);
 
@@ -12026,7 +12712,7 @@ Create drawing commands for this animation frame:`;
                 this.ctx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
             }
 
-            // FIX: Apply scaling with flip support - corrected logic
+            // Apply scaling with flip support - corrected logic
             let finalScaleX = transform.scaleX || 1;
             let finalScaleY = transform.scaleY || 1;
 
@@ -12036,10 +12722,31 @@ Create drawing commands for this animation frame:`;
 
             this.ctx.scale(finalScaleX, finalScaleY);
 
-            // Apply object-level alpha and hue
+            // Apply object-level alpha
             this.ctx.globalAlpha = instance.alpha !== undefined ? instance.alpha : 1;
+
+            // Build CSS filter string for color effects
+            let filters = [];
+
             if (instance.hue && instance.hue !== 0) {
-                this.ctx.filter = `hue-rotate(${instance.hue}deg)`;
+                filters.push(`hue-rotate(${instance.hue}deg)`);
+            }
+
+            if (instance.saturation !== undefined && instance.saturation !== 100) {
+                filters.push(`saturate(${instance.saturation}%)`);
+            }
+
+            if (instance.brightness !== undefined && instance.brightness !== 100) {
+                filters.push(`brightness(${instance.brightness}%)`);
+            }
+
+            if (instance.contrast !== undefined && instance.contrast !== 100) {
+                filters.push(`contrast(${instance.contrast}%)`);
+            }
+
+            // Apply all filters at once
+            if (filters.length > 0) {
+                this.ctx.filter = filters.join(' ');
             } else {
                 this.ctx.filter = 'none';
             }

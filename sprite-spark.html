@@ -480,15 +480,83 @@
                                 <input type="number" id="objectAngle" min="-360" max="360" step="1" value="0">
                             </div>
                             <div class="property-group">
+                                <label>Alpha: <span id="objectAlphaValue">100</span>%</label>
+                                <input type="range" id="objectAlpha" min="0" max="100" step="1" value="100">
+                            </div>
+                            <div class="property-group">
                                 <label>Hue Shift:</label>
                                 <input type="range" id="objectHue" min="-180" max="180" step="1" value="0">
                                 <span id="objectHueValue">0°</span>
                             </div>
                             <div class="property-group">
+                                <label>Saturation: <span id="objectSaturationValue">100</span>%</label>
+                                <input type="range" id="objectSaturation" min="0" max="200" step="1" value="100">
+                            </div>
+                            <div class="property-group">
+                                <label>Brightness: <span id="objectBrightnessValue">100</span>%</label>
+                                <input type="range" id="objectBrightness" min="0" max="200" step="1" value="100">
+                            </div>
+                            <div class="property-group">
+                                <label>Contrast: <span id="objectContrastValue">100</span>%</label>
+                                <input type="range" id="objectContrast" min="0" max="200" step="1" value="100">
+                            </div>
+
+                            <!-- Drop Shadow Properties -->
+                            <div class="property-group">
+                                <h5 style="margin: 12px 0 8px 0; color: var(--accent-color);">Drop Shadow</h5>
+                                <label>
+                                    <input type="checkbox" id="objectDropShadowEnabled">
+                                    Enable Drop Shadow
+                                </label>
+                            </div>
+                            <div class="property-group" id="dropShadowControls" style="display: none;">
+                                <label>Shadow Offset X: <span id="objectShadowXValue">3</span>px</label>
+                                <input type="range" id="objectShadowX" min="-20" max="20" step="1" value="3">
+                                
+                                <label>Shadow Offset Y: <span id="objectShadowYValue">3</span>px</label>
+                                <input type="range" id="objectShadowY" min="-20" max="20" step="1" value="3">
+                                
+                                <label>Shadow Blur: <span id="objectShadowBlurValue">5</span>px</label>
+                                <input type="range" id="objectShadowBlur" min="0" max="20" step="1" value="5">
+                                
+                                <label>Shadow Color:</label>
+                                <input type="color" id="objectShadowColor" value="#000000">
+                                
+                                <label>Shadow Opacity: <span id="objectShadowOpacityValue">50</span>%</label>
+                                <input type="range" id="objectShadowOpacity" min="0" max="100" step="1" value="50">
+                            </div>
+
+                            <!-- Glow Effect -->
+                            <div class="property-group">
+                                <h5 style="margin: 12px 0 8px 0; color: var(--accent-color);">Glow Effect</h5>
+                                <label>
+                                    <input type="checkbox" id="objectGlowEnabled">
+                                    Enable Glow
+                                </label>
+                            </div>
+                            <div class="property-group" id="glowControls" style="display: none;">
+                                <label>Glow Size: <span id="objectGlowSizeValue">10</span>px</label>
+                                <input type="range" id="objectGlowSize" min="1" max="50" step="1" value="10">
+                                
+                                <label>Glow Color:</label>
+                                <input type="color" id="objectGlowColor" value="#ffffff">
+                                
+                                <label>Glow Intensity: <span id="objectGlowIntensityValue">50</span>%</label>
+                                <input type="range" id="objectGlowIntensity" min="0" max="100" step="1" value="50">
+                            </div>
+
+                            <!-- Other Properties -->
+                            <div class="property-group">
                                 <label>Layer:</label>
                                 <select id="objectLayer">
                                     <!-- Layer options populated dynamically -->
                                 </select>
+                            </div>
+                            <div class="property-group">
+                                <label>
+                                    <input type="checkbox" id="objectVisible" checked>
+                                    Visible
+                                </label>
                             </div>
                             <div class="property-group">
                                 <label>
@@ -703,21 +771,16 @@
                 <div class="ai-drawing-controls">
                     <div class="property-group">
                         <label for="aiPrompt">Describe what to draw:</label>
-                        <textarea id="aiPrompt" placeholder="e.g., a simple house, a cat, a sword"></textarea>
+                        <textarea id="aiPrompt" placeholder="e.g., a simple house, a cat, a night sky with hills and moon visible"></textarea>
                     </div>
-                    <!--div class="property-group">
-                        <label>Canvas Size for AI:</label>
-                        <select id="aiCanvasSize">
-                            <option value="16">16x16 (Tiny)</option>
-                            <option value="32" selected>32x32 (Small)</option>
-                            <option value="64">64x64 (Medium)</option>
-                            <option value="128">128x128 (Large)</option>
-                        </select>
-                    </div-->
                     <div class="property-group">
                         <label>Art Style:</label>
                         <select id="aiArtStyle">
                             <option value="pixel-art">Pixel Art</option>
+                            <option value="top-down">Top Down View</option>
+                            <option value="platformer-view">Platformer View</option>
+                            <option value="isometric">Isometric View</option>
+                            <option value="3d">3D View</option>
                             <option value="general">General</option>
                             <option value="cartoon">Cartoon</option>
                             <option value="simple-drawing">Simple Drawing</option>
@@ -737,8 +800,13 @@
                             <option value="gothic">Gothic</option>
                             <option value="vaporwave">Vaporwave</option>
                             <option value="retro">Retro</option>
-                            <option value="modern">Dark Evil</option>
+                            <option value="dark-evil">Dark Evil</option>
                         </select>
+                    </div>
+                    <div class="property-group">
+                        <label>AI Creativity: <span id="aiTemperatureValue">1.5</span></label>
+                        <input type="range" id="aiTemperature" min="0.1" max="2.0" step="0.1" value="1.5">
+                        <small>Lower = more consistent, Higher = more creative</small>
                     </div>
                     <button id="generateAIArt" class="small-btn">Generate AI Art</button>
                     <button id="setApiKey" class="small-btn">Set API Key</button>
@@ -760,6 +828,10 @@
                         Animation Style:
                         <select id="aiAnimationStyle">
                             <option value="pixel-art">Pixel Art</option>
+                            <option value="top-down">Top Down View</option>
+                            <option value="platformer-view">Platformer View</option>
+                            <option value="isometric">Isometric View</option>
+                            <option value="3d">3D View</option>
                             <option value="general">General</option>
                             <option value="cartoon">Cartoon</option>
                             <option value="simple-drawing">Simple Drawing</option>
@@ -779,9 +851,14 @@
                             <option value="gothic">Gothic</option>
                             <option value="vaporwave">Vaporwave</option>
                             <option value="retro">Retro</option>
-                            <option value="modern">Dark Evil</option>
+                            <option value="dark-evil">Dark Evil</option>
                         </select>
                     </label>
+                    <div class="property-group">
+                        <label>AI Creativity: <span id="aiAnimationTemperatureValue">0.3</span></label>
+                        <input type="range" id="aiAnimationTemperature" min="0.1" max="2.0" step="0.1" value="0.3">
+                        <small>Lower = more consistent animation, Higher = more varied</small>
+                    </div>
                     <button id="generateAIAnimation" class="tool-btn">Generate AI Animation</button>
                     <small>Generates multiple frames automatically</small>
                 </div>
