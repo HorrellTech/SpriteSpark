@@ -426,12 +426,21 @@
                             • Esc: Cancel vector
                         </div>
                     </div>
-
+                    
+                    <!-- Object selection creation -->
                     <div class="property-group" id="selectionOptions" style="display:none;">
-                        <button id="convertSelectionToObjectBtn" class="small-btn accent">Convert Selection to
-                            Object</button>
-                        <div style="margin-top:8px;font-size:11px;color:var(--text-secondary);">
-                            Converts the current selection into a movable object.
+                        <h4 style="margin: 0 0 var(--spacing-md) 0; color: var(--accent-color); font-size: var(--font-size-small); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                            Selection Options
+                        </h4>
+                        <button id="convertSelectionToObjectBtn" class="small-btn accent" style="width: 100%; margin-bottom: 8px;">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 6px;">
+                                <path d="M2 2v12h12V2H2zm1 1h10v10H3V3z" stroke="currentColor" stroke-width="0.5"/>
+                                <path d="M8 6v4M6 8h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            </svg>
+                            Convert Selection to Object
+                        </button>
+                        <div class="help-text" style="margin-top: 8px; font-size: 11px; color: var(--text-secondary); line-height: 1.4; padding: 8px; background: var(--bg-secondary); border-radius: 4px; border-left: 3px solid var(--accent-color);">
+                            <strong>Info:</strong> Converts the current selection into a movable object that can be positioned, scaled, and animated across frames.
                         </div>
                     </div>
 
@@ -444,8 +453,10 @@
                             <h4>Object Library</h4>
                             <div class="object-library-controls">
                                 <button id="addObjectToLibrary" class="small-btn">Add Object</button>
+                                <button id="saveSelectedObject" class="small-btn">Save Object</button>
+                                <button id="saveAllObjects" class="small-btn">Save All</button>
                                 <button id="clearObjectLibrary" class="small-btn">Clear All</button>
-                                <input type="file" id="objectImageInput" accept="image/*" style="display: none;">
+                                <input type="file" id="objectImageInput" accept="image/*,.ssobj" style="display: none;">
                             </div>
                             <div id="objectLibraryList" class="object-library-list">
                                 <!-- Objects will be populated here -->

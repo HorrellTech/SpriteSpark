@@ -8263,8 +8263,6 @@ Create drawing commands for this animation frame:`;
         });
     }
 
-
-
     renderObjectsList() {
         const objectsList = document.getElementById('objects-list');
         if (!objectsList) return;
@@ -11803,13 +11801,28 @@ Create drawing commands for this animation frame:`;
     initializeObjectTool() {
         // Object library controls
         const addObjectBtn = document.getElementById('addObjectToLibrary');
+        const saveSelectedObjectBtn = document.getElementById('saveSelectedObject');
+        const saveAllObjectsBtn = document.getElementById('saveAllObjects');
         const clearLibraryBtn = document.getElementById('clearObjectLibrary');
         const objectImageInput = document.getElementById('objectImageInput');
         const deleteObjectBtn = document.getElementById('deleteObject');
 
+
         if (addObjectBtn) {
             addObjectBtn.addEventListener('click', () => {
                 objectImageInput.click();
+            });
+        }
+
+        if (saveSelectedObjectBtn) {
+            saveSelectedObjectBtn.addEventListener('click', () => {
+                this.saveSelectedObjectToFile();
+            });
+        }
+
+        if (saveAllObjectsBtn) {
+            saveAllObjectsBtn.addEventListener('click', () => {
+                this.saveAllObjectsToFile();
             });
         }
 
@@ -11955,6 +11968,124 @@ Create drawing commands for this animation frame:`;
         this.updateObjectLibraryList();
     }
 
+    handleObjectFileUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.name.toLowerCase().endsWith('.ssobj')) {
+            // Handle .ssobj file
+            this.loadObjectFromFile(file);
+        } else {
+            // Handle image file
+            this.handleObjectImageUpload(e);
+        }
+    }
+
+    handleObjectImageUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const img = new Image();
+            img.onload = () => {
+                this.addObjectToLibrary(img, file.name);
+            };
+            img.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    loadObjectFromFile(file) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const objectData = JSON.parse(evt.target.result);
+                this.loadObjectFromData(objectData);
+            } catch (error) {
+                console.error('Error loading object file:', error);
+                alert('Error loading object file. Invalid format.');
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    async loadObjectFromData(objectData) {
+        try {
+            // Create the object definition
+            const objDef = {
+                id: 'lib_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+                name: objectData.name || 'Imported Object',
+                width: objectData.width || 32,
+                height: objectData.height || 32,
+                image: null
+            };
+
+            // Load the image if it exists
+            if (objectData.image) {
+                objDef.image = await this.loadImageFromDataURL(objectData.image);
+                objDef.width = objDef.image.width;
+                objDef.height = objDef.image.height;
+            }
+
+            this.objectLibrary.push(objDef);
+            this.updateObjectLibraryList();
+            
+            console.log('Object loaded successfully:', objDef.name);
+        } catch (error) {
+            console.error('Error processing object data:', error);
+            alert('Error loading object data.');
+        }
+    }
+
+    saveSelectedObjectToFile() {
+        if (!this.selectedObject) {
+            alert('Please select an object from the library first.');
+            return;
+        }
+
+        const objectData = this.createObjectSaveData(this.selectedObject);
+        const filename = (this.selectedObject.name || 'object').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        this.downloadObjectFile(objectData, filename + '.ssobj');
+    }
+
+    saveAllObjectsToFile() {
+        if (this.objectLibrary.length === 0) {
+            alert('No objects in library to save.');
+            return;
+        }
+
+        const allObjectsData = {
+            version: '1.0',
+            objectCount: this.objectLibrary.length,
+            objects: this.objectLibrary.map(obj => this.createObjectSaveData(obj))
+        };
+
+        this.downloadObjectFile(allObjectsData, 'object_library.ssobj');
+    }
+
+    createObjectSaveData(objectDef) {
+        return {
+            version: '1.0',
+            name: objectDef.name,
+            width: objectDef.width,
+            height: objectDef.height,
+            image: objectDef.image ? this.imageToDataURL(objectDef.image) : null,
+            createdAt: new Date().toISOString(),
+            spriteSpark: true
+        };
+    }
+
+    downloadObjectFile(data, filename) {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
     updateObjectLibraryList() {
         const list = document.getElementById('objectLibraryList');
         if (!list) return;
@@ -11962,7 +12093,7 @@ Create drawing commands for this animation frame:`;
         list.innerHTML = '';
 
         if (this.objectLibrary.length === 0) {
-            list.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No objects in library. Add some images to get started!</p>';
+            list.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No objects in library. Add some images or .ssobj files to get started!</p>';
             return;
         }
 

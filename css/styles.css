@@ -2710,3 +2710,17 @@ select:focus {
 .object-item.selected .object-content {
     background-color: rgba(0, 123, 255, 0.3);
 }
+
+.object-library-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.object-library-controls .small-btn {
+    flex: 1;
+    min-width: 60px;
+    font-size: 10px;
+    padding: 4px 6px;
+}
