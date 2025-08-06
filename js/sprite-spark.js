@@ -898,7 +898,7 @@ class SpriteSpark {
                 // Toggle dropdown
                 document.querySelectorAll('.menubar .dropdown').forEach(d => {
                     if (d !== this.querySelector('.dropdown')) {
-                        d.classList.remove('open');
+                        //d.classList.remove('open');
                     }
                 });
                 const dropdown = this.querySelector('.dropdown');
