@@ -33,6 +33,10 @@ class SpriteObject {
         this.tween = options.tween !== undefined ? options.tween : true;
         this.keyframes = {};
 
+        // NEW: Object frames - stores different images for each main frame
+        this.objectFrames = options.objectFrames || {};
+        this.currentObjectFrame = options.currentObjectFrame || 0;
+
         // Hierarchy support
         this.parentId = options.parentId || null;
         this.children = [];
@@ -67,6 +71,11 @@ class SpriteObject {
         };
 
         this.setKeyframe(0, initialTransform);
+
+        // If initial image is provided, set it as frame 0
+        if (options.image) {
+            this.setObjectFrame(0, options.image);
+        }
     }
 
     // Add child object
@@ -96,6 +105,62 @@ class SpriteObject {
                 this.scene.objects.push(child);
             }
         }
+    }
+
+    // NEW: Set image for a specific object frame
+    setObjectFrame(frameIndex, image) {
+        this.objectFrames[frameIndex] = image;
+    }
+
+    // NEW: Get image for a specific object frame
+    getObjectFrame(frameIndex) {
+        return this.objectFrames[frameIndex] || null;
+    }
+
+    // NEW: Remove object frame
+    removeObjectFrame(frameIndex) {
+        delete this.objectFrames[frameIndex];
+    }
+
+    // NEW: Get all object frame indices
+    getObjectFrameIndices() {
+        return Object.keys(this.objectFrames).map(Number).sort((a, b) => a - b);
+    }
+
+    // NEW: Copy object frame to another frame
+    copyObjectFrame(fromFrame, toFrame) {
+        const image = this.getObjectFrame(fromFrame);
+        if (image) {
+            this.setObjectFrame(toFrame, image);
+        }
+    }
+
+    // NEW: Get the appropriate image for a main frame (with fallback logic)
+    getImageForMainFrame(mainFrameIndex) {
+        // First try to get exact frame
+        let image = this.objectFrames[mainFrameIndex];
+        if (image) return image;
+
+        // If no exact frame, find the closest previous frame
+        const frameIndices = this.getObjectFrameIndices();
+        let closestFrame = -1;
+        
+        for (const frameIndex of frameIndices) {
+            if (frameIndex <= mainFrameIndex && frameIndex > closestFrame) {
+                closestFrame = frameIndex;
+            }
+        }
+
+        if (closestFrame >= 0) {
+            return this.objectFrames[closestFrame];
+        }
+
+        // If no previous frame, use the first available frame
+        if (frameIndices.length > 0) {
+            return this.objectFrames[frameIndices[0]];
+        }
+
+        return null;
     }
 
     setRotationHotspot(x, y) {
@@ -137,7 +202,41 @@ class SpriteObject {
         };
     }
 
-    getTransformAt(frame) {
+    getVisualEffectsAt(frame) {
+        // For now, visual effects don't animate, but this structure allows for future animation
+        return {
+            saturation: this.saturation,
+            brightness: this.brightness,
+            contrast: this.contrast,
+            dropShadow: { ...this.dropShadow },
+            glow: { ...this.glow },
+            alpha: this.alpha,
+            hue: this.hue
+        };
+    }
+
+    // Update the getTransformAt method to include visual effects
+    getTransformAt(frame, mainFrameIndex = null) {
+        const transform = this.getTransformAtOriginal(frame);
+        const visualEffects = this.getVisualEffectsAt(frame);
+        
+        // NEW: Use object frame image if available, otherwise use keyframe image
+        let finalImage = transform.image;
+        if (mainFrameIndex !== null) {
+            const objectFrameImage = this.getImageForMainFrame(mainFrameIndex);
+            if (objectFrameImage) {
+                finalImage = objectFrameImage;
+            }
+        }
+        
+        return {
+            ...transform,
+            ...visualEffects,
+            image: finalImage
+        };
+    }
+
+    getTransformAtOriginal(frame) {
         // If tweening is disabled, return exact keyframe or default
         if (!this.tween) {
             return this.keyframes[frame] || this.getDefaultTransform();
@@ -304,6 +403,39 @@ class SpriteObject {
             skewY: 0,
             image: null
         };
+    }
+
+    // NEW: Utility methods for frame management
+    hasObjectFrame(frameIndex) {
+        return this.objectFrames.hasOwnProperty(frameIndex);
+    }
+
+    getObjectFrameCount() {
+        return Object.keys(this.objectFrames).length;
+    }
+
+    // NEW: Clear all object frames
+    clearObjectFrames() {
+        this.objectFrames = {};
+    }
+
+    // NEW: Get next/previous frame indices for navigation
+    getNextObjectFrame(currentFrame) {
+        const indices = this.getObjectFrameIndices();
+        const currentIndex = indices.indexOf(currentFrame);
+        if (currentIndex >= 0 && currentIndex < indices.length - 1) {
+            return indices[currentIndex + 1];
+        }
+        return indices[0]; // Wrap to first frame
+    }
+
+    getPreviousObjectFrame(currentFrame) {
+        const indices = this.getObjectFrameIndices();
+        const currentIndex = indices.indexOf(currentFrame);
+        if (currentIndex > 0) {
+            return indices[currentIndex - 1];
+        }
+        return indices[indices.length - 1]; // Wrap to last frame
     }
 }
 

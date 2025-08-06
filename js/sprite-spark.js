@@ -4736,92 +4736,142 @@ Create drawing commands for this animation frame:`;
                 }
             }
 
-            // Get interpolated transform for smooth animation
+            // Get interpolated transform with sub-frame smoothing
             let transform;
-            if (obj.tween && subFrameProgress > 0) {
-                // Calculate sub-frame interpolated position
+            if (obj.tween && subFrameProgress > 0 && frameIndex < this.frames.length - 1) {
                 const currentTransform = obj.getTransformAt(frameIndex);
-                const nextFrameIndex = frameIndex + 1;
+                const nextTransform = obj.getTransformAt(frameIndex + 1);
 
-                if (nextFrameIndex < this.frames.length) {
-                    const nextTransform = obj.getTransformAt(nextFrameIndex);
-
-                    // FIX: Interpolate ALL transform properties
-                    transform = {
-                        x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
-                        y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
-                        scaleX: this.lerp(currentTransform.scaleX || 1, nextTransform.scaleX || 1, subFrameProgress),
-                        scaleY: this.lerp(currentTransform.scaleY || 1, nextTransform.scaleY || 1, subFrameProgress),
-                        angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
-                        flipX: currentTransform.flipX || false,
-                        flipY: currentTransform.flipY || false,
-                        skewX: this.lerp(currentTransform.skewX || 0, nextTransform.skewX || 0, subFrameProgress),
-                        skewY: this.lerp(currentTransform.skewY || 0, nextTransform.skewY || 0, subFrameProgress),
-                        image: currentTransform.image || nextTransform.image
-                    };
-                } else {
-                    transform = currentTransform;
-                }
+                transform = {
+                    x: this.lerp(currentTransform.x, nextTransform.x, subFrameProgress),
+                    y: this.lerp(currentTransform.y, nextTransform.y, subFrameProgress),
+                    scaleX: this.lerp(currentTransform.scaleX || 1, nextTransform.scaleX || 1, subFrameProgress),
+                    scaleY: this.lerp(currentTransform.scaleY || 1, nextTransform.scaleY || 1, subFrameProgress),
+                    angle: this.lerpAngle(currentTransform.angle, nextTransform.angle, subFrameProgress),
+                    flipX: currentTransform.flipX || false,
+                    flipY: currentTransform.flipY || false,
+                    skewX: this.lerp(currentTransform.skewX || 0, nextTransform.skewX || 0, subFrameProgress),
+                    skewY: this.lerp(currentTransform.skewY || 0, nextTransform.skewY || 0, subFrameProgress),
+                    image: currentTransform.image || nextTransform.image
+                };
             } else {
                 transform = obj.getTransformAt(frameIndex);
             }
 
-            lpCtx.save();
+            if (!transform.image) continue;
 
-            // FIX: Disable antialiasing for pixel perfect preview objects
-            lpCtx.imageSmoothingEnabled = false;
-            lpCtx.webkitImageSmoothingEnabled = false;
-            lpCtx.mozImageSmoothingEnabled = false;
-            lpCtx.msImageSmoothingEnabled = false;
+            // Calculate scaled position and size for preview
+            const scaledX = transform.x * scaleX;
+            const scaledY = transform.y * scaleY;
 
-            lpCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
-            lpCtx.filter = obj.hue ? `hue-rotate(${obj.hue}deg)` : 'none';
+            this.livePreviewCtx.save();
 
-            // Scale the transform coordinates to match the preview canvas
-            lpCtx.translate(transform.x * scaleX, transform.y * scaleY);
-            lpCtx.rotate(transform.angle * Math.PI / 180);
+            // FIX: Disable antialiasing for pixel perfect preview
+            this.livePreviewCtx.imageSmoothingEnabled = false;
+            this.livePreviewCtx.webkitImageSmoothingEnabled = false;
+            this.livePreviewCtx.mozImageSmoothingEnabled = false;
+            this.livePreviewCtx.msImageSmoothingEnabled = false;
 
-            // FIX: Apply skew transform in preview
-            const skewX = (transform.skewX || 0) * Math.PI / 180;
-            const skewY = (transform.skewY || 0) * Math.PI / 180;
-            if (skewX !== 0 || skewY !== 0) {
-                lpCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
-            }
+            // Apply drop shadow first (behind the object)
+            if (obj.dropShadow && obj.dropShadow.enabled && transform.image) {
+                this.livePreviewCtx.save();
+                this.livePreviewCtx.globalAlpha = (obj.dropShadow.opacity / 100) * (obj.alpha || 1);
+                this.livePreviewCtx.shadowColor = obj.dropShadow.color;
+                this.livePreviewCtx.shadowBlur = obj.dropShadow.blur * Math.min(scaleX, scaleY);
+                this.livePreviewCtx.shadowOffsetX = obj.dropShadow.offsetX * scaleX;
+                this.livePreviewCtx.shadowOffsetY = obj.dropShadow.offsetY * scaleY;
 
-            // FIX: Apply scaling with flip support in preview
-            let finalScaleX = (transform.scaleX || 1) * scaleX;
-            let finalScaleY = (transform.scaleY || 1) * scaleY;
-
-            if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
-            if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
-
-            lpCtx.scale(finalScaleX, finalScaleY);
-
-            if (transform.image) {
-                lpCtx.drawImage(
-                    transform.image,
-                    -transform.image.width / 2,
-                    -transform.image.height / 2,
-                    transform.image.width,
-                    transform.image.height
+                this.livePreviewCtx.translate(scaledX, scaledY);
+                this.livePreviewCtx.rotate(transform.angle * Math.PI / 180);
+                this.livePreviewCtx.scale(
+                    (transform.scaleX || 1) * scaleX * (transform.flipX ? -1 : 1),
+                    (transform.scaleY || 1) * scaleY * (transform.flipY ? -1 : 1)
                 );
-            } else {
-                // Draw default placeholder for objects without images
-                lpCtx.fillStyle = '#888';
-                lpCtx.beginPath();
-                lpCtx.arc(0, 0, 24, 0, 2 * Math.PI);
-                lpCtx.fill();
-                lpCtx.strokeStyle = '#333';
-                lpCtx.lineWidth = 2;
-                lpCtx.stroke();
-                lpCtx.fillStyle = '#fff';
-                lpCtx.font = 'bold 12px sans-serif';
-                lpCtx.textAlign = 'center';
-                lpCtx.textBaseline = 'middle';
-                lpCtx.fillText(obj.name[0] || '?', 0, 2);
+
+                if (transform.skewX || transform.skewY) {
+                    const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                    const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                    this.livePreviewCtx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+                }
+
+                this.livePreviewCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+                this.livePreviewCtx.restore();
             }
 
-            lpCtx.restore();
+            // Apply glow effect (multiple layers for better effect)
+            if (obj.glow && obj.glow.enabled && transform.image) {
+                for (let i = 1; i <= 3; i++) {
+                    this.livePreviewCtx.save();
+                    this.livePreviewCtx.globalAlpha = (obj.glow.intensity / 100) * 0.3 * (obj.alpha || 1);
+                    this.livePreviewCtx.shadowColor = obj.glow.color;
+                    this.livePreviewCtx.shadowBlur = (obj.glow.size * i) * Math.min(scaleX, scaleY);
+                    this.livePreviewCtx.shadowOffsetX = 0;
+                    this.livePreviewCtx.shadowOffsetY = 0;
+
+                    this.livePreviewCtx.translate(scaledX, scaledY);
+                    this.livePreviewCtx.rotate(transform.angle * Math.PI / 180);
+                    this.livePreviewCtx.scale(
+                        (transform.scaleX || 1) * scaleX * (transform.flipX ? -1 : 1),
+                        (transform.scaleY || 1) * scaleY * (transform.flipY ? -1 : 1)
+                    );
+
+                    if (transform.skewX || transform.skewY) {
+                        const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                        const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                        this.livePreviewCtx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+                    }
+
+                    this.livePreviewCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+                    this.livePreviewCtx.restore();
+                }
+            }
+
+            // Now draw the main object
+            this.livePreviewCtx.translate(scaledX, scaledY);
+            this.livePreviewCtx.rotate(transform.angle * Math.PI / 180);
+            this.livePreviewCtx.scale(
+                (transform.scaleX || 1) * scaleX * (transform.flipX ? -1 : 1),
+                (transform.scaleY || 1) * scaleY * (transform.flipY ? -1 : 1)
+            );
+
+            // Apply skew if present
+            if (transform.skewX || transform.skewY) {
+                const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                this.livePreviewCtx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+            }
+
+            // Apply object-level alpha
+            this.livePreviewCtx.globalAlpha = (obj.alpha || 1);
+
+            // Build CSS filter string for color effects
+            let filters = [];
+
+            if (obj.hue && obj.hue !== 0) {
+                filters.push(`hue-rotate(${obj.hue}deg)`);
+            }
+
+            if (obj.saturation !== undefined && obj.saturation !== 100) {
+                filters.push(`saturate(${obj.saturation}%)`);
+            }
+
+            if (obj.brightness !== undefined && obj.brightness !== 100) {
+                filters.push(`brightness(${obj.brightness}%)`);
+            }
+
+            if (obj.contrast !== undefined && obj.contrast !== 100) {
+                filters.push(`contrast(${obj.contrast}%)`);
+            }
+
+            // Apply all filters at once
+            if (filters.length > 0) {
+                this.livePreviewCtx.filter = filters.join(' ');
+            } else {
+                this.livePreviewCtx.filter = 'none';
+            }
+
+            this.livePreviewCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+            this.livePreviewCtx.restore();
         }
 
         // Reset final composition settings
@@ -4905,49 +4955,117 @@ Create drawing commands for this animation frame:`;
                 }
             }
 
-            const transform = obj.getTransformAt(frameIndexToRender);
+            const transform = obj.getTransformAt(frameIndexToRender, frameIndexToRender);
+            if (!transform.image) continue;
+
+            const scaledX = transform.x * scaleX;
+            const scaledY = transform.y * scaleY;
 
             lpCtx.save();
-
             lpCtx.imageSmoothingEnabled = false;
             lpCtx.webkitImageSmoothingEnabled = false;
             lpCtx.mozImageSmoothingEnabled = false;
             lpCtx.msImageSmoothingEnabled = false;
 
-            lpCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
-            lpCtx.filter = obj.hue ? `hue-rotate(${obj.hue}deg)` : 'none';
+            // Apply drop shadow first (behind the object)
+            if (obj.dropShadow && obj.dropShadow.enabled && transform.image) {
+                lpCtx.save();
+                lpCtx.globalAlpha = (obj.dropShadow.opacity / 100) * (obj.alpha || 1);
+                lpCtx.shadowColor = obj.dropShadow.color;
+                lpCtx.shadowBlur = obj.dropShadow.blur * Math.min(scaleX, scaleY);
+                lpCtx.shadowOffsetX = obj.dropShadow.offsetX * scaleX;
+                lpCtx.shadowOffsetY = obj.dropShadow.offsetY * scaleY;
 
-            // Scale the transform coordinates to match the preview canvas
-            lpCtx.translate(transform.x * scaleX, transform.y * scaleY);
-            lpCtx.rotate(transform.angle * Math.PI / 180);
-
-            // Scale the object size to match the preview canvas scale
-            lpCtx.scale(transform.scale * scaleX, transform.scale * scaleY);
-
-            if (transform.image) {
-                lpCtx.drawImage(
-                    transform.image,
-                    -transform.image.width / 2,
-                    -transform.image.height / 2,
-                    transform.image.width,
-                    transform.image.height
+                lpCtx.translate(scaledX, scaledY);
+                lpCtx.rotate(transform.angle * Math.PI / 180);
+                lpCtx.scale(
+                    (transform.scaleX || 1) * scaleX * (transform.flipX ? -1 : 1),
+                    (transform.scaleY || 1) * scaleY * (transform.flipY ? -1 : 1)
                 );
-            } else {
-                // Draw default placeholder for objects without images
-                lpCtx.fillStyle = '#888';
-                lpCtx.beginPath();
-                lpCtx.arc(0, 0, 24, 0, 2 * Math.PI);
-                lpCtx.fill();
-                lpCtx.strokeStyle = '#333';
-                lpCtx.lineWidth = 2;
-                lpCtx.stroke();
-                lpCtx.fillStyle = '#fff';
-                lpCtx.font = 'bold 12px sans-serif';
-                lpCtx.textAlign = 'center';
-                lpCtx.textBaseline = 'middle';
-                lpCtx.fillText(obj.name[0] || '?', 0, 2);
+
+                if (transform.skewX || transform.skewY) {
+                    const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                    const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                    lpCtx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+                }
+
+                lpCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+                lpCtx.restore();
             }
 
+            // Apply glow effect (multiple layers for better effect)
+            if (obj.glow && obj.glow.enabled && transform.image) {
+                for (let i = 1; i <= 3; i++) {
+                    lpCtx.save();
+                    lpCtx.globalAlpha = (obj.glow.intensity / 100) * 0.3 * (obj.alpha || 1);
+                    lpCtx.shadowColor = obj.glow.color;
+                    lpCtx.shadowBlur = (obj.glow.size * i) * Math.min(scaleX, scaleY);
+                    lpCtx.shadowOffsetX = 0;
+                    lpCtx.shadowOffsetY = 0;
+
+                    lpCtx.translate(scaledX, scaledY);
+                    lpCtx.rotate(transform.angle * Math.PI / 180);
+                    lpCtx.scale(
+                        (transform.scaleX || 1) * scaleX * (transform.flipX ? -1 : 1),
+                        (transform.scaleY || 1) * scaleY * (transform.flipY ? -1 : 1)
+                    );
+
+                    if (transform.skewX || transform.skewY) {
+                        const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                        const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                        lpCtx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+                    }
+
+                    lpCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+                    lpCtx.restore();
+                }
+            }
+
+            // Now draw the main object
+            lpCtx.translate(scaledX, scaledY);
+            lpCtx.rotate(transform.angle * Math.PI / 180);
+            lpCtx.scale(
+                (transform.scaleX || 1) * scaleX * (transform.flipX ? -1 : 1),
+                (transform.scaleY || 1) * scaleY * (transform.flipY ? -1 : 1)
+            );
+
+            // Apply skew if present
+            if (transform.skewX || transform.skewY) {
+                const skewXRad = (transform.skewX || 0) * Math.PI / 180;
+                const skewYRad = (transform.skewY || 0) * Math.PI / 180;
+                lpCtx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+            }
+
+            // Apply object-level alpha
+            lpCtx.globalAlpha = (obj.alpha || 1);
+
+            // Build CSS filter string for color effects
+            let filters = [];
+
+            if (obj.hue && obj.hue !== 0) {
+                filters.push(`hue-rotate(${obj.hue}deg)`);
+            }
+
+            if (obj.saturation !== undefined && obj.saturation !== 100) {
+                filters.push(`saturate(${obj.saturation}%)`);
+            }
+
+            if (obj.brightness !== undefined && obj.brightness !== 100) {
+                filters.push(`brightness(${obj.brightness}%)`);
+            }
+
+            if (obj.contrast !== undefined && obj.contrast !== 100) {
+                filters.push(`contrast(${obj.contrast}%)`);
+            }
+
+            // Apply all filters at once
+            if (filters.length > 0) {
+                lpCtx.filter = filters.join(' ');
+            } else {
+                lpCtx.filter = 'none';
+            }
+
+            lpCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
             lpCtx.restore();
         }
 
@@ -6281,7 +6399,7 @@ Create drawing commands for this animation frame:`;
         );
 
         layerObjects.forEach(instance => {
-            const transform = instance.getTransformAt(this.currentFrame);
+            const transform = instance.getTransformAt(this.currentFrame, this.currentFrame);
             if (!transform.image && !instance.name) return;
 
             this.ctx.save();
@@ -6457,7 +6575,7 @@ Create drawing commands for this animation frame:`;
                 }
             }
 
-            const transform = instance.getTransformAt(frameIndex);
+            const transform = instance.getTransformAt(frameIndex, frameIndex);
             if (!transform.image && !instance.name) return;
 
             this.ctx.save();
@@ -9843,13 +9961,95 @@ Create drawing commands for this animation frame:`;
                         }
                     }
 
-                    // FIX: Get complete transform for this frame
+                    // Get complete transform for this frame
                     const transform = obj.getTransformAt(idx);
+                    if (!transform.image) continue;
 
                     tempCtx.save();
+
+                    // Apply drop shadow first (behind the object)
+                    if (obj.dropShadow && obj.dropShadow.enabled && transform.image) {
+                        tempCtx.save();
+                        tempCtx.globalAlpha = (obj.dropShadow.opacity / 100) * (obj.alpha || 1);
+                        tempCtx.shadowColor = obj.dropShadow.color;
+                        tempCtx.shadowBlur = obj.dropShadow.blur;
+                        tempCtx.shadowOffsetX = obj.dropShadow.offsetX;
+                        tempCtx.shadowOffsetY = obj.dropShadow.offsetY;
+
+                        tempCtx.translate(transform.x, transform.y);
+                        tempCtx.rotate(transform.angle * Math.PI / 180);
+
+                        const skewX = (transform.skewX || 0) * Math.PI / 180;
+                        const skewY = (transform.skewY || 0) * Math.PI / 180;
+                        if (skewX !== 0 || skewY !== 0) {
+                            tempCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+                        }
+
+                        let finalScaleX = transform.scaleX || 1;
+                        let finalScaleY = transform.scaleY || 1;
+                        if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+                        if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+                        tempCtx.scale(finalScaleX, finalScaleY);
+
+                        tempCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+                        tempCtx.restore();
+                    }
+
+                    // Apply glow effect (multiple layers for better effect)
+                    if (obj.glow && obj.glow.enabled && transform.image) {
+                        for (let i = 1; i <= 3; i++) {
+                            tempCtx.save();
+                            tempCtx.globalAlpha = (obj.glow.intensity / 100) * 0.3 * (obj.alpha || 1);
+                            tempCtx.shadowColor = obj.glow.color;
+                            tempCtx.shadowBlur = obj.glow.size * i;
+                            tempCtx.shadowOffsetX = 0;
+                            tempCtx.shadowOffsetY = 0;
+
+                            tempCtx.translate(transform.x, transform.y);
+                            tempCtx.rotate(transform.angle * Math.PI / 180);
+
+                            const skewX = (transform.skewX || 0) * Math.PI / 180;
+                            const skewY = (transform.skewY || 0) * Math.PI / 180;
+                            if (skewX !== 0 || skewY !== 0) {
+                                tempCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+                            }
+
+                            let finalScaleX = transform.scaleX || 1;
+                            let finalScaleY = transform.scaleY || 1;
+                            if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+                            if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+                            tempCtx.scale(finalScaleX, finalScaleY);
+
+                            tempCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+                            tempCtx.restore();
+                        }
+                    }
+
+                    // Now draw the main object
                     tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+
+                    // Build CSS filter string for color effects
+                    let filters = [];
+
                     if (obj.hue && obj.hue !== 0) {
-                        tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
+                        filters.push(`hue-rotate(${obj.hue}deg)`);
+                    }
+
+                    if (obj.saturation !== undefined && obj.saturation !== 100) {
+                        filters.push(`saturate(${obj.saturation}%)`);
+                    }
+
+                    if (obj.brightness !== undefined && obj.brightness !== 100) {
+                        filters.push(`brightness(${obj.brightness}%)`);
+                    }
+
+                    if (obj.contrast !== undefined && obj.contrast !== 100) {
+                        filters.push(`contrast(${obj.contrast}%)`);
+                    }
+
+                    // Apply all filters at once
+                    if (filters.length > 0) {
+                        tempCtx.filter = filters.join(' ');
                     } else {
                         tempCtx.filter = 'none';
                     }
@@ -9857,14 +10057,14 @@ Create drawing commands for this animation frame:`;
                     tempCtx.translate(transform.x, transform.y);
                     tempCtx.rotate(transform.angle * Math.PI / 180);
 
-                    // FIX: Apply skew transform
+                    // Apply skew transform
                     const skewX = (transform.skewX || 0) * Math.PI / 180;
                     const skewY = (transform.skewY || 0) * Math.PI / 180;
                     if (skewX !== 0 || skewY !== 0) {
                         tempCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
                     }
 
-                    // FIX: Apply scaling with flip support
+                    // Apply scaling with flip support
                     let finalScaleX = transform.scaleX || 1;
                     let finalScaleY = transform.scaleY || 1;
 
@@ -9873,13 +10073,11 @@ Create drawing commands for this animation frame:`;
 
                     tempCtx.scale(finalScaleX, finalScaleY);
 
-                    if (transform.image) {
-                        tempCtx.drawImage(
-                            transform.image,
-                            -transform.image.width / 2,
-                            -transform.image.height / 2
-                        );
-                    }
+                    tempCtx.drawImage(
+                        transform.image,
+                        -transform.image.width / 2,
+                        -transform.image.height / 2
+                    );
                     tempCtx.restore();
                 }
 
@@ -10039,10 +10237,93 @@ Create drawing commands for this animation frame:`;
                                 transform = obj.getTransformAt(frameIndex);
                             }
 
+                            if (!transform.image) continue;
+
                             tempCtx.save();
+
+                            // Apply drop shadow first (behind the object)
+                            if (obj.dropShadow && obj.dropShadow.enabled && transform.image) {
+                                tempCtx.save();
+                                tempCtx.globalAlpha = (obj.dropShadow.opacity / 100) * (obj.alpha || 1);
+                                tempCtx.shadowColor = obj.dropShadow.color;
+                                tempCtx.shadowBlur = obj.dropShadow.blur;
+                                tempCtx.shadowOffsetX = obj.dropShadow.offsetX;
+                                tempCtx.shadowOffsetY = obj.dropShadow.offsetY;
+
+                                tempCtx.translate(transform.x, transform.y);
+                                tempCtx.rotate(transform.angle * Math.PI / 180);
+
+                                const skewX = (transform.skewX || 0) * Math.PI / 180;
+                                const skewY = (transform.skewY || 0) * Math.PI / 180;
+                                if (skewX !== 0 || skewY !== 0) {
+                                    tempCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+                                }
+
+                                let finalScaleX = transform.scaleX || 1;
+                                let finalScaleY = transform.scaleY || 1;
+                                if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+                                if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+                                tempCtx.scale(finalScaleX, finalScaleY);
+
+                                tempCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+                                tempCtx.restore();
+                            }
+
+                            // Apply glow effect (multiple layers for better effect)
+                            if (obj.glow && obj.glow.enabled && transform.image) {
+                                for (let i = 1; i <= 3; i++) {
+                                    tempCtx.save();
+                                    tempCtx.globalAlpha = (obj.glow.intensity / 100) * 0.3 * (obj.alpha || 1);
+                                    tempCtx.shadowColor = obj.glow.color;
+                                    tempCtx.shadowBlur = obj.glow.size * i;
+                                    tempCtx.shadowOffsetX = 0;
+                                    tempCtx.shadowOffsetY = 0;
+
+                                    tempCtx.translate(transform.x, transform.y);
+                                    tempCtx.rotate(transform.angle * Math.PI / 180);
+
+                                    const skewX = (transform.skewX || 0) * Math.PI / 180;
+                                    const skewY = (transform.skewY || 0) * Math.PI / 180;
+                                    if (skewX !== 0 || skewY !== 0) {
+                                        tempCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+                                    }
+
+                                    let finalScaleX = transform.scaleX || 1;
+                                    let finalScaleY = transform.scaleY || 1;
+                                    if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+                                    if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+                                    tempCtx.scale(finalScaleX, finalScaleY);
+
+                                    tempCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+                                    tempCtx.restore();
+                                }
+                            }
+
+                            // Now draw the main object
                             tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+
+                            // Build CSS filter string for color effects
+                            let filters = [];
+
                             if (obj.hue && obj.hue !== 0) {
-                                tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
+                                filters.push(`hue-rotate(${obj.hue}deg)`);
+                            }
+
+                            if (obj.saturation !== undefined && obj.saturation !== 100) {
+                                filters.push(`saturate(${obj.saturation}%)`);
+                            }
+
+                            if (obj.brightness !== undefined && obj.brightness !== 100) {
+                                filters.push(`brightness(${obj.brightness}%)`);
+                            }
+
+                            if (obj.contrast !== undefined && obj.contrast !== 100) {
+                                filters.push(`contrast(${obj.contrast}%)`);
+                            }
+
+                            // Apply all filters at once
+                            if (filters.length > 0) {
+                                tempCtx.filter = filters.join(' ');
                             } else {
                                 tempCtx.filter = 'none';
                             }
@@ -10066,13 +10347,11 @@ Create drawing commands for this animation frame:`;
 
                             tempCtx.scale(finalScaleX, finalScaleY);
 
-                            if (transform.image) {
-                                tempCtx.drawImage(
-                                    transform.image,
-                                    -transform.image.width / 2,
-                                    -transform.image.height / 2
-                                );
-                            }
+                            tempCtx.drawImage(
+                                transform.image,
+                                -transform.image.width / 2,
+                                -transform.image.height / 2
+                            );
                             tempCtx.restore();
                         }
 
@@ -10195,10 +10474,93 @@ Create drawing commands for this animation frame:`;
                                 transform = obj.getTransformAt(frameIdx);
                             }
 
+                            if (!transform.image) continue;
+
                             tempCtx.save();
+
+                            // Apply drop shadow first (behind the object)
+                            if (obj.dropShadow && obj.dropShadow.enabled && transform.image) {
+                                tempCtx.save();
+                                tempCtx.globalAlpha = (obj.dropShadow.opacity / 100) * (obj.alpha || 1);
+                                tempCtx.shadowColor = obj.dropShadow.color;
+                                tempCtx.shadowBlur = obj.dropShadow.blur;
+                                tempCtx.shadowOffsetX = obj.dropShadow.offsetX;
+                                tempCtx.shadowOffsetY = obj.dropShadow.offsetY;
+
+                                tempCtx.translate(transform.x, transform.y);
+                                tempCtx.rotate(transform.angle * Math.PI / 180);
+
+                                const skewX = (transform.skewX || 0) * Math.PI / 180;
+                                const skewY = (transform.skewY || 0) * Math.PI / 180;
+                                if (skewX !== 0 || skewY !== 0) {
+                                    tempCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+                                }
+
+                                let finalScaleX = transform.scaleX || 1;
+                                let finalScaleY = transform.scaleY || 1;
+                                if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+                                if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+                                tempCtx.scale(finalScaleX, finalScaleY);
+
+                                tempCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+                                tempCtx.restore();
+                            }
+
+                            // Apply glow effect (multiple layers for better effect)
+                            if (obj.glow && obj.glow.enabled && transform.image) {
+                                for (let i = 1; i <= 3; i++) {
+                                    tempCtx.save();
+                                    tempCtx.globalAlpha = (obj.glow.intensity / 100) * 0.3 * (obj.alpha || 1);
+                                    tempCtx.shadowColor = obj.glow.color;
+                                    tempCtx.shadowBlur = obj.glow.size * i;
+                                    tempCtx.shadowOffsetX = 0;
+                                    tempCtx.shadowOffsetY = 0;
+
+                                    tempCtx.translate(transform.x, transform.y);
+                                    tempCtx.rotate(transform.angle * Math.PI / 180);
+
+                                    const skewX = (transform.skewX || 0) * Math.PI / 180;
+                                    const skewY = (transform.skewY || 0) * Math.PI / 180;
+                                    if (skewX !== 0 || skewY !== 0) {
+                                        tempCtx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
+                                    }
+
+                                    let finalScaleX = transform.scaleX || 1;
+                                    let finalScaleY = transform.scaleY || 1;
+                                    if (transform.flipX) finalScaleX = -Math.abs(finalScaleX);
+                                    if (transform.flipY) finalScaleY = -Math.abs(finalScaleY);
+                                    tempCtx.scale(finalScaleX, finalScaleY);
+
+                                    tempCtx.drawImage(transform.image, -transform.image.width / 2, -transform.image.height / 2);
+                                    tempCtx.restore();
+                                }
+                            }
+
+                            // Now draw the main object
                             tempCtx.globalAlpha = obj.alpha !== undefined ? obj.alpha : 1;
+
+                            // Build CSS filter string for color effects
+                            let filters = [];
+
                             if (obj.hue && obj.hue !== 0) {
-                                tempCtx.filter = `hue-rotate(${obj.hue}deg)`;
+                                filters.push(`hue-rotate(${obj.hue}deg)`);
+                            }
+
+                            if (obj.saturation !== undefined && obj.saturation !== 100) {
+                                filters.push(`saturate(${obj.saturation}%)`);
+                            }
+
+                            if (obj.brightness !== undefined && obj.brightness !== 100) {
+                                filters.push(`brightness(${obj.brightness}%)`);
+                            }
+
+                            if (obj.contrast !== undefined && obj.contrast !== 100) {
+                                filters.push(`contrast(${obj.contrast}%)`);
+                            }
+
+                            // Apply all filters at once
+                            if (filters.length > 0) {
+                                tempCtx.filter = filters.join(' ');
                             } else {
                                 tempCtx.filter = 'none';
                             }
@@ -10222,13 +10584,11 @@ Create drawing commands for this animation frame:`;
 
                             tempCtx.scale(finalScaleX, finalScaleY);
 
-                            if (transform.image) {
-                                tempCtx.drawImage(
-                                    transform.image,
-                                    -transform.image.width / 2,
-                                    -transform.image.height / 2
-                                );
-                            }
+                            tempCtx.drawImage(
+                                transform.image,
+                                -transform.image.width / 2,
+                                -transform.image.height / 2
+                            );
                             tempCtx.restore();
                         }
 
@@ -10290,7 +10650,7 @@ Create drawing commands for this animation frame:`;
         this.addObjectInstanceToCanvas(objDef.id, centerX, centerY);
 
         // Clear the selection area from the layer (this is the new part)
-        this.clearSelectionAreaFromLayer();
+        this.deleteSelection();
 
         // Remove selection after creating object
         this.clearSelection();
@@ -12151,19 +12511,91 @@ Create drawing commands for this animation frame:`;
 
             let newScaleX = baseScaleX;
             let newScaleY = baseScaleY;
+            let newX = start.x;
+            let newY = start.y;
 
             if (e.shiftKey || start.shiftKey) {
                 // Shift held: maintain aspect ratio (uniform scaling)
-                const scaleFactor = 1 + Math.max(localDeltaX / baseWidth, localDeltaY / baseHeight) * 2;
+                let scaleFactor = 1;
+
+                // Calculate scale factor based on which handle is being dragged
+                switch (this.objectResizeHandle) {
+                    case 'nw': // Top-left: dragging inward decreases size
+                        scaleFactor = 1 - Math.max(localDeltaX / baseWidth, localDeltaY / baseHeight);
+                        break;
+                    case 'ne': // Top-right: dragging outward increases size
+                        scaleFactor = 1 + Math.max(localDeltaX / baseWidth, -localDeltaY / baseHeight);
+                        break;
+                    case 'sw': // Bottom-left: dragging outward increases size
+                        scaleFactor = 1 + Math.max(-localDeltaX / baseWidth, localDeltaY / baseHeight);
+                        break;
+                    case 'se': // Bottom-right: dragging outward increases size
+                        scaleFactor = 1 + Math.max(localDeltaX / baseWidth, localDeltaY / baseHeight);
+                        break;
+                }
+
                 const clampedScale = Math.max(0.1, Math.min(5.0, Math.abs(baseScaleX) * scaleFactor));
 
                 // Preserve the sign (flip state) while scaling
                 newScaleX = baseScaleX >= 0 ? clampedScale : -clampedScale;
                 newScaleY = baseScaleY >= 0 ? clampedScale : -clampedScale;
+
+                // Calculate the opposite corner position in world space (this should stay fixed)
+                let oppositeCornerLocalX, oppositeCornerLocalY;
+                switch (this.objectResizeHandle) {
+                    case 'nw': // Dragging top-left, bottom-right stays fixed
+                        oppositeCornerLocalX = (img.width * Math.abs(baseScaleX)) / 2;
+                        oppositeCornerLocalY = (img.height * Math.abs(baseScaleY)) / 2;
+                        break;
+                    case 'ne': // Dragging top-right, bottom-left stays fixed
+                        oppositeCornerLocalX = -(img.width * Math.abs(baseScaleX)) / 2;
+                        oppositeCornerLocalY = (img.height * Math.abs(baseScaleY)) / 2;
+                        break;
+                    case 'sw': // Dragging bottom-left, top-right stays fixed
+                        oppositeCornerLocalX = (img.width * Math.abs(baseScaleX)) / 2;
+                        oppositeCornerLocalY = -(img.height * Math.abs(baseScaleY)) / 2;
+                        break;
+                    case 'se': // Dragging bottom-right, top-left stays fixed
+                        oppositeCornerLocalX = -(img.width * Math.abs(baseScaleX)) / 2;
+                        oppositeCornerLocalY = -(img.height * Math.abs(baseScaleY)) / 2;
+                        break;
+                }
+
+                // Convert opposite corner to world coordinates
+                const oppositeWorldX = start.x + (oppositeCornerLocalX * cos - oppositeCornerLocalY * sin);
+                const oppositeWorldY = start.y + (oppositeCornerLocalX * sin + oppositeCornerLocalY * cos);
+
+                // Calculate new opposite corner position with new scale
+                const newOppositeLocalX = oppositeCornerLocalX * (Math.abs(newScaleX) / Math.abs(baseScaleX));
+                const newOppositeLocalY = oppositeCornerLocalY * (Math.abs(newScaleY) / Math.abs(baseScaleY));
+
+                // Calculate where center should be to keep opposite corner in same world position
+                newX = oppositeWorldX - (newOppositeLocalX * cos - newOppositeLocalY * sin);
+                newY = oppositeWorldY - (newOppositeLocalX * sin + newOppositeLocalY * cos);
+
             } else {
-                // No shift: resize to mouse position (independent width/height scaling)
-                const scaleFactorX = 1 + (localDeltaX * 2) / baseWidth;
-                const scaleFactorY = 1 + (localDeltaY * 2) / baseHeight;
+                // No shift: resize based on handle direction (independent width/height scaling)
+                let scaleFactorX = 1;
+                let scaleFactorY = 1;
+
+                switch (this.objectResizeHandle) {
+                    case 'nw': // Top-left: dragging inward decreases size
+                        scaleFactorX = 1 - (localDeltaX / baseWidth);
+                        scaleFactorY = 1 - (localDeltaY / baseHeight);
+                        break;
+                    case 'ne': // Top-right: X outward increases, Y inward decreases
+                        scaleFactorX = 1 + (localDeltaX / baseWidth);
+                        scaleFactorY = 1 - (localDeltaY / baseHeight);
+                        break;
+                    case 'sw': // Bottom-left: X inward decreases, Y outward increases
+                        scaleFactorX = 1 - (localDeltaX / baseWidth);
+                        scaleFactorY = 1 + (localDeltaY / baseHeight);
+                        break;
+                    case 'se': // Bottom-right: both outward increase
+                        scaleFactorX = 1 + (localDeltaX / baseWidth);
+                        scaleFactorY = 1 + (localDeltaY / baseHeight);
+                        break;
+                }
 
                 const clampedScaleX = Math.max(0.1, Math.min(5.0, Math.abs(baseScaleX) * scaleFactorX));
                 const clampedScaleY = Math.max(0.1, Math.min(5.0, Math.abs(baseScaleY) * scaleFactorY));
@@ -12171,11 +12603,44 @@ Create drawing commands for this animation frame:`;
                 // Preserve the sign (flip state) while scaling
                 newScaleX = baseScaleX >= 0 ? clampedScaleX : -clampedScaleX;
                 newScaleY = baseScaleY >= 0 ? clampedScaleY : -clampedScaleY;
+
+                // Calculate the opposite corner position in world space (this should stay fixed)
+                let oppositeCornerLocalX, oppositeCornerLocalY;
+                switch (this.objectResizeHandle) {
+                    case 'nw':
+                        oppositeCornerLocalX = (img.width * Math.abs(baseScaleX)) / 2;
+                        oppositeCornerLocalY = (img.height * Math.abs(baseScaleY)) / 2;
+                        break;
+                    case 'ne':
+                        oppositeCornerLocalX = -(img.width * Math.abs(baseScaleX)) / 2;
+                        oppositeCornerLocalY = (img.height * Math.abs(baseScaleY)) / 2;
+                        break;
+                    case 'sw':
+                        oppositeCornerLocalX = (img.width * Math.abs(baseScaleX)) / 2;
+                        oppositeCornerLocalY = -(img.height * Math.abs(baseScaleY)) / 2;
+                        break;
+                    case 'se':
+                        oppositeCornerLocalX = -(img.width * Math.abs(baseScaleX)) / 2;
+                        oppositeCornerLocalY = -(img.height * Math.abs(baseScaleY)) / 2;
+                        break;
+                }
+
+                // Convert opposite corner to world coordinates
+                const oppositeWorldX = start.x + (oppositeCornerLocalX * cos - oppositeCornerLocalY * sin);
+                const oppositeWorldY = start.y + (oppositeCornerLocalX * sin + oppositeCornerLocalY * cos);
+
+                // Calculate new opposite corner position with new scale
+                const newOppositeLocalX = oppositeCornerLocalX * (Math.abs(newScaleX) / Math.abs(baseScaleX));
+                const newOppositeLocalY = oppositeCornerLocalY * (Math.abs(newScaleY) / Math.abs(baseScaleY));
+
+                // Calculate where center should be to keep opposite corner in same world position
+                newX = oppositeWorldX - (newOppositeLocalX * cos - newOppositeLocalY * sin);
+                newY = oppositeWorldY - (newOppositeLocalX * sin + newOppositeLocalY * cos);
             }
 
             obj.setKeyframe(this.currentFrame, {
-                x: start.x,
-                y: start.y,
+                x: newX,
+                y: newY,
                 scaleX: newScaleX,
                 scaleY: newScaleY,
                 angle: start.angle,
